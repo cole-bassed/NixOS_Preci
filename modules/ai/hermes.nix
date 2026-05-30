@@ -28,7 +28,6 @@ in {
         "edge-tts"
       ];
 
-
       settings = {
         model = {
           provider = "openai-codex";

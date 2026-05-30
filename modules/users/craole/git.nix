@@ -14,12 +14,12 @@
     cole-bassed = "75517056+cole-bassed@users.noreply.github.com";
   };
 
-  default = "craole";
+  default = "craole-cc";
   projectRoot = "${home}/Projects";
 
   repos =
     {
-      "${home}/.dots/" = "craole-cc";
+      "${home}/.dots/" = "cole-bassed";
     }
     // mapAttrs'
     (
