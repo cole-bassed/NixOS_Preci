@@ -111,12 +111,24 @@ in {
     };
   };
 
-  systemd.tmpfiles.rules = [
-  "d /var/lib/hermes 0750 hermes hermes - -"
-  "d /var/lib/hermes/.hermes 0750 hermes hermes - -"
-  "d /var/lib/hermes/workspace 0750 hermes hermes - -"
-  "L+ /var/lib/hermes/.hermes/.env - - - - ${config.sops.secrets.${secrets.env}.path}"
-];
+  systemd = {
+    services = {
+      hermes-agent = {
+        serviceConfig = {
+          EnvironmentFile = config.sops.secrets.${secrets.env}.path;
+          TimeoutStopSec = 240;
+        };
+      };
+    };
+
+    tmpfiles = {
+      rules = [
+        "d /var/lib/hermes 0750 hermes hermes - -"
+        "d /var/lib/hermes/.hermes 0750 hermes hermes - -"
+        "d /var/lib/hermes/workspace 0750 hermes hermes - -"
+      ];
+    };
+  };
 
   sops = {
     secrets = {
@@ -128,5 +140,9 @@ in {
     };
   };
 
-  virtualisation.docker.enable = true;
+  virtualisation = {
+    docker = {
+      enable = true;
+    };
+  };
 }
