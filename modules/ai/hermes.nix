@@ -111,9 +111,18 @@ in {
     };
   };
 
+  systemd.tmpfiles.rules = [
+  "d /var/lib/hermes 0750 hermes hermes - -"
+  "d /var/lib/hermes/.hermes 0750 hermes hermes - -"
+  "d /var/lib/hermes/workspace 0750 hermes hermes - -"
+  "L+ /var/lib/hermes/.hermes/.env - - - - ${config.sops.secrets.${secrets.env}.path}"
+];
+
   sops = {
     secrets = {
       ${secrets.env} = {
+        owner = "hermes";
+        group = "hermes";
         mode = "0400";
       };
     };
