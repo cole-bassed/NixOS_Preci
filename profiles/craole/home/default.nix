@@ -4,14 +4,17 @@
   ...
 }: {
   ${top} = {
+    interface = {
+      keybinds = {
+        enable = true;
+      };
+    };
+
     applications = {
       browsers = {
         enable = true;
       };
       git = {
-        enable = true;
-      };
-      keybinds = {
         enable = true;
       };
       noctalia = {

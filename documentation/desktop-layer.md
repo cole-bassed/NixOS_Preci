@@ -8,20 +8,22 @@ The reusable defaults live under `applications/` and the personal enablement liv
 
 Current layer:
 
-- `applications/keybinds`: semantic actions translated separately into Hyprland and Niri syntax.
-- `applications/vicinae`: launcher profile. Vicinae is the primary launcher command and Fuzzel remains installed as a safe fallback.
+- `modules/interface/keybinds`: semantic session/interface actions translated separately into Hyprland and Niri syntax.
+- `applications/vicinae`: launcher application profile. Vicinae is the primary launcher app and Fuzzel remains installed as a safe fallback.
 - `applications/noctalia`: current common panel/bar shell. It uses Noctalia for now and keeps compositor startup explicit.
 - `applications/browsers`: desktop browser defaults. Zen/Twilight should become the primary browser target when a real browser flake/package is available; Chromium is the current safe fallback.
 
 ## Launcher
 
-The shared `launcher` action stays semantic. It runs:
+The shared `primaryLauncher` action stays semantic in `modules/interface/keybinds`. It runs Vicinae, while the `secondaryLauncher` action runs Fuzzel:
 
 ```sh
-vicinae open || fuzzel
+vicinae open
+# secondary launcher
+fuzzel
 ```
 
-Hyprland and Niri both consume that same action through their existing compositor-specific bind translators.
+Hyprland binds Win alone to the primary launcher and Win+Space to the secondary launcher. Niri does not safely expose a bare Mod-only bind through niri-flake, so it keeps Win+Space as the launcher recovery path. Both translators keep compositor-specific syntax inside `modules/interface/keybinds/home.nix`.
 
 Home Manager exposes `programs.vicinae`, so `applications/vicinae/home.nix` enables that option while using the cached `pkgs.vicinae` package. The flake input for Vicinae is still present, but its package would need a local source build on this host and is intentionally not used for this low-risk phase.
 

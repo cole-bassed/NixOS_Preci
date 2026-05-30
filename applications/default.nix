@@ -5,7 +5,6 @@
     ./foot
     ./git
     ./keyd
-    ./keybinds
     ./kitty
     ./noctalia
     ./starship

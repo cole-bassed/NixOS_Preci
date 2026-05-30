@@ -6,7 +6,7 @@
   ...
 }: let
   inherit (lib) mkDefault mkEnableOption mkIf mkOption;
-  inherit (lib.types) bool package str;
+  inherit (lib.types) bool package;
 
   dom = "applications";
   mod = "vicinae";
@@ -19,19 +19,13 @@ in {
     package = mkOption {
       type = package;
       default = pkgs.vicinae;
-      description = "Vicinae package to install for the shared launcher action.";
+      description = "Vicinae package to install for the desktop launcher application profile.";
     };
 
     fallbackPackage = mkOption {
       type = package;
       default = pkgs.fuzzel;
       description = "Fallback launcher package used when Vicinae cannot open.";
-    };
-
-    command = mkOption {
-      type = str;
-      default = "vicinae open || fuzzel";
-      description = "Compositor-agnostic launcher command consumed by the shared keybind layer.";
     };
 
     systemd.enable = mkOption {
@@ -47,8 +41,6 @@ in {
       package = mkDefault cfg.package;
       systemd.enable = mkDefault cfg.systemd.enable;
     };
-
-    ${top}.${dom}.keybinds.actions.launcher.command = mkDefault cfg.command;
 
     home.packages = [cfg.fallbackPackage];
   };
