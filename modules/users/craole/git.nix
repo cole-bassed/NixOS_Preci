@@ -1,11 +1,9 @@
-
 {
   config,
   lib,
   pkgs,
   ...
-}:
-let
+}: let
   inherit (lib.attrsets) attrValues mapAttrs mapAttrs';
 
   home = config.home.homeDirectory;
@@ -24,14 +22,13 @@ let
       "${home}/.dots/" = "craole-cc";
     }
     // mapAttrs'
-      (
-        profile: _:
-          {
-            name = "${projectRoot}/${profile}/";
-            value = profile;
-          }
-      )
-      profiles;
+    (
+      profile: _: {
+        name = "${projectRoot}/${profile}/";
+        value = profile;
+      }
+    )
+    profiles;
 
   mkUser = profile: {
     name = profile;
@@ -52,81 +49,79 @@ let
     IdentitiesOnly = true;
   };
 
-  ghClone =
-    pkgs.writeShellApplication {
-      name = "gh-clone";
+  ghClone = pkgs.writeShellApplication {
+    name = "gh-clone";
 
-      runtimeInputs = with pkgs; [
-        coreutils
-        git
-      ];
+    runtimeInputs = with pkgs; [
+      coreutils
+      git
+    ];
 
-      text = ''
-        usage() {
-          cat <<'EOF'
-usage:
-  gh-clone <profile> <owner/repo>
-  gh-clone <profile> <owner/repo> <target-name>
+    text = ''
+              usage() {
+                cat <<'EOF'
+      usage:
+        gh-clone <profile> <owner/repo>
+        gh-clone <profile> <owner/repo> <target-name>
 
-examples:
-  gh-clone craole-cc craole-cc/dots
-  gh-clone craole Craole/example
-  gh-clone cole-bassed cole-bassed/site website
-EOF
-        }
+      examples:
+        gh-clone craole-cc craole-cc/dots
+        gh-clone craole Craole/example
+        gh-clone cole-bassed cole-bassed/site website
+      EOF
+              }
 
-        profile="''${1:-}"
-        repo="''${2:-}"
-        target="''${3:-}"
+              profile="''${1:-}"
+              repo="''${2:-}"
+              target="''${3:-}"
 
-        if [ -z "$profile" ] || [ -z "$repo" ]; then
-          usage
-          exit 2
-        fi
+              if [ -z "$profile" ] || [ -z "$repo" ]; then
+                usage
+                exit 2
+              fi
 
-        case "$profile" in
-          craole|craole-cc|cole-bassed)
-            ;;
-          *)
-            echo "error: unknown profile: $profile" >&2
-            echo "valid profiles: craole, craole-cc, cole-bassed" >&2
-            exit 2
-            ;;
-        esac
+              case "$profile" in
+                craole|craole-cc|cole-bassed)
+                  ;;
+                *)
+                  echo "error: unknown profile: $profile" >&2
+                  echo "valid profiles: craole, craole-cc, cole-bassed" >&2
+                  exit 2
+                  ;;
+              esac
 
-        case "$repo" in
-          */*)
-            ;;
-          *)
-            echo "error: repo must look like owner/repo" >&2
-            exit 2
-            ;;
-        esac
+              case "$repo" in
+                */*)
+                  ;;
+                *)
+                  echo "error: repo must look like owner/repo" >&2
+                  exit 2
+                  ;;
+              esac
 
-        owner="''${repo%%/*}"
-        name="''${repo##*/}"
-        name="''${name%.git}"
+              owner="''${repo%%/*}"
+              name="''${repo##*/}"
+              name="''${name%.git}"
 
-        if [ -z "$target" ]; then
-          target="$name"
-        fi
+              if [ -z "$target" ]; then
+                target="$name"
+              fi
 
-        base="${projectRoot}/$profile"
-        dest="$base/$target"
-        url="git@github_$profile:$owner/$name.git"
+              base="${projectRoot}/$profile"
+              dest="$base/$target"
+              url="git@github_$profile:$owner/$name.git"
 
-        mkdir -p "$base"
+              mkdir -p "$base"
 
-        if [ -e "$dest" ]; then
-          echo "error: destination already exists: $dest" >&2
-          exit 1
-        fi
+              if [ -e "$dest" ]; then
+                echo "error: destination already exists: $dest" >&2
+                exit 1
+              fi
 
-        git clone "$url" "$dest"
-      '';
-    };
-in
-{
+              git clone "$url" "$dest"
+    '';
+  };
+in {
   home.packages = [
     ghClone
   ];
@@ -197,14 +192,13 @@ in
           };
         }
         // mapAttrs'
-          (
-            profile: _:
-              {
-                name = "github_${profile}";
-                value = mkGithubHost profile;
-              }
-          )
-          profiles;
+        (
+          profile: _: {
+            name = "github_${profile}";
+            value = mkGithubHost profile;
+          }
+        )
+        profiles;
     };
   };
 }

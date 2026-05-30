@@ -3,9 +3,8 @@
   pkgs,
   dots,
   ...
-}:
-let
-apps=config.programs;
+}: let
+  apps = config.programs;
   dotsRun = pkgs.writeShellApplication {
     name = "dots-run";
 
@@ -97,8 +96,7 @@ apps=config.programs;
       dots-run nix flake update
     '';
   };
-in
-{
+in {
   nix = {
     settings.experimental-features = [
       "nix-command"
@@ -188,8 +186,8 @@ in
       #~@ Dev - editors, VCS, data, media
       # bat # ? Cat clone with syntax highlighting and paging
       helix # ? Modal editor with native LSP + tree-sitter
-vscode-fhs
-zed-eitor-fhs
+      vscode-fhs
+      zed-editor-fhs
       imagemagick # ? Image conversion and manipulation
       jql # ? JSON Query Language CLI tool built with Rust
       jq # ? Lightweight and flexible command-line JSON processor
@@ -204,8 +202,6 @@ zed-eitor-fhs
       figlet # ? ASCII art text banners
     ];
   };
-
-  
 
   programs = {
     bash = {
