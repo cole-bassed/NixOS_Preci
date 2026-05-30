@@ -22,9 +22,23 @@
     vicinae = {
       url = "github:vicinaehq/vicinae";
     };
+    quickshell = {
+      url = "github:outfoxxed/quickshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     noctalia = {
       url = "github:noctalia-dev/noctalia-shell";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        quickshell.follows = "quickshell";
+      };
+    };
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        home-manager.follows = "home-manager";
+      };
     };
   };
 
@@ -58,8 +72,17 @@
         inherit modules system;
         specialArgs =
           default.args
-          // {inherit inputs alpha dots top;}
+          // {
+            inherit
+              inputs
+              alpha
+              dots
+              top
+              ;
+          }
           // extraArgs;
       };
-  in {nixosConfigurations.Preci = mkNix {dots = "/home/craole/.dots";};};
+  in {
+    nixosConfigurations.Preci = mkNix {dots = "/home/craole/.dots";};
+  };
 }

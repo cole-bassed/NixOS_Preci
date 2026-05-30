@@ -1,5 +1,6 @@
 {
   config,
+  inputs,
   lib,
   pkgs,
   top,
@@ -13,6 +14,10 @@
 
   cfg = config.${top}.${dom}.${mod};
 in {
+  imports = [
+    inputs.noctalia.homeModules.default
+  ];
+
   options.${top}.${dom}.${mod} = {
     enable = mkEnableOption "Noctalia common panel/bar layer";
 
