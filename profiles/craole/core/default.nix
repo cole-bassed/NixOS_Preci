@@ -1,3 +1,9 @@
-{
-  # Craig's NixOS-side user composition lives here.
+{top, ...}: {
+  ${top} = {
+    applications = {
+      keyd = {
+        enable = true;
+      };
+    };
+  };
 }
