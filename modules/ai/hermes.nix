@@ -8,7 +8,6 @@
 
   hermesGateway = pkgs.writeShellApplication {
     name = "hermes-gateway";
-
     text = ''
       exec /run/wrappers/bin/sudo -u hermes \
         env \
@@ -43,7 +42,7 @@ in {
       settings = {
         model = {
           provider = "openai-codex";
-          default = "gpt-5.5-codex";
+          default = "gpt-5.5";
         };
 
         toolsets = ["all"];
@@ -59,7 +58,7 @@ in {
         compression = {
           enabled = true;
           threshold = 0.85;
-          summary_model = "gpt-5.5-codex";
+          summary_model = "gpt-5.4-mini";
         };
 
         memory = {
