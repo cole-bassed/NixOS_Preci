@@ -2,8 +2,7 @@
   imports = [
     ./system
     ./users
-    # ./ai
-    # ./secrets
+    ./ai
     ./interface
   ];
 }
