@@ -17,12 +17,22 @@
     '';
   };
 
+  dotsHermes = pkgs.writeShellApplication {
+    name = "dots-hermes";
+
+    text = ''
+      unset HERMES_HOME
+      cd "''${DOTS:-${dots}}"
+      exec hermes "$@"
+    '';
+  };
+
   secrets.env = "services/hermes/env";
 in {
   imports = [hermes-agent.nixosModules.default];
 
   environment = {
-    systemPackages = [hermesGateway];
+    systemPackages = [hermesGateway dotsHermes];
   };
 
   services = {
