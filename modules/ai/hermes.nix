@@ -1,6 +1,7 @@
 {
   config,
   inputs,
+  lib,
   ...
 }: let
   inherit (inputs) hermes-agent;
@@ -17,7 +18,6 @@ in {
     hermes-agent = {
       enable = true;
 
-      # Keep local first. Enable container only after auth/model routing works.
       container = {
         enable = false;
       };
@@ -40,7 +40,7 @@ in {
 
         terminal = {
           backend = "local";
-          cwd = ".";
+          cwd = "/var/lib/hermes/workspace";
           timeout = 180;
         };
 
@@ -67,8 +67,6 @@ in {
       };
 
       # ── Secrets ────────────────────────────────────────────────────────
-      # Not strictly required for openai-codex OAuth, but useful for optional
-      # provider keys or service environment values later.
       environmentFiles = [
         config.sops.secrets.${secrets.env}.path
       ];
@@ -117,6 +115,9 @@ in {
         serviceConfig = {
           EnvironmentFile = config.sops.secrets.${secrets.env}.path;
           TimeoutStopSec = 240;
+          UnsetEnvironment = [
+            "MESSAGING_CWD"
+          ];
         };
       };
     };
@@ -126,6 +127,7 @@ in {
         "d /var/lib/hermes 0750 hermes hermes - -"
         "d /var/lib/hermes/.hermes 0750 hermes hermes - -"
         "d /var/lib/hermes/workspace 0750 hermes hermes - -"
+        "L+ /var/lib/hermes/.hermes/.env - - - - ${config.sops.secrets.${secrets.env}.path}"
       ];
     };
   };
