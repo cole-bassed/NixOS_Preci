@@ -1,4 +1,15 @@
-{osConfig, ...}: {
+{osConfig, top, ...}: {
+  ${top} = {
+    applications = {
+      git = {
+        enable = true;
+      };
+      starship = {
+        enable = true;
+      };
+    };
+  };
+
   home = {
     inherit (osConfig.system) stateVersion;
 
@@ -10,6 +21,5 @@
 
   imports = [
     ./git.nix
-    ./starship.nix
   ];
 }

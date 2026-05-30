@@ -27,7 +27,6 @@ in {
     # ];
     useGlobalPkgs = true;
     useUserPackages = true;
-    users."${name}" = import ./${name};
   };
 
   security.sudo = {

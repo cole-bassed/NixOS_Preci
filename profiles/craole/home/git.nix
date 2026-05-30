@@ -128,55 +128,11 @@ in {
 
   programs = {
     git = {
-      enable = true;
-
-      lfs = {
-        enable = true;
-      };
-
       settings = {
         user = mkUser default;
-
-        init = {
-          defaultBranch = "main";
-        };
-
-        pull = {
-          rebase = true;
-        };
-
-        rebase = {
-          autoStash = true;
-        };
-
-        push = {
-          autoSetupRemote = true;
-        };
-
-        core = {
-          editor = "hx";
-        };
-
-        merge = {
-          conflictStyle = "zdiff3";
-        };
       };
 
       includes = attrValues (mapAttrs mkGitInclude repos);
-    };
-
-    delta = {
-      enable = true;
-      enableGitIntegration = true;
-
-      options = {
-        navigate = true;
-        side-by-side = true;
-      };
-    };
-
-    gitui = {
-      enable = true;
     };
 
     ssh = {

@@ -32,6 +32,8 @@
     default = {
       modules = [
         ./modules
+        ./applications
+        ./profiles
         ./secrets
       ];
       system = "x86_64-linux";
