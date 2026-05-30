@@ -27,14 +27,10 @@ in {
       settings = {
         model = {
           provider = "openai-codex";
-
-          # If Hermes reports a different Codex model id, change only this.
           default = "gpt-5.5-codex";
         };
 
-        toolsets = [
-          "all"
-        ];
+        toolsets = [          "all"];
 
         max_turns = 100;
 
@@ -47,8 +43,6 @@ in {
         compression = {
           enabled = true;
           threshold = 0.85;
-
-          # Keep this on the same auth path unless you intentionally add Gemini/OpenRouter.
           summary_model = "gpt-5.5-codex";
         };
 
@@ -105,7 +99,7 @@ in {
       addToSystemPackages = true;
 
       extraArgs = [
-        "--verbose"
+        # "--verbose"
       ];
 
       restart = "always";

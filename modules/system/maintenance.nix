@@ -117,6 +117,8 @@ in {
 
       up = "dots-update";
       hix = "dots-edit";
+      edots = "dots-edit";
+      vdots="dots-code";fdots="dots-format";
       fix = "dots-format";
 
       llx = ''ll "$DOTS"'';
