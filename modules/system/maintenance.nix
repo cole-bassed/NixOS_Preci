@@ -126,6 +126,8 @@ in {
       ltx = ''lt "$DOTS"'';
       ltr = ''lr "$DOTS"'';
 
+      build = ''nh os build "$DOTS"'';
+      check = ''nh os test "$DOTS"'';
       switch = ''nh os switch "$DOTS"'';
     };
 
