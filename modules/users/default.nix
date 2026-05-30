@@ -1,6 +1,7 @@
 {
   inputs,
   alpha,
+  top,
   ...
 }: let
   inherit (alpha) name description;
@@ -17,7 +18,7 @@ in {
 
   home-manager = {
     backupFileExtension = "BaC";
-    extraSpecialArgs = {inherit inputs;};
+    extraSpecialArgs = {inherit inputs top;};
     # sharedModules = with inputs; [
     #   niri.homeModules.niri
     #   vicinae.homeManagerModules.default

@@ -39,16 +39,16 @@
         name = "craole";
         description = "Craig 'Craole' Cole";
       };
+      top = "dots";
       dots = "/etc/nixos";
-      args = {
-        inherit inputs;
-      };
+      args = {inherit inputs;};
     };
 
     mkNix = {
       modules ? default.modules,
       system ? default.system,
       dots ? default.dots,
+      top ? default.top,
       alpha ? default.user,
       extraArgs ? {},
     }:
@@ -56,7 +56,7 @@
         inherit modules system;
         specialArgs =
           default.args
-          // {inherit inputs alpha dots;}
+          // {inherit inputs alpha dots top;}
           // extraArgs;
       };
   in {nixosConfigurations.Preci = mkNix {dots = "/home/craole/.dots";};};
