@@ -1,5 +1,5 @@
 {
-  config,pkgs,
+  config,
   inputs,
   ...
 }: let
@@ -23,13 +23,19 @@ in {
       };
 
       # ── Model ──────────────────────────────────────────────────────────
+      extraDependencyGroups = [
+        "messaging"
+        "edge-tts"
+      ];
+
+
       settings = {
         model = {
           provider = "openai-codex";
           default = "gpt-5.5-codex";
         };
 
-        toolsets = [          "all"];
+        toolsets = ["all"];
 
         max_turns = 100;
 
@@ -114,8 +120,5 @@ in {
     };
   };
 
-  virtualisation.docker.enable=true;
-    environment.systemPackages = [
-    pkgs.python313Packages.python-telegram-bot
-  ];
+  virtualisation.docker.enable = true;
 }

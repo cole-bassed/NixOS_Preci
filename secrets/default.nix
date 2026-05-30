@@ -144,16 +144,16 @@
             }
         )
         spec;
-        # // mapAttrs'
-        # (
-        #   n: _:
-        #     nameValuePair keys.${n}.public {
-        #       owner = name;
-        #       path = paths.${n}.public;
-        #       mode = "0644";
-        #     }
-        # )
-        # spec;
+      # // mapAttrs'
+      # (
+      #   n: _:
+      #     nameValuePair keys.${n}.public {
+      #       owner = name;
+      #       path = paths.${n}.public;
+      #       mode = "0644";
+      #     }
+      # )
+      # spec;
 
       dirs = unique (
         map
