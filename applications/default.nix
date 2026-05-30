@@ -1,56 +1,51 @@
 {lib, ...}: let
-  inherit (builtins) readDir;
-  inherit (lib) filter mapAttrsToList pathExists;
+  inherit (lib.attrsets) filterAttrs mapAttrsToList;
+  inherit (lib.filesystem) pathIsRegularFile readDir;
+  inherit (lib.lists) elem filter findFirst;
 
-  appRoot = ./.;
-
-  inactiveDirs = [
+  base = ./.;
+  ignore = [
     "archive"
     "backup"
     "review"
     "temp"
   ];
 
-  isActiveAppDir = name: type:
-    type == "directory" && !(builtins.elem name inactiveDirs);
+  getPath = app: path: base + "/${app}/${path}";
+  isAllowedDir = name: type: type == "directory" && !(elem name ignore);
+  apps = filterAttrs isAllowedDir (readDir base);
 
-  activeApps = lib.filterAttrs isActiveAppDir (readDir appRoot);
-
-  firstExisting = paths:
-    lib.findFirst pathExists null paths;
-
-  appPath = app: path:
-    appRoot + "/${app}/${path}";
-
-  coreModule = app:
-    firstExisting [
-      (appPath app "core.nix")
-      (appPath app "core/default.nix")
+  findNix = root: stem:
+    findFirst pathIsRegularFile null [
+      (getPath root "${stem}.nix")
+      (getPath root "${stem}/default.nix")
     ];
 
-  splitHomeModule = app:
-    firstExisting [
-      (appPath app "home.nix")
-      (appPath app "home/default.nix")
-    ];
-
-  homeModule = app: let
-    core = coreModule app;
-    home = splitHomeModule app;
-    default = appPath app "default.nix";
-  in
-    if home != null
-    then home
-    else if core == null && pathExists default
-    then default
-    else null;
-
-  modulesFor = moduleFor:
-    filter (module: module != null) (mapAttrsToList (name: _: moduleFor name) activeApps);
-in {
-  imports = modulesFor coreModule;
-
-  home-manager = {
-    sharedModules = modulesFor homeModule;
+  mkModules = app: let
+    default = getPath app "default.nix";
+    core = findNix app "core";
+    home = findNix app "home";
+    flat =
+      if core == null && home == null && pathIsRegularFile default
+      then default
+      else null;
+  in {
+    inherit core;
+    home =
+      if home != null
+      then home
+      else flat;
   };
+
+  modulesFor = getModule:
+    filter
+    (module: module != null)
+    (
+      mapAttrsToList
+      (app: _: getModule (mkModules app))
+      apps
+    );
+in {
+  imports = modulesFor (modules: modules.core);
+  home-manager.sharedModules = modulesFor (modules: modules.home);
 }

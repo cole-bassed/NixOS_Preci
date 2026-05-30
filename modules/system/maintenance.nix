@@ -5,6 +5,7 @@
   ...
 }: let
   apps = config.programs;
+
   dotsRun = pkgs.writeShellApplication {
     name = "dots-run";
 
@@ -71,12 +72,14 @@
 
     runtimeInputs = with pkgs; [
       alejandra
+      statix
       dotsRun
     ];
 
     text = ''
       dots="''${DOTS:-${dots}}"
 
+      dots-run statix fix "$dots"
       dots-run alejandra "$dots"
     '';
   };
@@ -115,6 +118,7 @@ in {
       ede-dots = "dots-edit";
       ide-dots = "dots-code";
 
+      cddots = ''cd "$DOTS"'';
       up = "dots-update";
       hix = "dots-edit";
       edots = "dots-edit";
@@ -142,6 +146,7 @@ in {
       #~@ Nix - formatters, LSPs, cache, prefetchers
       alejandra # ? Opinionated Nix formatter (primary)
       nixfmt # ? RFC-style Nix formatter (secondary)
+      statix # ? Lints and suggestions for Nix - fixes antipatterns
       cachix # ? Binary cache management CLI
       nil # ? Nix LSP for static analysis
       nixd # ? Nix language server daemon

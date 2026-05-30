@@ -23,8 +23,7 @@
     sep ? "-",
   }:
     concatStringsSep sep (
-      []
-      ++ optionals (prefix != null) (toList prefix)
+      optionals (prefix != null) (toList prefix)
       ++ [name]
       ++ optionals (suffix != null) (toList suffix)
     );
@@ -122,12 +121,12 @@
         (_: key: {
           private = mk.path {
             base = key.base or [".ssh"];
-            file = key.file;
+            inherit (key) file;
           };
 
           public = mk.path {
             base = key.base or [".ssh"];
-            file = key.file;
+            inherit (key) file;
             ext = key.ext or ".pub";
           };
         })
