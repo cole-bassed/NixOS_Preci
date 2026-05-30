@@ -188,6 +188,8 @@ in
       #~@ Dev - editors, VCS, data, media
       # bat # ? Cat clone with syntax highlighting and paging
       helix # ? Modal editor with native LSP + tree-sitter
+vscode-fhs
+zed-eitor-fhs
       imagemagick # ? Image conversion and manipulation
       jql # ? JSON Query Language CLI tool built with Rust
       jq # ? Lightweight and flexible command-line JSON processor
