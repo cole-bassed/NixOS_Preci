@@ -1,3 +1,6 @@
-{
-  imports = [./hermes.nix];
-}
+{lix, ...} @ args:
+lix.importModules (args
+  // {
+    base = ./.;
+    includeFiles = true;
+  })

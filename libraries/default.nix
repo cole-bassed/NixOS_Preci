@@ -150,8 +150,7 @@
     (readDirAttrs {
       inherit base ignore;
       predicate = name: type:
-        type
-        == "directory"
+        (type == "directory" && pathIsRegularFile (base + "/${name}/${defaults.entrypoint}"))
         || (
           includeFiles
           && type == "regular"
