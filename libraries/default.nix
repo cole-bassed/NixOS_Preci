@@ -1,6 +1,7 @@
 {
   inputs,
   lib,
+  nixosSystem,
   defaults,
 }: let
   inherit
@@ -26,7 +27,7 @@
     system ? defaults.system,
     top ? defaults.top,
   }:
-    lib.nixosSystem {
+    nixosSystem {
       inherit modules system;
       specialArgs =
         {inherit inputs alpha dots top;}

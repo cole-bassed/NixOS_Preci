@@ -8,7 +8,9 @@
   ...
 }: let
   inherit (lib.modules) mkDefault mkIf;
-  inherit (lix) mkModuleArgs mkEnable;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) bool package;
+  inherit (lix) mkEnable mkModuleArgs;
 in {
   core = [];
 
@@ -22,20 +24,20 @@ in {
     options = opt {
       enable = mkEnableMod.false;
 
-      package = lib.mkOption {
-        type = lib.types.package;
+      package = mkOption {
+        type = package;
         default = pkgs.vicinae;
         description = "Vicinae package to install for the desktop launcher application profile.";
       };
 
-      fallbackPackage = lib.mkOption {
-        type = lib.types.package;
+      fallbackPackage = mkOption {
+        type = package;
         default = pkgs.fuzzel;
         description = "Fallback launcher package used when Vicinae cannot open.";
       };
 
-      systemd.enable = lib.mkOption {
-        type = lib.types.bool;
+      systemd.enable = mkOption {
+        type = bool;
         default = true;
         description = "Whether to start the Vicinae daemon through Home Manager's user service.";
       };
