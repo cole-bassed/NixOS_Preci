@@ -171,7 +171,6 @@ in {
       usbutils # ? USB tools - lsusb
       gnome-randr # ? Display configuration for GNOME/Wayland
       wlr-randr # ? Display configuration for wlroots WMs
-      # wl-clipboardi #? Command-line copy/paste utilities for Wayland
       wl-clipboard-rs # ? Command-line copy/paste utilities for Wayland, written with Rust
       procs # ? Modern ps replacement with tree view
 
@@ -250,6 +249,7 @@ in {
         };
       };
     };
+    nix-ld.enable = true;
 
     bat = {
       enable = true;
