@@ -11,18 +11,18 @@
   inherit (lib.modules) mkDefault mkForce mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) package str;
-  inherit (lix) mkModuleArgs;
+  inherit (lix) mkModuleArgs mkEnable;
 in {
   core = [];
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnable;
+    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnableMod;
   in {
     imports = [inputs.noctalia.homeModules.default];
 
     options = opt {
-      enable = mkEnable.false;
+      enable = mkEnableMod.false;
       package = mkOption {
         type = package;
         default = pkgs.noctalia-shell;
@@ -46,8 +46,8 @@ in {
         systemd.enable = mkDefault false;
       };
 
-      programs.niri.settings.spawn-at-startup = mkIf cfg.onNiri [{argv = [cfg.command];}];
-      wayland.windowManager.hyprland.settings.exec-once = mkIf cfg.onHyprland [cfg.command];
+      programs.niri.settings.spawn-at-startup = mkIf cfg.onNiri.enable [{argv = [cfg.command];}];
+      wayland.windowManager.hyprland.settings.exec-once = mkIf cfg.onHyprland.enable [cfg.command];
     };
   };
 }

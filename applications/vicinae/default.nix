@@ -8,19 +8,19 @@
   ...
 }: let
   inherit (lib.modules) mkDefault mkIf;
-  inherit (lix) mkModuleArgs;
+  inherit (lix) mkModuleArgs mkEnable;
 in {
   core = [];
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnable;
+    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnableMod;
 
     # Shared launch command used by both compositors
     launch = "${cfg.package}/bin/vicinae";
   in {
     options = opt {
-      enable = mkEnable.false;
+      enable = mkEnableMod.false;
 
       package = lib.mkOption {
         type = lib.types.package;

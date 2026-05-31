@@ -12,10 +12,10 @@
 in {
   core = {config, ...}: let
     scope = "core";
-    inherit (mkArgs {inherit config scope;}) cfg opt mkEnable;
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
   in {
     options = opt {
-      enable = mkEnable.false;
+      enable = mkEnableMod.false;
       package = mkOption {
         type = package;
         default = packages.${name};
@@ -29,10 +29,10 @@ in {
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mkArgs {inherit config scope;}) cfg opt mkEnable;
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
   in {
     options = opt {
-      enable = mkEnable.false;
+      enable = mkEnableMod.false;
       package = mkOption {
         type = package;
         default = packages.${name};

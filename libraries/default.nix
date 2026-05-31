@@ -80,6 +80,12 @@
   }:
     setAttrByPath (toList path) options;
 
+  mkEnableMod = {
+    mod,
+    scope,
+  }:
+    mkEnable {inherit mod scope;};
+
   mkModuleArgs = {
     config,
     top,
@@ -89,9 +95,9 @@
   }: let
     path = [top dom mod];
   in {
+    inherit mkEnableMod;
     cfg = mkCfg {inherit config path;};
     opt = options: mkOpt {inherit options path;};
-    mkEnable = mkEnable {inherit mod scope;};
   };
 
   readDirAttrs = {

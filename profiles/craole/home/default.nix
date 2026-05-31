@@ -42,6 +42,4 @@ in {
       VISUAL = "code";
     };
   };
-
-  imports = [./git.nix];
 }

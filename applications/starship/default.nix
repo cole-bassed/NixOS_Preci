@@ -12,11 +12,11 @@
 
   mk = scope: {config, ...}: let
     _ = mkModuleArgs {inherit config top dom mod scope;};
-    inherit (_) cfg opt mkEnable;
+    inherit (_) cfg opt mkEnableMod;
     package = pkgs.${mod};
     inherit (cfg) enable;
   in {
-    options = opt {enable = mkEnable.true;};
+    options = opt {enable = mkEnableMod.true;};
     config = mkIf enable (
       if scope == "core"
       then {environment.systemPackages = [package];}

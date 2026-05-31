@@ -9,10 +9,10 @@
 in {
   home = {config, ...}: let
     scope = "home";
-    inherit (mkArgs {inherit config scope;}) opt mkEnable;
+    inherit (mkArgs {inherit config scope;}) opt mkEnableMod;
   in {
     options = opt {
-      enable = mkEnable.false;
+      enable = mkEnableMod.false;
       channel = mkOption {
         type = enum ["beta" "twilight" "twilight-official"];
         default = "twilight";

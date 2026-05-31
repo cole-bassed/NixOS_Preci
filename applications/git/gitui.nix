@@ -16,9 +16,9 @@ in {
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mkArgs {inherit config scope;}) cfg opt mkEnable;
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
   in {
-    options = opt {${name}.enable = (mkEnable {inherit name;}).true;};
+    options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
     config = mkIf cfg.enable {
       programs.${name} = {
         enable = mkDefault true;
