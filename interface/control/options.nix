@@ -5,6 +5,7 @@
 }: let
   dom = "interface";
   mod = "keybinds";
+
   inherit (lib.options) mkEnableOption mkOption;
   inherit (lib.types) nullOr str submodule;
 
