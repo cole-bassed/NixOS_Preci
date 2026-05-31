@@ -3,6 +3,7 @@
   config,
   lib,
   pkgs,
+  top,
   ...
 }: let
   inherit (lib.attrsets) attrValues mapAttrs mapAttrs';

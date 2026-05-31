@@ -1,7 +1,10 @@
 {
   imports = [
-    ./system
-    ./ai
-    ./interface
+    ./hardware.nix
+    ./filesystem.nix
+    ./fonts.nix
+    ./maintenance.nix
+    ./remote.nix
+    ./users.nix
   ];
 }

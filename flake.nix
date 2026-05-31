@@ -44,8 +44,10 @@
 
     default = {
       modules = [
-        ./modules
+        ./ai
         ./applications
+        ./interface
+        ./modules
         ./profiles
         ./secrets
       ];
@@ -60,12 +62,12 @@
     };
 
     mkNix = {
+      alpha ? default.user,
+      dots ? default.dots,
+      extraArgs ? {},
       modules ? default.modules,
       system ? default.system,
-      dots ? default.dots,
       top ? default.top,
-      alpha ? default.user,
-      extraArgs ? {},
     }:
       nixosSystem {
         inherit modules system;
