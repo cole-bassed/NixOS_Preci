@@ -345,7 +345,7 @@ in {
 
       keyboardShortcutsVersion = mkOption {
         type = nullOr int;
-        default = 17;
+        default = 19;
         description = "Expected Zen keyboard shortcut schema version.";
       };
 
