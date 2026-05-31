@@ -4,7 +4,8 @@
   top,
   ...
 }: let
-  inherit (lib) mkDefault mkEnableOption mkIf;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkEnableOption;
 
   dom = "applications";
   mod = "starship";

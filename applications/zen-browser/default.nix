@@ -6,7 +6,9 @@
   top,
   ...
 }: let
-  inherit (lib) mkDefault mkEnableOption mkIf mkOption;
+  inherit (lib.attrsets) mapAttrs;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkEnableOption mkOption;
   inherit (lib.types) attrs bool enum int listOf nullOr package str;
 
   dom = "applications";
@@ -14,7 +16,9 @@
 
   cfg = config.${top}.${dom}.${mod};
 
-  mkExtensionSettings = lib.mapAttrs (_: pluginId: {
+  selectedUnwrappedPackage = inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}."${cfg.channel}-unwrapped";
+
+  mkExtensionSettings = mapAttrs (_: pluginId: {
     install_url = "https://addons.mozilla.org/firefox/downloads/latest/${pluginId}/latest.xpi";
     installation_mode = "force_installed";
   });
@@ -33,6 +37,12 @@ in {
 
   options.${top}.${dom}.${mod} = {
     enable = mkEnableOption "Zen Browser Home Manager profile";
+
+    channel = mkOption {
+      type = enum ["beta" "twilight" "twilight-official"];
+      default = "twilight";
+      description = "Zen Browser release channel/package to use.";
+    };
 
     setAsDefaultBrowser = mkOption {
       type = bool;
@@ -406,6 +416,7 @@ in {
       setAsDefaultBrowser = mkDefault cfg.setAsDefaultBrowser;
       policies = mkDefault cfg.policies;
       nativeMessagingHosts = mkDefault cfg.nativeMessagingHosts;
+      unwrappedPackage = mkDefault selectedUnwrappedPackage;
 
       profiles.${cfg.profile.name} = {
         settings = mkDefault cfg.profile.settings;

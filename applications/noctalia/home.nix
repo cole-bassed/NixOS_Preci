@@ -6,7 +6,8 @@
   top,
   ...
 }: let
-  inherit (lib) mkDefault mkEnableOption mkForce mkIf mkOption;
+  inherit (lib.modules) mkDefault mkForce mkIf;
+  inherit (lib.options) mkEnableOption mkOption;
   inherit (lib.types) bool package str;
 
   dom = "applications";

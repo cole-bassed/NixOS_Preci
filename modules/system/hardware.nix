@@ -4,7 +4,9 @@
   pkgs,
   modulesPath,
   ...
-}: {
+}: let
+  inherit (lib.modules) mkDefault;
+in {
   imports = [(modulesPath + "/installer/scan/not-detected.nix")];
 
   boot = {
@@ -62,7 +64,7 @@
   ];
 
   nixpkgs = {
-    hostPlatform = lib.mkDefault "x86_64-linux";
+    hostPlatform = mkDefault "x86_64-linux";
     config.allowUnfree = true;
   };
 
@@ -85,7 +87,7 @@
   };
 
   hardware = {
-    cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+    cpu.intel.updateMicrocode = mkDefault config.hardware.enableRedistributableFirmware;
     graphics = {
       enable = true;
       enable32Bit = true;

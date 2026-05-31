@@ -4,7 +4,8 @@
   top,
   ...
 }: let
-  inherit (lib) mkDefault mkEnableOption mkIf mkOption;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkEnableOption mkOption;
   inherit (lib.types) bool listOf str;
 
   dom = "applications";

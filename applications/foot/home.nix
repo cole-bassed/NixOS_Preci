@@ -4,16 +4,19 @@
   top,
   ...
 }: let
+  inherit (lib.modules) mkIf;
+  inherit (lib.options) mkEnableOption;
+
   dom = "applications";
   mod = "foot";
 
   cfg = config.${top}.${dom}.${mod};
 in {
   options.${top}.${dom}.${mod} = {
-    enable = lib.mkEnableOption "Foot Home Manager configuration";
+    enable = mkEnableOption "Foot Home Manager configuration";
   };
 
-  config = lib.mkIf cfg.enable {
+  config = mkIf cfg.enable {
     programs = {
       foot = {
         enable = true;

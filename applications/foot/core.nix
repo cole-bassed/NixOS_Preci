@@ -5,20 +5,24 @@
   top,
   ...
 }: let
+  inherit (lib.modules) mkIf;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) bool;
+
   dom = "applications";
   mod = "foot";
 
   cfg = config.${top}.${dom}.${mod};
 in {
   options.${top}.${dom}.${mod} = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
+    enable = mkOption {
+      type = bool;
       default = true;
       description = "Whether to install Foot system-wide.";
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = mkIf cfg.enable {
     environment = {
       systemPackages = [
         pkgs.foot

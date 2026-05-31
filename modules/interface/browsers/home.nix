@@ -5,7 +5,10 @@
   top,
   ...
 }: let
-  inherit (lib) mkDefault mkEnableOption mkIf mkOption;
+  inherit (lib.attrsets) genAttrs;
+  inherit (lib.lists) optional;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkEnableOption mkOption;
   inherit (lib.types) nullOr package str;
 
   dom = "interface";
@@ -59,14 +62,14 @@ in {
   config = mkIf cfg.enable {
     home.packages =
       [cfg.secondary.package]
-      ++ lib.optional (cfg.primary.package != null) cfg.primary.package;
+      ++ optional (cfg.primary.package != null) cfg.primary.package;
 
     xdg.mimeApps = {
       enable = mkDefault true;
-      defaultApplications = lib.genAttrs browserMimeTypes (_:
+      defaultApplications = genAttrs browserMimeTypes (_:
         mkDefault (
           [defaultDesktop]
-          ++ lib.optional (cfg.secondary.desktop != defaultDesktop) cfg.secondary.desktop
+          ++ optional (cfg.secondary.desktop != defaultDesktop) cfg.secondary.desktop
         ));
     };
   };

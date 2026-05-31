@@ -43,6 +43,8 @@
   };
 
   outputs = {nixpkgs, ...} @ inputs: let
+    inherit (nixpkgs.lib) nixosSystem;
+
     default = {
       modules = [
         ./modules
@@ -68,7 +70,7 @@
       alpha ? default.user,
       extraArgs ? {},
     }:
-      nixpkgs.lib.nixosSystem {
+      nixosSystem {
         inherit modules system;
         specialArgs =
           default.args

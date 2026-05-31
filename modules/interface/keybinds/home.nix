@@ -5,7 +5,11 @@
   top,
   ...
 }: let
-  inherit (lib) attrValues concatMap filterAttrs mkDefault mkEnableOption mkIf mkOption optionalAttrs;
+  inherit (lib.attrsets) attrValues filterAttrs optionalAttrs;
+  inherit (lib.lists) concatMap;
+  inherit (lib.meta) getExe;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkEnableOption mkOption;
   inherit (lib.types) bool nullOr str submodule;
 
   dom = "interface";
@@ -14,7 +18,7 @@
   cfg = config.${top}.${dom}.${mod};
 
   helpScript = pkgs.writeShellScriptBin "dots-common-keybinds" ''
-    ${lib.getExe pkgs.libnotify} "Common desktop keybinds" "$(cat <<'HELP'
+    ${getExe pkgs.libnotify} "Common desktop keybinds" "$(cat <<'HELP'
     Win: primary launcher (Hyprland)
     Win+Space: secondary launcher
     Win+Ctrl+/: show keybind help
