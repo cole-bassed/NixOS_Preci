@@ -12,9 +12,11 @@
     mapAttrsToList
     setAttrByPath
     ;
-  inherit (lib.filesystem) baseNameOf readDir;
-  inherit (lib.lists) elem concatMap optionals toList;
+  inherit (lib.filesystem) baseNameOf pathIsRegularFile readDir;
+  inherit (lib.lists) concatMap elem filter findFirst optionals toList;
   inherit (lib.options) mkEnableOption;
+  inherit (lib.strings) hasSuffix removeSuffix;
+  inherit (lib.trivial) isFunction;
 
   mkNix = {
     alpha ? defaults.user,
@@ -113,53 +115,148 @@
     args ? {},
     base,
     name,
-    path ? "default.nix",
-  }:
-    import (base + "/${name}/${path}") args;
+    path ? defaults.entrypoint,
+  }: let
+    module = import (base + "/${name}/${path}");
+  in
+    if isFunction module
+    then module args
+    else module;
 
   asList = val: optionals (val != null) (toList val);
+
+  moduleEntries = {
+    base,
+    ignore ? defaults.ignore,
+    includeFiles ? false,
+  }:
+    mapAttrsToList
+    (name: type: let
+      isDirectory = type == "directory";
+      isFile = type == "regular";
+    in {
+      inherit isDirectory isFile name;
+      mod =
+        if isFile
+        then removeSuffix ".nix" name
+        else name;
+      path =
+        if isFile
+        then base + "/${name}"
+        else base + "/${name}/${defaults.entrypoint}";
+      spec = isDirectory;
+      raw = isFile;
+    })
+    (readDirAttrs {
+      inherit base ignore;
+      predicate = name: type:
+        type
+        == "directory"
+        || (
+          includeFiles
+          && type == "regular"
+          && hasSuffix ".nix" name
+          && name != defaults.entrypoint
+        );
+    });
 
   collectModules = {
     args,
     extraArgs ? {},
     base,
     ignore ? defaults.ignore,
+    includeFiles ? false,
+    rawTag ? "core",
     path ? defaults.entrypoint,
     tags ? defaults.tags,
   }: let
-    entries = readDirAttrs {inherit base ignore;};
+    entries = moduleEntries {inherit base ignore includeFiles;};
 
-    specs =
-      mapAttrsToList
-      (name: _:
+    specFor = entry:
+      if entry.raw
+      then {${rawTag} = entry.path;}
+      else
         importModule {
-          inherit base path name;
+          inherit base path;
+          name = entry.name;
           args =
             args
             // {
               dom = baseNameOf (toString base);
-              mod = name;
+              mod = entry.mod;
             }
             // extraArgs;
-        })
-      entries;
+        };
+
+    specs = map specFor entries;
   in
     genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);
 
   importModules = args @ {
     base,
     ignore ? defaults.ignore,
+    includeFiles ? false,
+    rawTag ? "core",
     path ? defaults.entrypoint,
     tags ? defaults.tags,
     extraArgs ? {},
     ...
   }: let
     modules = collectModules {
-      inherit args base ignore path tags extraArgs;
+      inherit args base ignore includeFiles rawTag path tags extraArgs;
     };
   in {
     imports = modules.core or [];
     home-manager.sharedModules = modules.home or [];
+  };
+
+  findNix = base: name: stem:
+    findFirst pathIsRegularFile null [
+      (base + "/${name}/${stem}.nix")
+      (base + "/${name}/${stem}/${defaults.entrypoint}")
+    ];
+
+  profileEntries = {
+    base,
+    ignore ? defaults.ignore,
+  }:
+    readDirAttrs {inherit base ignore;};
+
+  mkProfileConfig = base: user: let
+    default = base + "/${user}/${defaults.entrypoint}";
+    core = findNix base user "core";
+    home = findNix base user "home";
+    flat =
+      if core == null && home == null && pathIsRegularFile default
+      then default
+      else null;
+  in {
+    inherit core;
+    home =
+      if home != null
+      then home
+      else flat;
+  };
+
+  importProfiles = {
+    base,
+    ignore ? defaults.ignore,
+  }: let
+    users = profileEntries {inherit base ignore;};
+  in {
+    imports =
+      filter
+      (module: module != null)
+      (mapAttrsToList (user: _: (mkProfileConfig base user).core) users);
+
+    home-manager.users = genAttrs (mapAttrsToList (user: _: user) users) (
+      user: let
+        cfg = mkProfileConfig base user;
+      in
+        if cfg.home != null
+        then import cfg.home
+        else {}
+    );
   };
 in {
   inherit
@@ -168,8 +265,10 @@ in {
     mkCfg
     mkOpt
     mkModuleArgs
+    moduleEntries
     collectModules
     importModules
+    importProfiles
     mkNix
     mkNixConfigurations
     ;

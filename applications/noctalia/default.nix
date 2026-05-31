@@ -46,8 +46,8 @@ in {
         systemd.enable = mkDefault false;
       };
 
-      programs.niri.settings.spawn-at-startup = mkIf cfg.onNiri.enable [{argv = [cfg.command];}];
-      wayland.windowManager.hyprland.settings.exec-once = mkIf cfg.onHyprland.enable [cfg.command];
+      programs.niri.settings.spawn-at-startup = mkIf cfg.onNiri [{argv = [cfg.command];}];
+      wayland.windowManager.hyprland.settings.exec-once = mkIf cfg.onHyprland [cfg.command];
     };
   };
 }

@@ -1,7 +1,3 @@
 {
-  home-manager = {
-    sharedModules = [
-      ./home.nix
-    ];
-  };
+  home = ./home.nix;
 }

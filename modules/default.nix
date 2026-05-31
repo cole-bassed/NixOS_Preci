@@ -1,10 +1,6 @@
-{
-  imports = [
-    ./hardware.nix
-    ./filesystem.nix
-    ./fonts.nix
-    ./maintenance.nix
-    ./remote.nix
-    ./users.nix
-  ];
-}
+{lix, ...} @ args:
+lix.importModules (args
+  // {
+    base = ./.;
+    includeFiles = true;
+  })

@@ -1,5 +1,5 @@
 {
-  home-manager.sharedModules = [
+  home = [
     ./options.nix
     ./hyprland.nix
     ./niri.nix

@@ -2,6 +2,7 @@
   inputs,
   alpha,
   top,
+  lix,
   ...
 }: let
   inherit (alpha) name description;
@@ -18,7 +19,7 @@ in {
 
   home-manager = {
     backupFileExtension = "BaC";
-    extraSpecialArgs = {inherit inputs top;};
+    extraSpecialArgs = {inherit inputs lix top;};
     useGlobalPkgs = true;
     useUserPackages = true;
   };

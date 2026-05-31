@@ -1,0 +1,5 @@
+{
+  core = [
+    ./wayland.nix
+  ];
+}
