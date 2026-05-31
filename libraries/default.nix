@@ -215,49 +215,45 @@
       (base + "/${name}/${stem}.nix")
       (base + "/${name}/${stem}/${defaults.entrypoint}")
     ];
-
-  profileEntries = {
-    base,
-    ignore ? defaults.ignore,
-  }:
-    readDirAttrs {inherit base ignore;};
-
-  mkProfileConfig = base: user: let
-    default = base + "/${user}/${defaults.entrypoint}";
-    core = findNix base user "core";
-    home = findNix base user "home";
-    flat =
-      if core == null && home == null && pathIsRegularFile default
-      then default
-      else null;
-  in {
-    inherit core;
-    home =
-      if home != null
-      then home
-      else flat;
-  };
-
-  importProfiles = {
-    base,
-    ignore ? defaults.ignore,
-  }: let
-    users = profileEntries {inherit base ignore;};
-  in {
-    imports =
-      filter
-      (module: module != null)
-      (mapAttrsToList (user: _: (mkProfileConfig base user).core) users);
-
-    home-manager.users = genAttrs (mapAttrsToList (user: _: user) users) (
-      user: let
-        cfg = mkProfileConfig base user;
-      in
-        if cfg.home != null
-        then import cfg.home
-        else {}
-    );
-  };
+  # profileEntries = {
+  #   base,
+  #   ignore ? defaults.ignore,
+  # }:
+  #   readDirAttrs {inherit base ignore;};
+  # mkProfileConfig = base: user: let
+  #   default = base + "/${user}/${defaults.entrypoint}";
+  #   core = findNix base user "core";
+  #   home = findNix base user "home";
+  #   flat =
+  #     if core == null && home == null && pathIsRegularFile default
+  #     then default
+  #     else null;
+  # in {
+  #   inherit core;
+  #   home =
+  #     if home != null
+  #     then home
+  #     else flat;
+  # };
+  # importProfiles = {
+  #   base,
+  #   ignore ? defaults.ignore,
+  # }: let
+  #   users = profileEntries {inherit base ignore;};
+  # in {
+  #   imports =
+  #     filter
+  #     (module: module != null)
+  #     (mapAttrsToList (user: _: (mkProfileConfig base user).core) users);
+  #   home-manager.users = genAttrs (mapAttrsToList (user: _: user) users) (
+  #     user: let
+  #       cfg = mkProfileConfig base user;
+  #     in
+  #       if cfg.home != null
+  #       then import cfg.home
+  #       else {}
+  #   );
+  # };
 in {
   inherit
     asList
@@ -268,7 +264,7 @@ in {
     moduleEntries
     collectModules
     importModules
-    importProfiles
+    # importProfiles
     mkNix
     mkNixConfigurations
     ;
