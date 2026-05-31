@@ -12,9 +12,11 @@
         importModule
         collectSpecs
         collectNamedSpecs
+        collectUserSpecs
         mkEnvVars
         mkHomeUser
         importAll
+        mkHomeUsers
         importModules
         importProfiles
         mkCdAliases
@@ -26,6 +28,8 @@
         mkHomeUser
         collectSpecs
         collectNamedSpecs
+        collectUserSpecs
+        mkHomeUsers
         importAll
         importModules
         importProfiles
@@ -33,7 +37,7 @@
     };
   };
 
-  inherit (lib.attrsets) filterAttrs foldlAttrs genAttrs mapAttrs mapAttrsToList;
+  inherit (lib.attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrsToList;
   inherit (lib.filesystem0) baseNameOf readDir;
   inherit (lib.lists) concatMap elem findFirst;
   inherit (lists) asList;
@@ -120,20 +124,63 @@
       })
     entries;
 
-  # wrap a profile's home spec into a proper home-manager user import
+  # import all files from user.imports, each returns { core = {...}; home = {...}; }
+  collectUserSpecs = {
+    args,
+    user,
+  }:
+    map
+    (fn: import fn {inherit args;})
+    (asList (user.imports or null));
+
+  getUsers = host: let
+    users = host.users or {};
+    mkUserSet = users: {
+      raw = users;
+      names = attrNames users;
+      values = mapAttrs (name: user: user // {inherit name;}) users;
+    };
+    filterByRole = role:
+      filterAttrs (_: user: (user.role or "") == role && (user.enable or true));
+  in {
+    all = mkUserSet users;
+    normal = mkUserSet (filterByRole "" users);
+    service = mkUserSet (filterByRole "service" users);
+    administrator = mkUserSet (filterByRole "administrator" users);
+  };
+
+  mkHomeUsers = host:
+    mapAttrs (_: user: {
+      config,
+      osConfig,
+      top,
+      ...
+    }:
+      mkHomeUser {inherit user config osConfig top;})
+    ((getUsers host).normal.raw);
+
   mkHomeUser = {
+    user,
     config,
-    name,
-    profile,
+    osConfig,
+    top,
   }: {
     imports =
       [
-        {
-          home.stateVersion = config.system.stateVersion;
+        (let
+          paths = config.${top}.paths or {};
+        in {
+          home = {
+            inherit (osConfig.system) stateVersion;
+            sessionVariables = mkEnvVars "" paths;
+            shellAliases = mkCdAliases paths;
+          };
           programs.home-manager.enable = true;
-        }
+        })
       ]
-      ++ (asList (profile.home or null));
+      ++ concatMap
+      (spec: asList (spec.home or null))
+      (collectUserSpecs user);
   };
 
   # modules: shared across all users
@@ -215,7 +262,7 @@
   mkCdAliases = attrs:
     foldlAttrs (
       acc: name: value:
-        if builtins.isAttrs value && value ? base
+        if isAttrs value && value ? base
         then acc // {"cd${name}" = "cd ${value.base}";}
         else acc
     ) {}

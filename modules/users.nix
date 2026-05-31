@@ -7,32 +7,25 @@
   lix,
   ...
 }: let
-  inherit (lib.attrsets) attrValues mapAttrs filterAttrs;
-  inherit (lib.lists) concatMap filter;
+  inherit (lib.attrsets) mapAttrs;
+  inherit (lib.lists) concatMap;
   inherit (lix.lists) asList;
-  inherit (lix.modules) mkEnvVars mkCdAliases;
-
-  users = host.users;
-  normalUsers =
-    filterAttrs (
-      _: user:
-        (user.role or "") != "service" && (user.enable or true)
-    )
-    users;
-
-  # import all files from user.imports, each returns { core = {...}; home = {...}; }
-  collectUserSpecs = user:
-    map
-    (fn:
-      import fn {inherit user top host inputs lix lib;})
-    (asList (user.imports or null));
+  inherit (lix.modules) collectUserSpecs getUsers mkCdAliases mkEnvVars;
+  hostUsers = getUsers host;
 in {
   imports =
     [inputs.home-manager.nixosModules.home-manager]
     # merge core specs from all normal users into system imports
     ++ concatMap
-    (user: concatMap (spec: asList (spec.core or null)) (collectUserSpecs user))
-    (attrValues normalUsers);
+    (
+      user:
+        concatMap (spec: asList (spec.core or null))
+        (collectUserSpecs {
+          inherit user;
+          args = {inherit top host inputs lix;};
+        })
+    )
+    hostUsers.normal.values;
 
   users.users =
     mapAttrs (_: user: {
@@ -46,7 +39,7 @@ in {
         then ["networkmanager"]
         else [];
     })
-    users;
+    hostUsers.all;
 
   security.sudo = {
     execWheelOnly = true;
@@ -60,7 +53,7 @@ in {
           }
         ];
       })
-      (filter (user: user.role == "administrator") (attrValues users));
+      (hostUsers.administrator.values);
   };
 
   home-manager = {
@@ -68,11 +61,11 @@ in {
     extraSpecialArgs = {inherit inputs lix top host;};
     useGlobalPkgs = true;
     useUserPackages = true;
-
     users =
       mapAttrs (_: user: {
         config,
         osConfig,
+        top,
         ...
       }: {
         imports =
@@ -88,11 +81,10 @@ in {
               programs.home-manager.enable = true;
             })
           ]
-          # merge home specs from this user's imports
           ++ concatMap
           (spec: asList (spec.home or null))
           (collectUserSpecs user);
       })
-      normalUsers;
+      (hostUsers.normal.raw);
   };
 }

@@ -41,9 +41,8 @@
 
   outputs = {nixpkgs, ...} @ inputs: let
     inherit (nixpkgs) lib;
-    inherit (nixpkgs.lib) nixosSystem;
     lix = import ./libraries {
-      inherit inputs lib nixosSystem;
+      inherit inputs lib;
       defaults = import ./. {};
     };
   in
