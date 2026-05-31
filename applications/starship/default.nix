@@ -16,7 +16,7 @@
     package = pkgs.${mod};
     inherit (cfg) enable;
   in {
-    options = opt {enable = mkEnableMod.true;};
+    options = opt {enable = mkEnableMod.false;};
     config = mkIf enable (
       if scope == "core"
       then {environment.systemPackages = [package];}

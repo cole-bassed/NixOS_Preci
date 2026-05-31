@@ -95,9 +95,9 @@
   }: let
     path = [top dom mod];
   in {
-    inherit mkEnableMod;
     cfg = mkCfg {inherit config path;};
     opt = options: mkOpt {inherit options path;};
+    mkEnableMod = mkEnableMod {inherit mod scope;};
   };
 
   readDirAttrs = {
