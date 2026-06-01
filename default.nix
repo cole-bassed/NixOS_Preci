@@ -4,16 +4,7 @@
   lix = import ./libraries {inherit lib defaults;};
   api = import ./api {inherit lib lix defaults;};
 
-  modules = [
-    ./ai
-    ./applications
-    ./interface
-    ./modules
-    ./secrets
-  ];
-
   defaults = {
-    inherit modules;
     # };
     namespace = "dots";
     dots = "/etc/nixos";
@@ -38,4 +29,4 @@
     };
     tags = ["core" "home"];
   };
-in {inherit lix api defaults modules;}
+in {inherit lix api defaults;}

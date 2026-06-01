@@ -1,4 +1,3 @@
-# modules/users/default.nix
 {
   inputs,
   host,
@@ -7,25 +6,25 @@
   lix,
   ...
 }: let
-  inherit (lib.attrsets) mapAttrs;
+  inherit (lib.attrsets) attrValues mapAttrs;
   inherit (lib.lists) concatMap;
   inherit (lix.lists) asList;
   inherit (lix.modules) collectUserSpecs getUsers mkCdAliases mkEnvVars;
-  hostUsers = getUsers host;
+
+  hostUsers = getUsers host.users;
+  normalUsers = hostUsers.byRole.normal.values;
+  adminUsers = hostUsers.byRole.administrator.values;
 in {
   imports =
     [inputs.home-manager.nixosModules.home-manager]
-    # merge core specs from all normal users into system imports
     ++ concatMap
-    (
-      user:
-        concatMap (spec: asList (spec.core or null))
-        (collectUserSpecs {
-          inherit user;
-          args = {inherit top host inputs lix;};
-        })
-    )
-    hostUsers.normal.values;
+    (user:
+      concatMap (spec: asList (spec.core or null))
+      (collectUserSpecs {
+        inherit user;
+        args = {inherit top host inputs lix;};
+      }))
+    (attrValues normalUsers);
 
   users.users =
     mapAttrs (_: user: {
@@ -39,7 +38,7 @@ in {
         then ["networkmanager"]
         else [];
     })
-    hostUsers.all;
+    hostUsers.values;
 
   security.sudo = {
     execWheelOnly = true;
@@ -53,7 +52,7 @@ in {
           }
         ];
       })
-      (hostUsers.administrator.values);
+      (attrValues adminUsers);
   };
 
   home-manager = {
@@ -70,21 +69,22 @@ in {
       }: {
         imports =
           [
-            (let
-              paths = config.${top}.paths or {};
-            in {
+            {
               home = {
                 inherit (osConfig.system) stateVersion;
-                sessionVariables = mkEnvVars "" paths;
-                shellAliases = mkCdAliases paths;
+                sessionVariables = mkEnvVars "" (config.${top}.paths or {});
+                shellAliases = mkCdAliases (config.${top}.paths or {});
               };
               programs.home-manager.enable = true;
-            })
+            }
           ]
           ++ concatMap
           (spec: asList (spec.home or null))
-          (collectUserSpecs user);
+          (collectUserSpecs {
+            inherit user;
+            args = {inherit top host inputs lix;};
+          });
       })
-      (hostUsers.normal.raw);
+      normalUsers;
   };
 }

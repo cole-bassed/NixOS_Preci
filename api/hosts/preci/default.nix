@@ -25,11 +25,11 @@
       primary = true;
       autoLogin = true;
     };
-    cc = {
-      role = "service";
-      enabled = false;
-    };
-    john = {};
+    # cc = {
+    #   role = "service";
+    #   enabled = false;
+    # };
+    # john = {};
   };
 
   packages = {

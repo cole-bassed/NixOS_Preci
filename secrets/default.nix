@@ -1,7 +1,7 @@
 {
   config,
   inputs,
-  alpha,
+  host,
   pkgs,
   lib ? pkgs.lib,
   ...
@@ -12,8 +12,8 @@
   inherit (lib.strings) concatStringsSep;
 
   names = {
-    user = alpha.name;
-    host = config.networking.hostName;
+    user = host.users.primary.name;
+    host = host.name;
   };
 
   join = {
@@ -30,49 +30,43 @@
 
   resolved = config.sops.secrets;
 
-  host = {
-    name = names.host;
+  ssh = {
+    host.paths.key = join {
+      name = "ssh_host_ed25519_key";
+      prefix = ["/etc" "ssh"];
+      sep = "/";
+    };
 
-    paths = {
-      ssh = join {
-        name = "ssh_host_ed25519_key";
-        prefix = ["/etc" "ssh"];
-        sep = "/";
+    user = let
+      name = names.user;
+      sys = names.host;
+      home = "/home/${name}";
+
+      mk = {
+        secret = {
+          prefix,
+          suffix ? null,
+        }:
+          join {
+            inherit name prefix suffix;
+            sep = "/";
+          };
+
+        path = {
+          base ? [],
+          file,
+          ext ? null,
+        }:
+          join {
+            name =
+              if ext != null
+              then file + ext
+              else file;
+            prefix = [home] ++ base;
+            sep = "/";
+          };
       };
-    };
-  };
 
-  user = let
-    name = names.user;
-    sys = names.host;
-    home = "/home/${name}";
-
-    mk = {
-      secret = {
-        prefix,
-        suffix ? null,
-      }:
-        join {
-          inherit name prefix suffix;
-          sep = "/";
-        };
-
-      path = {
-        base ? [],
-        file,
-        ext ? null,
-      }:
-        join {
-          name =
-            if ext != null
-            then file + ext
-            else file;
-          prefix = [home] ++ base;
-          sep = "/";
-        };
-    };
-
-    ssh = let
       github = let
         base = [".ssh" "github"];
       in {
@@ -80,12 +74,10 @@
           inherit base;
           file = "craole";
         };
-
         craole-cc = {
           inherit base;
           file = "craole-cc";
         };
-
         cole-bassed = {
           inherit base;
           file = "cole-bassed";
@@ -102,13 +94,11 @@
         // mapAttrs' (n: v: nameValuePair "github-${n}" v) github;
 
       keys =
-        mapAttrs
-        (_: key: {
+        mapAttrs (_: key: {
           private = mk.secret {
             prefix = ["ssh"];
             suffix = [key.file "private"];
           };
-
           public = mk.secret {
             prefix = ["ssh"];
             suffix = [key.file "public"];
@@ -117,13 +107,11 @@
         spec;
 
       paths =
-        mapAttrs
-        (_: key: {
+        mapAttrs (_: key: {
           private = mk.path {
             base = key.base or [".ssh"];
             inherit (key) file;
           };
-
           public = mk.path {
             base = key.base or [".ssh"];
             inherit (key) file;
@@ -132,58 +120,44 @@
         })
         spec;
 
-      secrets =
-        mapAttrs'
-        (
-          n: _:
-            nameValuePair keys.${n}.private {
-              owner = name;
-              path = paths.${n}.private;
-              mode = "0600";
-            }
-        )
-        spec;
-      # // mapAttrs'
-      # (
-      #   n: _:
-      #     nameValuePair keys.${n}.public {
-      #       owner = name;
-      #       path = paths.${n}.public;
-      #       mode = "0644";
-      #     }
-      # )
-      # spec;
+      secrets = mapAttrs' (n: _:
+        nameValuePair keys.${n}.private {
+          owner = name;
+          path = paths.${n}.private;
+          mode = "0600";
+        })
+      spec;
 
       dirs = unique (
-        map
-        (
-          key:
-            join {
-              name = concatStringsSep "/" (key.base or [".ssh"]);
-              prefix = [home];
-              sep = "/";
-            }
-        )
+        map (key:
+          join {
+            name = concatStringsSep "/" (key.base or [".ssh"]);
+            prefix = [home];
+            sep = "/";
+          })
         (attrValues spec)
       );
 
-      dirRules =
-        map (dir: "d ${dir} 0700 ${name} users - -") dirs;
+      dirRules = map (dir: "d ${dir} 0700 ${name} users - -") dirs;
     in {inherit spec keys paths secrets dirs dirRules;};
+  };
 
-    keys = {
-      login = {
-        ${sys} = mk.secret {
-          prefix = ["users"];
-          suffix = "passwordHash";
-        };
-      };
+  user = {
+    name = names.user;
+    sys = names.host;
+    home = "/home/${names.user}";
+    keys.login.${names.host} = join {
+      name = names.user;
+      prefix = ["users"];
+      suffix = "passwordHash";
+      sep = "/";
     };
-  in {inherit name sys home keys ssh;};
+    inherit (ssh) user;
+  };
 
   secrets = {
     login = user.keys.login.${names.host};
-    ssh = user.ssh.secrets;
+    ssh = ssh.user.secrets;
   };
 in {
   imports = [sops-nix.nixosModules.sops];
@@ -197,20 +171,16 @@ in {
     openssh
   ];
 
-  systemd.tmpfiles.rules = user.ssh.dirRules;
+  systemd.tmpfiles.rules = ssh.user.dirRules;
 
   sops = {
     defaultSopsFile = ./secrets.yaml;
     defaultSopsFormat = "yaml";
 
-    age.sshKeyPaths = [
-      host.paths.ssh
-    ];
+    age.sshKeyPaths = [ssh.host.paths.key];
 
     secrets =
-      {
-        ${secrets.login}.neededForUsers = true;
-      }
+      {${secrets.login}.neededForUsers = true;}
       // secrets.ssh;
   };
 

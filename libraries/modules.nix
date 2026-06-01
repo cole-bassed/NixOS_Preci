@@ -39,7 +39,17 @@
     };
   };
 
-  inherit (lib.attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrsToList;
+  inherit
+    (lib.attrsets)
+    attrNames
+    attrValues
+    filterAttrs
+    foldlAttrs
+    genAttrs
+    mapAttrs
+    mapAttrs'
+    mapAttrsToList
+    ;
   inherit (lib.filesystem) baseNameOf readDir;
   inherit (lib.lists) any concatMap elem findFirst length;
   inherit (lib.trivial) pathExists;
@@ -119,22 +129,32 @@
     base,
     ignore ? defaults.ignore,
     tags ? defaults.tags,
+    rekey ? false, # when true, rekey by spec.name instead of dir name
   }: let
     entries = readDirAttrs {inherit base ignore;};
+    raw =
+      mapAttrs
+      (name: _:
+        importModule {
+          inherit base name;
+          args =
+            args
+            // {
+              dom = baseNameOf (toString base);
+              mod = name;
+            }
+            // extraArgs;
+        })
+      entries;
   in
-    mapAttrs
-    (name: _:
-      importModule {
-        inherit base name;
-        args =
-          args
-          // {
-            dom = baseNameOf (toString base);
-            mod = name;
-          }
-          // extraArgs;
+    if rekey
+    then
+      mapAttrs' (dirName: spec: {
+        name = spec.name or dirName;
+        value = spec // {name = spec.name or dirName;};
       })
-    entries;
+      raw
+    else raw;
 
   # import all files from user.imports, each returns { core = {...}; home = {...}; }
   collectUserSpecs = {

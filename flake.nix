@@ -40,14 +40,19 @@
   };
 
   outputs = {nixpkgs, ...} @ inputs: let
-    src = import ./. {
-      inherit (nixpkgs) lib;
-      inherit inputs;
-    };
+    src = import ./. {inherit (nixpkgs) lib;};
   in
     src.lix.mkNixosConfigurations {
       inherit inputs;
-      inherit (src) api defaults modules;
+      inherit (src) api defaults;
       extraArgs = src;
+      modules = [
+        inputs.home-manager.nixosModules.home-manager
+        ./ai
+        ./applications
+        ./interface
+        ./modules
+        ./secrets
+      ];
     };
 }
