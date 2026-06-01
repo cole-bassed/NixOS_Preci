@@ -2,57 +2,46 @@
   lib,
   defaults,
 }: let
-  inherit (lib.attrsets) attrNames hasAttr mapAttrs;
-  inherit (lib.lists) filter foldl';
-  inherit (lib.strings) concatStringsSep;
+  inherit
+    (lib.attrsets)
+    recursiveUpdate
+    optionalAttrs
+    mapAttrs
+    ;
+  mkLix = includes: let
+  in
+    recursiveUpdate legacy (with custom; (
+      {inherit defaults;}
+      // optionalAttrs (elem "attrsets" includes) {attrsets = with attrsets; external // internal;}
+      // optionalAttrs (elem "lists" includes) {lists = with lists; external // internal;}
+      // optionalAttrs (elem "modules" includes) {modules = with modules; external // internal;}
+      // optionalAttrs (elem "options" includes) {options = with options; external // internal;}
+      // optionalAttrs (elem "strings" includes) {strings = with strings; external // internal;}
+      // optionalAttrs (elem "system" includes) {system = with system; external // internal;}
+      // optionalAttrs (elem "types" includes) {types = with types; external // internal;}
+    ));
 
-  # ── 1. declare libraries in dependency order ──────────────────────────────
-  all = let
-    predicates = import ./predicates.nix {inherit lib;};
-    lists = import ./lists.nix {inherit lib;};
-    debug = import ./debug.nix {inherit lib;};
-    options = import ./options.nix {inherit lib;};
-    system = import ./system.nix {inherit lib;};
+  legacy = import ./nixpkgs.nix {inherit lib;};
+  custom = {
+    debug = import ./debug.nix {lix = mkLix ["lists" "types"];};
+    lists = import ./lists.nix {lix = mkLix [];};
+    system = import ./system.nix {lix = mkLix [];};
+    types = import ./types.nix {lix = mkLix ["debug"];};
+    options = import ./options.nix {lix = mkLix ["debug" "lists" "types"];};
+    strings = import ./strings.nix {lix = mkLix ["debug" "lists" "types"];};
+    attrsets = import ./attrsets.nix {lix = mkLix ["debug" "lists" "types"];};
+    modules = import ./modules.nix {lix = mkLix ["debug" "lists" "types"];};
+  };
 
-    strings = import ./strings.nix {
-      inherit lib;
-      debug = debug.internal;
-      predicates = predicates.internal;
-    };
-    attrsets = import ./attrsets.nix {
-      inherit lib;
-      lists = lists.internal;
-    };
-    modules = import ./modules.nix {
-      inherit lib defaults;
-      lists = lists.internal;
-      predicates = predicates.internal;
-    };
-  in {inherit predicates lists debug options system strings attrsets modules;};
-
-  # ── 2. namespaced surface: lix.<libname> = lib.internal ─────────────────
-
-  namespaced = mapAttrs (_: lib: lib.internal) all;
-
-  # ── 3. flat surface: collision-checked merge of all external aliases ──────
-  flat =
-    foldl'
-    (
-      acc: name: let
-        incoming = all.${name}.external or {};
-        collisions = filter (k: hasAttr k acc) (attrNames incoming);
-      in
-        if collisions == []
-        then acc // incoming
-        else
-          throw ''
-            libraries: external alias collision(s) detected in '${name}':
-              ${concatStringsSep ", " collisions}
-            Each name in external must be unique across all libs.
-          ''
-    )
-    {}
-    (attrNames all);
+  inherit (custom.attrsets) merge;
 in
-  # ── 4. final surface: flat aliases + namespaced (namespaced wins on clash) ─
-  {inherit lib;} // flat // namespaced
+  ( #~@ Flat - lix.*
+    merge {
+      items = custom;
+      getAttrs = name: custom.${name}.external or {};
+      what = "libraries: external aliases";
+    }
+  )
+  // ( #~@ Namespaced lix.<name>.*
+    mapAttrs (_: lib: lib.internal) custom
+  )

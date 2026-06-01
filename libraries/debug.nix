@@ -1,4 +1,4 @@
-{lib, ...}: let
+{lix, ...}: let
   exports = let
     internal = {
       inherit
@@ -14,10 +14,7 @@
     external = internal;
   in {inherit internal external;};
 
-  inherit (builtins) tryEval;
-  inherit (lib.asserts) assertMsg;
-  inherit (lib.debug) addErrorContext traceIf;
-  inherit (lib.trivial) deepSeq;
+  inherit (lix.legacy.debug) tryEval assertMsg addErrorContext traceIf deepSeq;
 
   assertMsgFunc = {
     name,

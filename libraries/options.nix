@@ -1,7 +1,28 @@
-{lib}: let
+{
+  lib,
+  lix,
+  ...
+}: let
+  exports = let
+    internal = {
+      inherit
+        mkEnable
+        mkCfg
+        mkOpt
+        mkEnableMod
+        mkModuleArgs
+        mkFloatOption
+        mkLatitudeOption
+        mkLongitudeOption
+        ;
+    };
+    external = {inherit mkModuleArgs;};
+  in {inherit internal external;};
+
   inherit (lib.attrsets) attrByPath setAttrByPath;
-  inherit (lib.lists) toList;
-  inherit (lib.options) mkEnableOption;
+  inherit (lix.lists) asList;
+  inherit (lix.options) mkOption mkEnableOption;
+  inherit (lix.types) addCheck float;
 
   mkEnable = {
     name ? null,
@@ -37,13 +58,13 @@
     config,
     path,
   }:
-    attrByPath (toList path) {} config;
+    attrByPath (asList path) {} config;
 
   mkOpt = {
     options,
     path,
   }:
-    setAttrByPath (toList path) options;
+    setAttrByPath (asList path) options;
 
   mkEnableMod = {
     mod,
@@ -64,11 +85,54 @@
     opt = options: mkOpt {inherit options path;};
     mkEnableMod = mkEnableMod {inherit mod scope;};
   };
-in {
-  internal = {
-    inherit mkEnable mkCfg mkOpt mkEnableMod mkModuleArgs;
-  };
-  external = {
-    inherit mkEnable mkCfg mkOpt mkModuleArgs;
-  };
-}
+
+  mkFloatOption = {
+    name,
+    description,
+    min ? null,
+    max ? null,
+    default ? null,
+  }: let
+    check = value:
+      lib.isFloat value
+      && (
+        if min != null
+        then value >= min
+        else true
+      )
+      && (
+        if max != null
+        then value <= max
+        else true
+      );
+  in
+    mkOption {
+      type = addCheck float check;
+      inherit description;
+      ${
+        if default != null
+        then "default"
+        else null
+      } =
+        default;
+    };
+
+  mkLatitudeOption = {default ? null}:
+    mkFloatOption {
+      name = "latitude";
+      description = "Latitude coordinate, between -90.0 and 90.0";
+      min = -90.0;
+      max = 90.0;
+      inherit default;
+    };
+
+  mkLongitudeOption = {default ? null}:
+    mkFloatOption {
+      name = "longitude";
+      description = "Longitude coordinate, between -180.0 and 180.0";
+      min = -180.0;
+      max = 180.0;
+      inherit default;
+    };
+in
+  exports

@@ -1,10 +1,51 @@
 {
   lib,
-  debug,
-  predicates,
+  lix,
   ...
 }: let
-  exports = {
+  exports = let
+    functions = {
+      inherit
+        capitalize
+        indent
+        normalize
+        replaceAll
+        toCamel
+        toLower'
+        toPascal
+        toScreamingSnake
+        toSnake
+        toTitle
+        toUpper'
+        trim'
+        trimEnd
+        trimStart
+        wrap
+        orNull
+        orDefault
+        orEmpty
+        ;
+    };
+    aliases = {
+      capitalizeString = capitalize;
+      normalizeString = normalize;
+      orDefaultString = orDefault;
+      orEmptyString = orEmpty;
+      orNullString = orNull;
+      quote = wrap;
+      quoteString = wrap;
+      replaceAllStrings = replaceAll;
+      toCamelCase = toCamel;
+      toLowerCase = toLower';
+      toPascalCase = toPascal;
+      toScreamingSnakeCase = toScreamingSnake;
+      toSnakeCase = toSnake;
+      toTitleCase = toTitle;
+      toUpperCase = toUpper';
+      trimString = trim';
+      trimStringEnd = trimEnd;
+      trimStringStart = trimStart;
+    };
     internal =
       functions
       // aliases
@@ -15,25 +56,29 @@
     external =
       aliases
       // {
-        inherit capitalize indent normalize replaceAll toCamel toLower' toPascal toScreamingSnake toSnake toTitle toUpper' trim' trimEnd trimStart wrap;
-        capitalizeString = capitalize;
-        toCamelCase = toCamel;
-        toLowerCase = toLower';
-        toPascalCase = toPascal;
-        toScreamingSnakeCase = toScreamingSnake;
-        toSnakeCase = toSnake;
-        toTitleCase = toTitle;
-        toUpperCase = toUpper';
-        trimString = trim';
-        trimStringEnd = trimEnd;
-        trimStringStart = trimStart;
-        replaceAllStrings = replaceAll;
-        normalizeString = normalize;
-        quoteString = wrap;
+        inherit
+          capitalize
+          indent
+          normalize
+          replaceAll
+          toCamel
+          toLower'
+          toPascal
+          toScreamingSnake
+          toSnake
+          toTitle
+          toUpper'
+          trim'
+          trimEnd
+          trimStart
+          wrap
+          ;
       };
-  };
+  in {inherit functions aliases internal external;};
 
-  inherit (lib.lists) head tail genList toList any;
+  inherit (lix.lists) head tail genList toList any;
+  inherit (lix.debug) withContext;
+  inherit (lix.types) isEmpty isNotEmpty isList isAttrs isString typeOf;
   inherit
     (lib.strings)
     concatStrings
@@ -50,8 +95,39 @@
     toLower
     toUpper
     ;
-  inherit (debug) withContext;
-  inherit (predicates) isEmpty isNotEmpty isList isAttrs isString;
+
+  orNull = value:
+    assert withContext {
+      name = "strings.orNull";
+      assertion = isString value;
+      message = "expected a string, got ${typeOf value}";
+      context = "evaluating strings.orNull";
+    };
+      if value == ""
+      then null
+      else value;
+
+  orDefault = default: value:
+    assert withContext {
+      name = "strings.orDefault";
+      assertion = isString default && isString value;
+      message = "expected strings, got default=${typeOf default} value=${typeOf value}";
+      context = "evaluating strings.orDefault";
+    };
+      if value == ""
+      then default
+      else value;
+
+  orEmpty = value:
+    assert withContext {
+      name = "strings.orEmpty";
+      assertion = value == null || isString value;
+      message = "expected a string or null, got ${typeOf value}";
+      context = "evaluating strings.orEmpty";
+    };
+      if value == null
+      then ""
+      else value;
 
   # Internal: apply a string transform to a string or each item in a list.
   _applyStr = fn: input:
@@ -352,36 +428,5 @@
     if isList input
     then concatStringsSep delimiter rendered
     else head rendered;
-
-  functions = {
-    inherit
-      capitalize
-      indent
-      normalize
-      replaceAll
-      toCamel
-      toLower'
-      toPascal
-      toScreamingSnake
-      toSnake
-      toTitle
-      toUpper'
-      trim'
-      trimEnd
-      trimStart
-      wrap
-      ;
-  };
-
-  aliases = {
-    toCamelCase = toCamel;
-    toLowerCase = toLower';
-    toPascalCase = toPascal;
-    toScreamingSnakeCase = toScreamingSnake;
-    toSnakeCase = toSnake;
-    toTitleCase = toTitle;
-    toUpperCase = toUpper';
-    quote = wrap;
-  };
 in
   exports

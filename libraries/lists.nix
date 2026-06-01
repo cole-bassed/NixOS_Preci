@@ -1,14 +1,20 @@
 {lib}: let
-  exports = {
-    internal = {
-      inherit nthOr asList;
-      atOr = nthOr;
-    };
-    external = {
+  exports = let
+    functions = {inherit asList nthOr orNull orDefault;};
+    aliases = {
+      orNullList = orNull;
+      orDefaultList = orDefault;
       valueInList = nthOr;
       toList' = asList;
     };
-  };
+    internal =
+      functions
+      // aliases
+      // {
+        atOr = nthOr;
+      };
+    external = aliases;
+  in {inherit functions aliases internal external;};
 
   inherit (lib.lists) elemAt isList length optionals toList;
   inherit (lib.attrsets) isAttrs;

@@ -6,27 +6,56 @@
     internal = {
       inherit
         getOrderedOr
-        toOrderedAttrs
-        mapOrderedAttrs
-        parseOrderedAttrs
-        mapParsedOrderedAttrs
+        toOrdered
+        mapOrdered
+        parseOrdered
+        mapParsedOrdered
+        mergeUnique
         ;
-      orderedOf = toOrderedAttrs;
-      parsedOf = parseOrderedAttrs;
+      orderedOf = toOrdered;
+      parsedOf = parseOrdered;
+      merge = mergeUnique;
     };
     external = {
-      inherit
-        toOrderedAttrs
-        mapOrderedAttrs
-        parseOrderedAttrs
-        mapParsedOrderedAttrs
-        ;
+      toOrderedAttrs = toOrdered;
+      mapOrderedAttrs = mapOrdered;
+      parseOrderedAttrs = parseOrdered;
+      mapParsedOrderedAttrs = mapParsedOrdered;
+      mergeUniqueAttrs = mergeUnique;
     };
   };
 
   inherit (lib.attrsets) hasAttr getAttr listToAttrs mapAttrs;
   inherit (lib.lists) genList isList length;
   inherit (lists) nthOr;
+
+  mergeUnique = {
+    items,
+    getAttrs,
+    what ? "attributes",
+    owner ? (name: name),
+  }: let
+    inherit (lib.attrsets) attrNames hasAttr;
+    inherit (lib.lists) filter foldl';
+    inherit (lib.strings) concatStringsSep;
+  in
+    foldl'
+    (
+      acc: name: let
+        incoming = getAttrs name;
+        collisions = filter (k: hasAttr k acc) (attrNames incoming);
+      in
+        if collisions == []
+        then acc // incoming
+        else
+          throw ''
+            ${what}: collision(s) detected in '${owner name}':
+              ${concatStringsSep ", " collisions}
+            Each merged attribute name must be unique.
+          ''
+    )
+    {}
+    (attrNames items);
 
   getOrderedOr = {
     key,
@@ -37,7 +66,7 @@
     then getAttr key attrs
     else default;
 
-  toOrderedAttrs = {value}: let
+  toOrdered = {value}: let
     count =
       if isList value
       then length value
@@ -52,11 +81,11 @@
       }) (genList (x: x) count)
     );
 
-  mapOrderedAttrs = {attrs}:
-    mapAttrs (_: value: toOrderedAttrs {inherit value;}) attrs;
+  mapOrdered = {attrs}:
+    mapAttrs (_: value: toOrdered {inherit value;}) attrs;
 
-  parseOrderedAttrs = {value}: let
-    ordered = toOrderedAttrs {inherit value;};
+  parseOrdered = {value}: let
+    ordered = toOrdered {inherit value;};
 
     primary = getOrderedOr {
       key = "1";
@@ -85,7 +114,7 @@
     ordered
     // {inherit primary secondary tertiary preferred fallback default;};
 
-  mapParsedOrderedAttrs = {attrs}:
-    mapAttrs (_: value: parseOrderedAttrs {inherit value;}) attrs;
+  mapParsedOrdered = {attrs}:
+    mapAttrs (_: value: parseOrdered {inherit value;}) attrs;
 in
   exports

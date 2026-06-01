@@ -2,10 +2,11 @@
   lib,
   defaults,
   lists,
-  predicates,
+  types,
 }: let
-  exports = {
+  exports = let
     internal = {
+      inherit (lib) mkIf mkDefault mkForce;
       inherit
         readDirAttrs
         resolveEntrypoint
@@ -23,21 +24,8 @@
         mkCdAliases
         ;
     };
-    external = {
-      inherit
-        mkEnvVars
-        mkHomeUser
-        collectSpecs
-        getUsers
-        collectNamedSpecs
-        collectUserSpecs
-        mkHomeUsers
-        importAll
-        importModules
-        importProfiles
-        ;
-    };
-  };
+    external = internal;
+  in {inherit internal external;};
 
   inherit
     (lib.attrsets)
@@ -55,7 +43,7 @@
   inherit (lib.strings) hasSuffix toUpper;
   inherit (lib.trivial) isFunction pathExists;
   inherit (lists) asList;
-  inherit (predicates) isAttrs isString;
+  inherit (types) isAttrs isString;
 
   entrypoint = defaults.entrypoints.nix.main;
   candidates = defaults.entrypoints.nix.candidates;
