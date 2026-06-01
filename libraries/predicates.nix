@@ -1,12 +1,27 @@
 {lib, ...}: let
   exports = {
-    internal = {inherit isEmpty isNotEmpty isAttrs isString isList;};
+    internal = {
+      inherit
+        isAttrs
+        isBool
+        isEmpty
+        isFloat
+        isFunction
+        isInt
+        isList
+        isNotEmpty
+        isPath
+        isString
+        isValidGeoCoords
+        ;
+    };
     external = exports.internal;
   };
 
   inherit (lib.lists) head tail isList reverseList;
   inherit (lib.attrsets) isAttrs;
-  inherit (lib.strings) concatStrings isString stringLength;
+  inherit (lib.trivial) isBool isFloat isFunction isInt;
+  inherit (lib.strings) concatStrings isString stringLength isPath;
 
   # Minimal local trim so predicates doesn't circularly depend on strings.
   trim = s: let
@@ -84,5 +99,12 @@
   ```
   */
   isNotEmpty = value: !isEmpty value;
+
+  isValidGeoCoords = {
+    longitude,
+    latitude,
+  }:
+    (isFloat longitude && (longitude >= -180.0) && (longitude <= 180.0))
+    && (isFloat latitude && (latitude >= -180.0) && (latitude <= 180.0));
 in
   exports

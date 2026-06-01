@@ -1,17 +1,22 @@
 {lib, ...}: let
-  exports = {
+  exports = let
     internal = {
-      inherit mkTest mkTest' mkThrows assertMsgFunc withContext;
+      inherit
+        mkTest
+        mkTest'
+        mkThrows
+        assertMsgFunc
+        assertWithContext
+        warnWithContext
+        ;
+      withContext = assertWithContext;
     };
-    external = {
-      inherit mkTest mkTest' mkThrows assertMsgFunc;
-      assertWithContext = withContext;
-    };
-  };
+    external = internal;
+  in {inherit internal external;};
 
   inherit (builtins) tryEval;
   inherit (lib.asserts) assertMsg;
-  inherit (lib.debug) addErrorContext;
+  inherit (lib.debug) addErrorContext traceIf;
   inherit (lib.trivial) deepSeq;
 
   assertMsgFunc = {
@@ -21,7 +26,7 @@
   }:
     assertMsg assertion "${name}: ${message}";
 
-  withContext = {
+  assertWithContext = {
     name,
     assertion,
     message,
@@ -41,6 +46,16 @@
     result = value;
     passed = desired == value;
   };
+
+  warnWithContext = {
+    name,
+    assertion,
+    message,
+    context,
+  }:
+    deepSeq
+    (traceIf (!assertion) "[${name}] while ${context}: ${message}" true)
+    assertion;
 
   /**
   Create a named test case with desired output, outcome expression, and an

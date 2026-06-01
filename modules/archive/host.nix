@@ -1,9 +1,17 @@
 {
+  config,
   host,
   lib,
   ...
 }: let
   inherit (lib.modules) mkDefault;
+  invalid = 999.999;
+  longitude = host.localization.longitude or invalid;
+  latitude = host.localization.latitude or invalid;
+  provider =
+    if longitude == invalid || latitude == invalid
+    then "geoclue"
+    else host.localization.locator or "manual";
 in {
   system.stateVersion = host.stateVersion;
 
@@ -17,9 +25,12 @@ in {
   i18n.defaultLocale = host.localization.defaultLocale or "en_US.UTF-8";
 
   location = {
-    latitude = host.localization.latitude or 0.0;
-    longitude = host.localization.longitude or 0.0;
-    provider = mkDefault (host.localization.locator or "manual");
+    inherit latitude longitude;
+    provider = mkDefault (
+      if longitude == 0.0 && latitude == 0.0
+      then "geoclue"
+      else provider
+    );
   };
 
   nixpkgs = {
