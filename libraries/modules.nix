@@ -73,8 +73,12 @@
     base,
     name,
     path ? resolveEntrypoint {inherit base name;},
-  }:
-    import (base + "/${name}/${path}") args;
+  }: let
+    imported = import (base + "/${name}/${path}");
+  in
+    if builtins.isFunction imported
+    then imported args
+    else imported;
 
   # collect { core = [...]; home = [...]; } across all subdirs of base
   collectSpecs = {

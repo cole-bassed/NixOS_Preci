@@ -3,25 +3,25 @@
   lix,
   defaults,
 }: let
-  inherit (lib.attrsets) attrNames mapAttrs;
+  inherit (lib.attrsets) attrNames mapAttrs mapAttrs';
   inherit (lib.lists) elemAt filter length;
   inherit (lix) collectNamedSpecs;
   inherit (lix.modules) getUsers;
 
   # ── collect specs (spec.name wins over directory-derived key) ──────────────
 
-  collectSpecs = base:
-    mapAttrs
-    (_: spec:
-      spec
-      // {
-        name = spec.name or (throw "spec in ${toString base} is missing a name");
-      })
-    (collectNamedSpecs {
+  collectSpecs = base: let
+    raw = collectNamedSpecs {
       inherit (defaults) ignore;
       args = {inherit lib lix defaults;};
       inherit base;
-    });
+    };
+  in
+    mapAttrs' (_: spec: {
+      name = spec.name or (throw "spec in ${toString base} is missing a name");
+      value = spec;
+    })
+    raw;
 
   specs = {
     hosts = collectSpecs ./hosts;
