@@ -1,40 +1,33 @@
-{
-  lib,
-  inputs,
-}: let
+{lib}: let
   exports = {
-    internal = {inherit mkNix mkNixConfigurations;};
-    external = {inherit mkNixConfigurations;};
+    internal = {inherit mkNixosConfigurations mkDarwinConfigurations;};
+    external = exports.internal;
   };
 
   inherit (lib.attrsets) isAttrs mapAttrs;
+  inherit (lib) nixosSystem darwinSystem;
 
-  mkNix = {
-    nixosSystem,
-    dots,
-    extraArgs ? {},
-    modules,
-    system,
-    top,
-  }:
-    nixosSystem {
-      inherit modules system;
-      specialArgs = {inherit inputs dots top;} // extraArgs;
-    };
-
-  mkNixConfigurations = args:
+  mkConfigurations = builder: outputAttr: args: let
+    inherit (args) defaults;
+    hosts = args.api.hosts or {};
+  in
     assert isAttrs args;
-    assert lib ? nixosSystem != null; {
-      nixosConfigurations = mapAttrs (_: host:
-        mkNix {
-          inherit (lib) nixosSystem;
-          system = host.system or args.defaults.system;
-          dots = host.dots or args.defaults.dots;
-          top = host.namespace or args.defaults.namespace;
-          modules = (args.modules or []) ++ (host.modules or []);
-          extraArgs = {inherit host;} // args;
+    assert args ? inputs || throw "inputs must be provided in args"; {
+      ${outputAttr} = mapAttrs (_: host: let
+        modules = (args.modules or []) ++ (host.modules or []);
+        system = host.system or defaults.system;
+        dots = host.dots or defaults.dots;
+        top = host.namespace or defaults.namespace;
+        extraArgs = {inherit host;} // args;
+      in
+        builder {
+          inherit modules system;
+          specialArgs = {inherit dots top;} // extraArgs;
         })
-      args.api.hosts or {};
+      hosts;
     };
+
+  mkNixosConfigurations = mkConfigurations nixosSystem "nixosConfigurations";
+  mkDarwinConfigurations = mkConfigurations darwinSystem "darwinConfigurations";
 in
   exports

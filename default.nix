@@ -1,8 +1,9 @@
 {lib ? (import <nixpkgs/lib>), ...}: let
   inherit (lib.lists) head;
 
-  lix = import ./libraries {inherit lib;};
+  lix = import ./libraries {inherit lib defaults;};
   api = import ./api {inherit lib lix defaults;};
+
   modules = [
     ./ai
     ./applications

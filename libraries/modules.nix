@@ -40,7 +40,7 @@
   };
 
   inherit (lib.attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrsToList;
-  inherit (lib.filesystem0) baseNameOf readDir;
+  inherit (lib.filesystem) baseNameOf readDir;
   inherit (lib.lists) concatMap elem findFirst length;
   inherit (lib.trivial) pathExists;
   inherit (lists) asList;

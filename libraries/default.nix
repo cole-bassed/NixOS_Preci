@@ -12,7 +12,7 @@
     lists = import ./lists.nix {inherit lib;};
     debug = import ./debug.nix {inherit lib;};
     options = import ./options.nix {inherit lib;};
-    system = import ./system.nix {inherit lib defaults;};
+    system = import ./system.nix {inherit lib;};
 
     strings = import ./strings.nix {
       inherit lib;
@@ -55,4 +55,4 @@
     (attrNames all);
 in
   # ── 4. final surface: flat aliases + namespaced (namespaced wins on clash) ─
-  flat // namespaced
+  {inherit lib;} // flat // namespaced

@@ -1,27 +1,25 @@
 {
   lib,
   lix,
-  inputs,
   defaults,
 }: let
-  inherit (lib.attrsets) attrNames mapAttrs filterAttrs genAttrs;
+  inherit (lib.attrsets) attrNames mapAttrs;
   inherit (lib.lists) elemAt filter length;
   inherit (lix) collectNamedSpecs;
   inherit (lix.modules) getUsers;
 
-  # ── helpers ────────────────────────────────────────────────────────────────
-
-  withDefaultName = name: spec:
-    if spec ? name && spec.name != null && spec.name != ""
-    then spec
-    else spec // {inherit name;};
-
-  # ── collect specs (names injected once, up front) ──────────────────────────
+  # ── collect specs (spec.name wins over directory-derived key) ──────────────
 
   collectSpecs = base:
-    mapAttrs withDefaultName (collectNamedSpecs {
+    mapAttrs
+    (_: spec:
+      spec
+      // {
+        name = spec.name or (throw "spec in ${toString base} is missing a name");
+      })
+    (collectNamedSpecs {
       inherit (defaults) ignore;
-      args = {inherit lib lix inputs defaults;};
+      args = {inherit lib lix defaults;};
       inherit base;
     });
 

@@ -45,5 +45,9 @@
       inherit inputs;
     };
   in
-    src.lix.mkNixConfigurations src;
+    src.lix.mkNixosConfigurations {
+      inherit inputs;
+      inherit (src) api defaults modules;
+      extraArgs = src;
+    };
 }
