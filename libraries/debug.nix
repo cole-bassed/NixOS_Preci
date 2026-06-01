@@ -14,7 +14,7 @@
     external = internal;
   in {inherit internal external;};
 
-  inherit (lix.legacy.debug) tryEval assertMsg addErrorContext traceIf deepSeq;
+  inherit (lix.debug) addErrorContext assertMsg deepSeq traceIf tryEval;
 
   assertMsgFunc = {
     name,

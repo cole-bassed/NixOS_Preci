@@ -1,7 +1,4 @@
-{
-  lib,
-  lists,
-}: let
+{lix}: let
   exports = {
     internal = {
       inherit
@@ -11,34 +8,77 @@
         parseOrdered
         mapParsedOrdered
         mergeUnique
+        orNull
+        orDefault
+        orEmpty
         ;
       orderedOf = toOrdered;
       parsedOf = parseOrdered;
       merge = mergeUnique;
+
+      isEmpty = isEmpty';
+      isNotEmpty = isEmpty';
     };
     external = {
+      orNullAttr = orNull;
+      orDefaultAttr = orDefault;
+      orEmptyAttr = orEmpty;
       toOrderedAttrs = toOrdered;
       mapOrderedAttrs = mapOrdered;
       parseOrderedAttrs = parseOrdered;
       mapParsedOrderedAttrs = mapParsedOrdered;
       mergeUniqueAttrs = mergeUnique;
+      isEmptyAttr = isEmpty';
+      isNotEmptyAttr = isNotEmpty';
     };
   };
 
-  inherit (lib.attrsets) hasAttr getAttr listToAttrs mapAttrs;
-  inherit (lib.lists) genList isList length;
-  inherit (lists) nthOr;
+  inherit (lix.attrsets) attrNames hasAttr getAttr listToAttrs mapAttrs optionalAttrs;
+  inherit (lix.lists) filter foldl' genList isList length nthOr;
+  inherit (lix.strings) concatStringsSep;
+  inherit (lix.debug) withContext;
+  inherit (lix.types) isAttrs isEmpty typeOf;
+
+  isEmpty' = value: value == {};
+  isNotEmpty' = value: !isEmpty' value;
+
+  orNull = value:
+    assert withContext {
+      name = "attrs.orNull";
+      assertion = isEmpty value || isAttrs value;
+      message = "expected an attrset, got ${typeOf value}";
+      context = "evaluating attrs.orNull";
+    };
+      if isEmpty value || !(isAttrs value)
+      then null
+      else value;
+
+  orDefault = default: value:
+    assert withContext {
+      name = "attrs.orDefault";
+      assertion = isAttrs default && isAttrs value;
+      message = "expected attrsets, got default=${typeOf default} value=${typeOf value}";
+      context = "evaluating attrs.orDefault";
+    };
+      if isNotEmpty' value
+      then value
+      else default;
+
+  orEmpty = value:
+    assert withContext {
+      name = "attrs.orEmpty";
+      assertion = isAttrs value && isNotEmpty' value;
+      message = "expected an attrset or null, got ${typeOf value}";
+      context = "evaluating attrs.orEmpty";
+    };
+      optionalAttrs (isNotEmpty' value) value;
 
   mergeUnique = {
     items,
     getAttrs,
     what ? "attributes",
     owner ? (name: name),
-  }: let
-    inherit (lib.attrsets) attrNames hasAttr;
-    inherit (lib.lists) filter foldl';
-    inherit (lib.strings) concatStringsSep;
-  in
+  }:
     foldl'
     (
       acc: name: let

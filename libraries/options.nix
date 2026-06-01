@@ -22,7 +22,7 @@
   inherit (lib.attrsets) attrByPath setAttrByPath;
   inherit (lix.lists) asList;
   inherit (lix.options) mkOption mkEnableOption;
-  inherit (lix.types) addCheck float;
+  inherit (lix.types) isFloat addCheck float;
 
   mkEnable = {
     name ? null,
@@ -94,7 +94,7 @@
     default ? null,
   }: let
     check = value:
-      lib.isFloat value
+      isFloat value
       && (
         if min != null
         then value >= min

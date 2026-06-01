@@ -4,7 +4,35 @@
   ...
 }: let
   exports = let
-    functions = {
+    internal = {
+      inherit
+        _applyStr
+        _normalizeSymbols
+        _splitWords
+        capitalize
+        indent
+        normalize
+        orDefault
+        orEmpty
+        orNull
+        replaceAll
+        toCamel
+        toLower'
+        toPascal
+        toScreamingSnake
+        toSnake
+        toTitle
+        toUpper'
+        trim'
+        trimEnd
+        trimStart
+        wrap
+        ;
+      trim = trim';
+      isEmpty = isEmpty';
+      isNotEmpty = isNotEmpty';
+    };
+    external = {
       inherit
         capitalize
         indent
@@ -21,13 +49,10 @@
         trimEnd
         trimStart
         wrap
-        orNull
-        orDefault
-        orEmpty
         ;
-    };
-    aliases = {
       capitalizeString = capitalize;
+      isEmptyString = isEmpty';
+      isNotEmptyString = isNotEmpty';
       normalizeString = normalize;
       orDefaultString = orDefault;
       orEmptyString = orEmpty;
@@ -46,64 +71,24 @@
       trimStringEnd = trimEnd;
       trimStringStart = trimStart;
     };
-    internal =
-      functions
-      // aliases
-      // {
-        inherit _applyStr _splitWords _normalizeSymbols;
-        trim = trim';
-      };
-    external =
-      aliases
-      // {
-        inherit
-          capitalize
-          indent
-          normalize
-          replaceAll
-          toCamel
-          toLower'
-          toPascal
-          toScreamingSnake
-          toSnake
-          toTitle
-          toUpper'
-          trim'
-          trimEnd
-          trimStart
-          wrap
-          ;
-      };
-  in {inherit functions aliases internal external;};
+  in {inherit internal external;};
 
-  inherit (lix.lists) head tail genList toList any;
+  inherit (lix.lists) head tail genList asList any;
   inherit (lix.debug) withContext;
   inherit (lix.types) isEmpty isNotEmpty isList isAttrs isString typeOf;
-  inherit
-    (lib.strings)
-    concatStrings
-    concatStringsSep
-    hasPrefix
-    hasSuffix
-    optionalString
-    removePrefix
-    removeSuffix
-    replaceStrings
-    splitString
-    stringLength
-    substring
-    toLower
-    toUpper
-    ;
+  inherit (lib.strings) concatStrings concatStringsSep hasPrefix hasSuffix optionalString removePrefix removeSuffix replaceStrings splitString stringLength substring toLower toUpper;
+
+  isEmpty' = value: value == "";
+  isNotEmpty' = value: !isEmpty' value;
 
   orNull = value:
     assert withContext {
       name = "strings.orNull";
-      assertion = isString value;
+      assertion = isEmpty value || isString value;
       message = "expected a string, got ${typeOf value}";
       context = "evaluating strings.orNull";
     };
-      if value == ""
+      if isEmpty value || !(isString value)
       then null
       else value;
 
@@ -114,9 +99,9 @@
       message = "expected strings, got default=${typeOf default} value=${typeOf value}";
       context = "evaluating strings.orDefault";
     };
-      if value == ""
-      then default
-      else value;
+      if isNotEmpty' value
+      then value
+      else default;
 
   orEmpty = value:
     assert withContext {
@@ -125,9 +110,7 @@
       message = "expected a string or null, got ${typeOf value}";
       context = "evaluating strings.orEmpty";
     };
-      if value == null
-      then ""
-      else value;
+      optionalString (isNotEmpty' value) value;
 
   # Internal: apply a string transform to a string or each item in a list.
   _applyStr = fn: input:
@@ -237,8 +220,8 @@
   Accepts either a single search/replace pair, or parallel lists.
   */
   replaceAll = search: replace: let
-    ss = toList search;
-    rs = toList replace;
+    ss = asList search;
+    rs = asList replace;
   in
     input:
       assert withContext {
@@ -423,7 +406,7 @@
         context = "evaluating wrap delimiter";
       }; sep;
 
-    rendered = map (item: concatStrings [token (toString item) token]) (toList input);
+    rendered = map (item: concatStrings [token (toString item) token]) (asList input);
   in
     if isList input
     then concatStringsSep delimiter rendered
