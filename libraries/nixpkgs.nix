@@ -1,15 +1,232 @@
 {lib}:
-lib
+{inherit lib;}
+# // lib
 // {
-  inherit lib;
-
+  attrsets = {
+    inherit
+      (lib.attrsets)
+      attrByPath
+      attrNames
+      attrsToList
+      attrVals
+      attrValues
+      cartesianProduct
+      catAttrs
+      chooseDevOutputs
+      collect
+      concatMapAttrs
+      dontRecurseIntoAttrs
+      filterAttrs
+      filterAttrsRecursive
+      foldAttrs
+      foldlAttrs
+      genAttrs
+      genAttrs'
+      getAttr
+      getAttrFromPath
+      getAttrs
+      getBin
+      getDev
+      getFirstOutput
+      getInclude
+      getLib
+      getMan
+      getOutput
+      getStatic
+      hasAttr
+      hasAttrByPath
+      intersectAttrs
+      isAttrs
+      isDerivation
+      listToAttrs
+      longestValidPathPrefix
+      mapAttrs
+      mapAttrs'
+      mapAttrsRecursive
+      mapAttrsRecursiveCond
+      mapAttrsToList
+      mapAttrsToListRecursive
+      mapAttrsToListRecursiveCond
+      mapCartesianProduct
+      matchAttrs
+      mergeAttrsList
+      nameValuePair
+      optionalAttrs
+      overrideExisting
+      recurseIntoAttrs
+      recursiveUpdate
+      recursiveUpdateUntil
+      removeAttrs
+      setAttrByPath
+      showAttrPath
+      toDerivation
+      unionOfDisjoint
+      updateManyAttrsByPath
+      zipAttrs
+      zipAttrsWith
+      zipAttrsWithNames
+      ;
+  };
+}
+// {
+  filesystem = {
+    inherit (lib.trivial) pathExists;
+    inherit
+      (lib.filesystem)
+      baseNameOf
+      dirOf
+      hashFile
+      haskellPathsInDir
+      isPath
+      listFilesRecursive
+      locateDominatingFile
+      packagesFromDirectoryRecursive
+      pathIsDirectory
+      pathIsRegularFile
+      pathType
+      readDir
+      readFileType
+      resolveDefaultNix
+      ;
+  };
+}
+// {
   debug = {
     inherit (builtins) tryEval;
     inherit (lib.asserts) assertMsg;
     inherit (lib.debug) addErrorContext traceIf;
     inherit (lib.trivial) deepSeq;
   };
-
+}
+// {
+  lists = {
+    inherit
+      (lib.lists)
+      all
+      allUnique
+      any
+      commonPrefix
+      compareLists
+      concatAttrValues
+      concatLists
+      concatMap
+      count
+      crossLists
+      drop
+      dropEnd
+      elem
+      elemAt
+      filter
+      findFirst
+      findFirstIndex
+      findSingle
+      flatten
+      foldl
+      foldl'
+      foldr
+      forEach
+      genList
+      groupBy
+      groupBy'
+      hasPrefix
+      head
+      ifilter0
+      imap0
+      imap1
+      init
+      intersectLists
+      isList
+      last
+      length
+      listDfs
+      map
+      mutuallyExclusive
+      naturalSort
+      optional
+      optionals
+      partition
+      range
+      remove
+      removePrefix
+      replaceElemAt
+      replicate
+      reverseList
+      singleton
+      sort
+      sortOn
+      sublist
+      subtractLists
+      tail
+      take
+      takeEnd
+      toList
+      toposort
+      unique
+      uniqueStrings
+      zipLists
+      zipListsWith
+      ;
+  };
+}
+// {
+  modules = {
+    inherit (lib) nixosSystem darwinSystem;
+    inherit
+      (lib)
+      applyModuleArgsIfFunction
+      collectModules
+      defaultOrderPriority
+      defaultOverridePriority
+      dischargeProperties
+      doRename
+      evalModules
+      evalOptionValue
+      filterOverrides
+      filterOverrides'
+      fixMergeModules
+      fixupOptionType
+      importApply
+      importJSON
+      importTOML
+      mergeAttrDefinitionsWithPrio
+      mergeDefinitions
+      mergeModules
+      mergeModules'
+      mergeOptionDecls
+      mkAfter
+      mkAliasAndWrapDefinitions
+      mkAliasAndWrapDefsWithPriority
+      mkAliasDefinitions
+      mkAliasIfDef
+      mkAliasOptionModule
+      mkAliasOptionModuleMD
+      mkAssert
+      mkBefore
+      mkChangedOptionModule
+      mkDefault
+      mkDefinition
+      mkDerivedConfig
+      mkFixStrictness
+      mkForce
+      mkIf
+      mkImageMediaOverride
+      mkMerge
+      mkMergedOptionModule
+      mkOptionDefault
+      mkOrder
+      mkOverride
+      mkRemovedOptionModule
+      mkRenamedOptionModule
+      mkRenamedOptionModuleWith
+      mkVMOverride
+      pushDownProperties
+      setDefaultModuleLocation
+      sortProperties
+      unifyModuleSyntax
+      ;
+  };
+}
+// {
   strings = {
     inherit
       (lib.strings)
@@ -119,11 +336,8 @@ lib
       withFeatureAs
       ;
   };
-
-  system = {
-    inherit (lib) nixosSystem darwinSystem;
-  };
-
+}
+// {
   types = {
     inherit (lib.trivial) isBool isFloat isFunction;
     inherit

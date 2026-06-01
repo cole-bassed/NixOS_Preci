@@ -1,8 +1,4 @@
-{
-  lib,
-  lix,
-  ...
-}: let
+{lix}: let
   exports = let
     internal = {
       inherit
@@ -19,7 +15,7 @@
     external = {inherit mkModuleArgs;};
   in {inherit internal external;};
 
-  inherit (lib.attrsets) attrByPath setAttrByPath;
+  inherit (lix.attrsets) attrByPath setAttrByPath;
   inherit (lix.lists) asList;
   inherit (lix.options) mkOption mkEnableOption;
   inherit (lix.types) isFloat addCheck float;

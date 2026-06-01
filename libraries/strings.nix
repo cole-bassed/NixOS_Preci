@@ -1,8 +1,4 @@
-{
-  lib,
-  lix,
-  ...
-}: let
+{lix}: let
   exports = let
     internal = {
       inherit
@@ -76,7 +72,7 @@
   inherit (lix.lists) head tail genList asList any;
   inherit (lix.debug) withContext;
   inherit (lix.types) isEmpty isNotEmpty isList isAttrs isString typeOf;
-  inherit (lib.strings) concatStrings concatStringsSep hasPrefix hasSuffix optionalString removePrefix removeSuffix replaceStrings splitString stringLength substring toLower toUpper;
+  inherit (lix.strings) concatStrings concatStringsSep hasPrefix hasSuffix optionalString removePrefix removeSuffix replaceStrings splitString stringLength substring toLower toUpper;
 
   isEmpty' = value: value == "";
   isNotEmpty' = value: !isEmpty' value;

@@ -42,7 +42,7 @@
   outputs = {nixpkgs, ...} @ inputs: let
     src = import ./. {inherit (nixpkgs) lib;};
   in
-    src.lix.mkNixosConfigurations {
+    src.lix.modules.nixosConfiguration {
       inherit inputs;
       inherit (src) api defaults;
       extraArgs = src;

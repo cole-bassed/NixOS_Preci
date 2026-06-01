@@ -1,12 +1,6 @@
-{
-  lib,
-  defaults,
-  lists,
-  types,
-}: let
+{lix}: let
   exports = let
     internal = {
-      inherit (lib) mkIf mkDefault mkForce;
       inherit
         readDirAttrs
         resolveEntrypoint
@@ -22,31 +16,46 @@
         importModules
         importProfiles
         mkCdAliases
+        mkNixosConfigurations
+        mkDarwinConfigurations
         ;
+      nixosConfiguration = mkNixosConfigurations;
     };
     external = internal;
   in {inherit internal external;};
 
-  inherit
-    (lib.attrsets)
-    attrNames
-    attrValues
-    filterAttrs
-    foldlAttrs
-    genAttrs
-    mapAttrs
-    mapAttrs'
-    mapAttrsToList
-    ;
-  inherit (lib.filesystem) baseNameOf readDir;
-  inherit (lib.lists) any concatMap elem findFirst length;
-  inherit (lib.strings) hasSuffix toUpper;
-  inherit (lib.trivial) isFunction pathExists;
-  inherit (lists) asList;
-  inherit (types) isAttrs isString;
-
+  inherit (lix.attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (lix.filesystem) baseNameOf pathExists readDir;
+  inherit (lix.lists) asList any concatMap elem findFirst length;
+  inherit (lix.modules) nixosSystem darwinSystem;
+  inherit (lix.strings) hasSuffix toUpper;
+  inherit (lix.types) isAttrs isString isFunction;
+  inherit (lix) defaults;
   entrypoint = defaults.entrypoints.nix.main;
   candidates = defaults.entrypoints.nix.candidates;
+
+  mkConfigurations = builder: outputAttr: args: let
+    inherit (args) defaults;
+    hosts = args.api.hosts or {};
+  in
+    assert isAttrs args;
+    assert args ? inputs || throw "inputs must be provided in args"; {
+      ${outputAttr} = mapAttrs (_: host: let
+        modules = (args.modules or []) ++ (host.modules or []) ++ (host.imports or []);
+        system = host.system or defaults.system;
+        dots = host.dots or defaults.dots;
+        top = host.namespace or defaults.namespace;
+        extraArgs = {inherit host;} // args // (args.extraArgs or {});
+      in
+        builder {
+          inherit modules system;
+          specialArgs = {inherit dots top;} // extraArgs;
+        })
+      hosts;
+    };
+
+  mkNixosConfigurations = mkConfigurations nixosSystem "nixosConfigurations";
+  mkDarwinConfigurations = mkConfigurations darwinSystem "darwinConfigurations";
 
   readDirAttrs = {
     base,
