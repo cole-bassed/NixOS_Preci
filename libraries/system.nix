@@ -18,7 +18,7 @@
         system = host.system or defaults.system;
         dots = host.dots or defaults.dots;
         top = host.namespace or defaults.namespace;
-        extraArgs = {inherit host;} // args;
+        extraArgs = {inherit host;} // args // (args.extraArgs or {});
       in
         builder {
           inherit modules system;
