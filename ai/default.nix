@@ -1,4 +1,8 @@
-{lix, ...} @ args:
+{
+  lix,
+  pkgs,
+  ...
+} @ args:
 lix.importModules (args
   // {
     base = ./.;

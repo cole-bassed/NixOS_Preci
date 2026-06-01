@@ -102,9 +102,20 @@
     args ? {},
     base,
     name,
-    path ? resolveEntrypoint {inherit base name;},
+    path ? null,
   }: let
-    imported = import (base + "/${name}/${path}");
+    isDir = (readDir base).${name} == "directory";
+    resolved =
+      if isDir
+      then
+        base
+        + "/${name}/${
+          if path != null
+          then path
+          else resolveEntrypoint {inherit base name;}
+        }"
+      else base + "/${name}";
+    imported = import resolved;
   in
     if builtins.isFunction imported
     then imported args
@@ -117,8 +128,9 @@
     base,
     ignore ? defaults.ignore,
     tags ? defaults.tags,
+    includeFiles ? false,
   }: let
-    entries = readDirAttrs {inherit base ignore;};
+    entries = readDirAttrs {inherit base ignore includeFiles;};
     specs =
       mapAttrsToList
       (name: _:
@@ -278,24 +290,22 @@
     ignore ? defaults.ignore,
     tags ? defaults.tags,
     extraArgs ? {},
+    includeFiles ? false,
     kind ? "modules",
     ...
   }:
     if kind == "modules"
     then let
-      specs = collectSpecs {inherit args base ignore tags extraArgs;};
+      specs = collectSpecs {inherit args base ignore tags extraArgs includeFiles;};
     in {
       imports = specs.core or [];
       home-manager.sharedModules = specs.home or [];
     }
     else if kind == "profiles"
     then let
-      # named so we can wire home to the right user
       byName = collectNamedSpecs {inherit args base ignore tags extraArgs;};
     in {
-      # all core specs merged as system imports
       imports = concatMap (profile: asList (profile.core or null)) (attrValues byName);
-      # each user gets their own home-manager config
       home-manager.users =
         mapAttrs (
           name: profile: {config, ...}: mkHomeUser {inherit config name profile;}
@@ -310,9 +320,14 @@
     ignore ? defaults.ignore,
     tags ? defaults.tags,
     extraArgs ? {},
+    includeFiles ? false,
     ...
   }:
-    importAll (args // {kind = "modules";});
+    importAll (args
+      // {
+        kind = "modules";
+        inherit includeFiles;
+      });
 
   # convenience: importProfiles is importAll with kind = "profiles"
   importProfiles = args @ {
