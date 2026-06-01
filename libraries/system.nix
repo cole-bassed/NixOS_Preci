@@ -14,7 +14,7 @@
     assert isAttrs args;
     assert args ? inputs || throw "inputs must be provided in args"; {
       ${outputAttr} = mapAttrs (_: host: let
-        modules = (args.modules or []) ++ (host.modules or []);
+        modules = (args.modules or []) ++ (host.modules or []) ++ (host.imports or []);
         system = host.system or defaults.system;
         dots = host.dots or defaults.dots;
         top = host.namespace or defaults.namespace;

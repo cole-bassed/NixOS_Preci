@@ -62,15 +62,30 @@
   readDirAttrs = {
     base,
     ignore ? defaults.ignore,
-    predicate ? (name: type: type == "directory"),
+    predicate ? null,
+    includeFiles ? false,
   }:
     filterAttrs
-    (
-      name: type:
-        predicate name type
-        && !(elem name ignore)
-        && any (f: pathExists (base + "/${name}/${f}")) candidates
-    )
+    (name: type: let
+      defaultPredicate =
+        if includeFiles
+        then
+          type
+          == "directory"
+          || (type == "regular" && lib.strings.hasSuffix ".nix" name && name != "default.nix")
+        else type == "directory";
+    in
+      (
+        if predicate != null
+        then predicate name type
+        else defaultPredicate
+      )
+      && !(elem name ignore)
+      && (
+        if type == "directory"
+        then any (f: pathExists (base + "/${name}/${f}")) candidates
+        else true
+      ))
     (readDir base);
 
   # find the first candidate that exists under base/name/, fall back to entrypoint
