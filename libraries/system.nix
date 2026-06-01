@@ -1,39 +1,40 @@
 {
   lib,
   inputs,
-  defaults,
 }: let
   exports = {
     internal = {inherit mkNix mkNixConfigurations;};
     external = {inherit mkNixConfigurations;};
   };
 
-  inherit (lib.attrsets) mapAttrs;
+  inherit (lib.attrsets) isAttrs mapAttrs;
 
   mkNix = {
-    dots ? defaults.dots,
+    nixosSystem,
+    dots,
     extraArgs ? {},
-    modules ? defaults.modules,
-    system ? defaults.system,
-    top ? defaults.top,
+    modules,
+    system,
+    top,
   }:
-    lib.nixosSystem {
+    nixosSystem {
       inherit modules system;
       specialArgs = {inherit inputs dots top;} // extraArgs;
     };
 
-  mkNixConfigurations = {
-    api,
-    extraArgs ? {},
-  }: {
-    nixosConfigurations = mapAttrs (hostName: host:
-      mkNix {
-        system = host.system or defaults.system;
-        dots = host.dots or defaults.dots;
-        modules = host.modules or defaults.modules;
-        extraArgs = {inherit host;} // extraArgs;
-      })
-    api.hosts;
-  };
+  mkNixConfigurations = args:
+    assert isAttrs args;
+    assert lib ? nixosSystem != null; {
+      nixosConfigurations = mapAttrs (_: host:
+        mkNix {
+          inherit (lib) nixosSystem;
+          system = host.system or args.defaults.system;
+          dots = host.dots or args.defaults.dots;
+          top = host.namespace or args.defaults.namespace;
+          modules = (args.modules or []) ++ (host.modules or []);
+          extraArgs = {inherit host;} // args;
+        })
+      args.api.hosts or {};
+    };
 in
   exports

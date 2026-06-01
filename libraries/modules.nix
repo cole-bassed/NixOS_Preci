@@ -13,6 +13,7 @@
         collectSpecs
         collectNamedSpecs
         collectUserSpecs
+        getUsers
         mkEnvVars
         mkHomeUser
         importAll
@@ -27,6 +28,7 @@
         mkEnvVars
         mkHomeUser
         collectSpecs
+        getUsers
         collectNamedSpecs
         collectUserSpecs
         mkHomeUsers
@@ -39,7 +41,8 @@
 
   inherit (lib.attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrsToList;
   inherit (lib.filesystem0) baseNameOf readDir;
-  inherit (lib.lists) concatMap elem findFirst;
+  inherit (lib.lists) concatMap elem findFirst length;
+  inherit (lib.trivial) pathExists;
   inherit (lists) asList;
   inherit (predicates) isAttrs isString;
 
@@ -61,7 +64,7 @@
     name,
   }:
     findFirst
-    (f: builtins.pathExists (base + "/${name}/${f}"))
+    (f: pathExists (base + "/${name}/${f}"))
     entrypoint
     candidates;
 
@@ -133,21 +136,62 @@
     (fn: import fn {inherit args;})
     (asList (user.imports or null));
 
-  getUsers = host: let
-    users = host.users or {};
-    mkUserSet = users: {
-      raw = users;
-      names = attrNames users;
-      values = mapAttrs (name: user: user // {inherit name;}) users;
+  getUsers = declared: let
+    # ── group constructor ────────────────────────────────────────────────────
+    mkGroup = attrs: let
+      names = attrNames attrs;
+      values = mapAttrs (name: user: user // {inherit name;}) attrs;
+      count = length names;
+    in {inherit names values count;};
+
+    # ── filter helpers ───────────────────────────────────────────────────────
+
+    filterByStatus = status: attrs:
+      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
+
+    filterByRole = wantedRole: attrs:
+      filterAttrs (
+        _: u: let
+          role = u.role or "";
+          isNormal = role == "" || role == "user" || role == "normal";
+        in
+          if wantedRole == "normal"
+          then isNormal
+          else role == wantedRole
+      )
+      attrs;
+
+    # ── cross-cutting group index ────────────────────────────────────────────
+    # byStatus and byRole are mutually enriched: each slice gets the other
+    # dimension attached, so callers can do .byStatus.enabled.byRole.admin etc.
+
+    mkStatusIndex = attrs:
+      genAttrs ["enabled" "disabled"] (status: let
+        subset = filterByStatus status attrs;
+      in
+        (mkGroup subset) // {byRole = mkRoleIndex subset;});
+
+    mkRoleIndex = attrs:
+      genAttrs ["normal" "administrator" "service" "guest"] (role: let
+        subset = filterByRole role attrs;
+      in
+        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
+
+    # ── assemble ─────────────────────────────────────────────────────────────
+
+    users = mapAttrs (_: u:
+      {
+        role = "user";
+        enable = true;
+      }
+      // u)
+    declared;
+  in
+    (mkGroup users)
+    // {
+      byStatus = mkStatusIndex users;
+      byRole = mkRoleIndex users;
     };
-    filterByRole = role:
-      filterAttrs (_: user: (user.role or "") == role && (user.enable or true));
-  in {
-    all = mkUserSet users;
-    normal = mkUserSet (filterByRole "" users);
-    service = mkUserSet (filterByRole "service" users);
-    administrator = mkUserSet (filterByRole "administrator" users);
-  };
 
   mkHomeUsers = host:
     mapAttrs (_: user: {
@@ -206,7 +250,7 @@
       byName = collectNamedSpecs {inherit args base ignore tags extraArgs;};
     in {
       # all core specs merged as system imports
-      imports = concatMap (profile: asList (profile.core or null)) (builtins.attrValues byName);
+      imports = concatMap (profile: asList (profile.core or null)) (attrValues byName);
       # each user gets their own home-manager config
       home-manager.users =
         mapAttrs (

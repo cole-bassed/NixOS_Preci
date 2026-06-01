@@ -1,42 +1,40 @@
 {lib ? (import <nixpkgs/lib>), ...}: let
   inherit (lib.lists) head;
-in {
+
+  lix = import ./libraries {inherit lib;};
+  api = import ./api {inherit lib lix defaults;};
   modules = [
     ./ai
     ./applications
     ./interface
     ./modules
-    ./profiles
     ./secrets
   ];
-  user = {
-    name = "craole";
-    description = "Craig 'Craole' Cole";
-  };
-  # api = {
-  #   hosts.Preci = {dots = "/home/craole/.dots";};
-  #   # users =
-  # };
-  top = "dots";
-  dots = "/etc/nixos";
-  ignore = [
-    "archive"
-    "backup"
-    "review"
-    "temp"
-  ];
-  entrypoints.nix = let
-    ext = "nix";
-    candidates = map (name: "${name}.${ext}") [
-      "default"
-      "shell"
-      "flake"
-      "configuration"
-      "_"
+
+  defaults = {
+    inherit modules;
+    # };
+    namespace = "dots";
+    dots = "/etc/nixos";
+    ignore = [
+      "archive"
+      "backup"
+      "review"
+      "temp"
     ];
-  in {
-    inherit candidates;
-    main = head candidates;
+    entrypoints.nix = let
+      ext = "nix";
+      candidates = map (name: "${name}.${ext}") [
+        "default"
+        "shell"
+        "flake"
+        "configuration"
+        "_"
+      ];
+    in {
+      inherit candidates;
+      main = head candidates;
+    };
+    tags = ["core" "home"];
   };
-  tags = ["core" "home"];
-}
+in {inherit lix api defaults modules;}

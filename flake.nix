@@ -40,11 +40,10 @@
   };
 
   outputs = {nixpkgs, ...} @ inputs: let
-    inherit (nixpkgs) lib;
-    lix = import ./libraries {
-      inherit inputs lib;
-      defaults = import ./. {};
+    src = import ./. {
+      inherit (nixpkgs) lib;
+      inherit inputs;
     };
   in
-    lix.mkNixConfigurations {inherit lix;};
+    src.lix.mkNixConfigurations src;
 }

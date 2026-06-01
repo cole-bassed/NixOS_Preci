@@ -27,9 +27,9 @@
     };
     cc = {
       role = "service";
-      primary = false;
-      autoLogin = false;
+      enabled = false;
     };
+    john = {};
   };
 
   packages = {
