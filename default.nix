@@ -44,7 +44,7 @@
         language = "en_US.UTF-8";
       };
     };
-    ignore = [
+    excludes = [
       "archive"
       "backup"
       "review"

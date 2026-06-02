@@ -1,7 +1,7 @@
 {lists, ...}: let
   exports = {
-    scoped = {};
-    global = {inherit entrypoints;};
+    scoped = {inherit entrypoint entrypoints;};
+    global = {inherit entrypoint entrypoints;};
   };
 
   # inherit (debug) withContext;
@@ -17,5 +17,6 @@
     ];
     primary = head candidates;
   in {inherit ext candidates primary;};
+  entrypoint = entrypoints.nix.primary;
 in
   exports

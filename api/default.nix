@@ -14,110 +14,11 @@
   inherit (lists) elemAt filter length;
   # inherit (modules) getUsers;
   inherit (modules) collectNamedSpecs getUsers;
-  inherit (defaults) ignore;
-
-  # ── collect specs (spec.name wins over directory-derived key) ──────────────
-
-  # getUsers = declared: let
-  #   # ── group constructor ────────────────────────────────────────────────────
-  #   mkGroup = attrs: let
-  #     names = attrNames attrs;
-  #     values = mapAttrs (name: user:
-  #       user
-  #       // {
-  #         inherit name;
-  #         home = user.home or "/home/${name}";
-  #         description = user.description or name;
-  #       })
-  #     attrs;
-  #     count = length names;
-  #   in {inherit names values count;};
-
-  #   # ── filter helpers ───────────────────────────────────────────────────────
-
-  #   filterByStatus = status: attrs:
-  #     filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
-
-  #   filterByRole = wantedRole: attrs:
-  #     filterAttrs (
-  #       _: u: let
-  #         role = u.role or "";
-  #         isNormal = role == "" || role == "user" || role == "normal";
-  #       in
-  #         if wantedRole == "normal"
-  #         then isNormal
-  #         else role == wantedRole
-  #     )
-  #     attrs;
-
-  #   # ── cross-cutting group index ────────────────────────────────────────────
-  #   # byStatus and byRole are mutually enriched: each slice gets the other
-  #   # dimension attached, so callers can do .byStatus.enabled.byRole.admin etc.
-
-  #   mkStatusIndex = attrs:
-  #     genAttrs ["enabled" "disabled"] (status: let
-  #       subset = filterByStatus status attrs;
-  #     in
-  #       (mkGroup subset) // {byRole = mkRoleIndex subset;});
-
-  #   mkRoleIndex = attrs:
-  #     genAttrs ["normal" "administrator" "service" "guest"] (role: let
-  #       subset = filterByRole role attrs;
-  #     in
-  #       (mkGroup subset) // {byStatus = mkStatusIndex subset;});
-
-  #   # ── assemble ─────────────────────────────────────────────────────────────
-
-  #   users = mapAttrs (_: user:
-  #     {
-  #       role = "user";
-  #       enable = true;
-  #     }
-  #     // user)
-  #   declared;
-  # in
-  #   (mkGroup users)
-  #   // {
-  #     byStatus = mkStatusIndex users;
-  #     byRole = mkRoleIndex users;
-  #   };
-
-  # collectNamedSpecs = {
-  #   args,
-  #   extraArgs ? {},
-  #   base,
-  #   ignore ? defaults.ignore,
-  #   tags ? defaults.tags,
-  #   rekey ? false, # when true, rekey by spec.name instead of dir name
-  # }: let
-  #   entries = readDirAttrs {inherit base ignore;};
-  #   raw =
-  #     mapAttrs
-  #     (name: _:
-  #       importModule {
-  #         inherit base name;
-  #         args =
-  #           args
-  #           // {
-  #             dom = baseNameOf (toString base);
-  #             mod = name;
-  #           }
-  #           // extraArgs;
-  #       })
-  #     entries;
-  # in
-  #   if rekey
-  #   then
-  #     mapAttrs' (dirName: spec: {
-  #       name = spec.name or dirName;
-  #       value = spec // {name = spec.name or dirName;};
-  #     })
-  #     raw
-  #   else raw;
+  inherit (defaults) excludes;
 
   collectSpecs = base:
     collectNamedSpecs {
-      inherit ignore;
+      inherit excludes;
       args = {
         # inherit lix;
         # inherit (lix) defaults lib;

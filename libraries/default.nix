@@ -11,12 +11,14 @@
       {inherit defaults names paths;}
       // optionalAttrs (elem "api" includes) {inherit (scoped) api;}
       // optionalAttrs (elem "attrsets" includes) {inherit (scoped) attrsets;}
+      // optionalAttrs (elem "config" includes) {inherit (scoped) config;}
       // optionalAttrs (elem "debug" includes) {inherit (scoped) debug;}
+      // optionalAttrs (elem "filesystem" includes) {inherit (scoped) filesystem;}
+      // optionalAttrs (elem "lists" includes) {inherit (scoped) lists;}
       // optionalAttrs (elem "modules" includes) {inherit (scoped) modules;}
       // optionalAttrs (elem "options" includes) {inherit (scoped) options;}
       // optionalAttrs (elem "strings" includes) {inherit (scoped) strings;}
       // optionalAttrs (elem "types" includes) {inherit (scoped) types;}
-      // optionalAttrs (elem "lists" includes) {inherit (scoped) lists;}
     );
 
   legacy = import ./nixpkgs.nix {inherit lib;};
@@ -28,6 +30,14 @@
     ]);
     attrsets = import ./attrsets.nix (mkLix [
       "debug"
+      "lists"
+      "types"
+    ]);
+    config = import ./config.nix (mkLix [
+      "api"
+      "debug"
+      "module"
+      "filesystem"
       "lists"
       "types"
     ]);
@@ -44,8 +54,8 @@
       "types"
     ]);
     modules = import ./modules.nix (mkLix [
-      "api"
       "debug"
+      "filesystem"
       "lists"
       "types"
     ]);

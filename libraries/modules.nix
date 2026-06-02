@@ -1,18 +1,14 @@
 {
-  api,
   attrsets,
   defaults,
   filesystem,
   lists,
-  modules,
-  names,
-  paths,
   strings,
   types,
   ...
 }: let
   exports = {
-    scoped = {
+    global = {
       inherit
         readDirAttrs
         resolveEntrypoint
@@ -28,85 +24,22 @@
         importModules
         importProfiles
         mkCdAliases
-        mkConfigurations
-        mkNixosConfigurations
-        mkDarwinConfigurations
         ;
     };
     global = {
-      inherit mkConfigurations;
     };
   };
 
-  inherit (attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList recursiveUpdate;
-  inherit (filesystem) baseNameOf pathExists readDir;
+  inherit (attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (filesystem) baseNameOf pathExists readDir entrypoint entrypoints;
   inherit (lists) asList any concatMap elem findFirst length;
-  inherit (modules) nixosSystem darwinSystem;
-  inherit (strings) hasPrefix hasSuffix toUpper;
+  inherit (strings) hasSuffix toUpper;
   inherit (types) isAttrs isString isFunction;
-  inherit (api) hosts;
-  entrypoint = defaults.entrypoints.nix.main;
-  candidates = defaults.entrypoints.nix.candidates;
-
-  mkNixosConfigurations = mkConfigurations {type = "nixosConfigurations";};
-  mkDarwinConfigurations = mkConfigurations {type = "darwinConfigurations";};
-
-  mkConfigurations = {
-    args ? {inherit defaults paths names;},
-    class ? "nixos",
-  } @ params: let
-    # TODO: Validate clas is one of ["nixos" "darwin"]
-    args = recursiveUpdate params (params.extraArgs or {});
-    # hosts = args.api.hosts or (import paths.api {inherit defaults;});
-    type =
-      if class == "nixos"
-      then "nixosConfigurations"
-      else if class == "darwin"
-      then "darwinConfigurations"
-      else (throw ''mkConfigurations.class: Expected one of ["nixos" "darwin"], got ${class}'');
-    builder =
-      if hasPrefix "nixos" class
-      then nixosSystem
-      else if hasPrefix "darwin"
-      then darwinSystem
-      else throw "mkConfigurations.builder: Unknown type";
-  in {
-    ${type} = mapAttrs (_: api: let
-      host = recursiveUpdate defaults.host api;
-      flake =
-        recursiveUpdate
-        (
-          recursiveUpdate
-          (defaults.flake or {})
-          {inputs = args.inputs or (args.extraArgs.inputs or {});}
-        ) (
-          recursiveUpdate
-          (host.flake or {})
-          {home = host.path or (host.home or (host.dots or null));}
-        );
-    in
-      builder {
-        inherit (host) system;
-        modules =
-          (args.modules or [])
-          ++ (args.extraArgs.modules or [])
-          ++ (host.modules or [])
-          ++ (host.imports or []);
-        specialArgs =
-          {
-            inherit host flake;
-            inherit (flake) inputs top;
-            ${names.lib} = args.${names.lib};
-            inherit (args) lix; # TODO: How can this not be hardcoded, i want to inherit args.${names.lib}
-          }
-          // args;
-      })
-    hosts;
-  };
+  inherit (entrypoints.nix) candidates;
 
   readDirAttrs = {
     base,
-    ignore ? defaults.ignore,
+    excludes ? defaults.excludes,
     predicate ? null,
     includeFiles ? false,
   }:
@@ -125,7 +58,7 @@
         then predicate name type
         else defaultPredicate
       )
-      && !(elem name ignore)
+      && !(elem name excludes)
       && (
         if type == "directory"
         then any (f: pathExists (base + "/${name}/${f}")) candidates
@@ -171,12 +104,12 @@
     args,
     extraArgs ? {},
     base,
-    ignore ? defaults.ignore,
+    excludes ? defaults.excludes,
     tags ? defaults.tags,
     includeFiles ? false,
     rawTag ? "core",
   }: let
-    entries = readDirAttrs {inherit base ignore includeFiles;};
+    entries = readDirAttrs {inherit base excludes includeFiles;};
     specs =
       mapAttrsToList
       (name: type: let
@@ -204,11 +137,11 @@
     args,
     extraArgs ? {},
     base,
-    ignore ? defaults.ignore,
+    excludes ? defaults.excludes,
     tags ? defaults.tags,
     rekey ? false, # when true, rekey by spec.name instead of dir name
   }: let
-    entries = readDirAttrs {inherit base ignore;};
+    entries = readDirAttrs {inherit base excludes;};
     raw =
       mapAttrs
       (name: _:
@@ -344,7 +277,7 @@
   # profiles: per-user, keyed by directory name
   importAll = args @ {
     base,
-    ignore ? defaults.ignore,
+    excludes ? defaults.excludes,
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? false,
@@ -353,14 +286,14 @@
   }:
     if kind == "modules"
     then let
-      specs = collectSpecs {inherit args base ignore tags extraArgs includeFiles;};
+      specs = collectSpecs {inherit args base excludes tags extraArgs includeFiles;};
     in {
       imports = specs.core or [];
       home-manager.sharedModules = specs.home or [];
     }
     else if kind == "profiles"
     then let
-      byName = collectNamedSpecs {inherit args base ignore tags extraArgs;};
+      byName = collectNamedSpecs {inherit args base excludes tags extraArgs;};
     in {
       imports = concatMap (profile: asList (profile.core or null)) (attrValues byName);
       home-manager.users =
@@ -374,7 +307,7 @@
   # convenience: importModules is importAll with kind = "modules"
   importModules = args @ {
     base,
-    ignore ? defaults.ignore,
+    excludes ? defaults.excludes,
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? false,
@@ -389,7 +322,7 @@
   # convenience: importProfiles is importAll with kind = "profiles"
   importProfiles = args @ {
     base,
-    ignore ? defaults.ignore,
+    excludes ? defaults.excludes,
     tags ? defaults.tags,
     extraArgs ? {},
     ...
