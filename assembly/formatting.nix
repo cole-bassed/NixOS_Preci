@@ -1,21 +1,21 @@
 {
+  forEachSystem,
   treefmt,
-  perSystem,
-  ...
+  path,
 }: let
-  fmt = pkgs:
+  evalFor = pkgs:
     treefmt.evalModule pkgs {
       projectRootFile = "flake.nix";
 
       programs = {
-        alejandra.enable = true; # Global nixpkgs formatting style
-        statix.enable = true; # Lints layouts and fixes anti-patterns
+        alejandra.enable = true;
+        statix.enable = true;
       };
     };
 in {
-  # Exposes outputs.formatter.${system}
-  formatter = perSystem (pkgs: (fmt pkgs).config.build.wrapper);
+  formatter = forEachSystem (pkgs: (evalFor pkgs).config.build.wrapper);
 
-  # Exposes outputs.checks.${system}.formatting
-  checks = perSystem (pkgs: {formatting = (fmt pkgs).config.build.check;});
+  checks = forEachSystem (pkgs: {
+    formatting = (evalFor pkgs).config.build.check path;
+  });
 }

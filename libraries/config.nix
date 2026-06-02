@@ -35,7 +35,7 @@
   inherit (types) isString typeOf isAttrs isNull;
 
   build = {
-    args ? null,
+    flake ? null,
     class ? "nixos",
   }:
     assert withContext {
@@ -46,13 +46,13 @@
     };
     assert withContext {
       name = "config.build";
-      assertion = isNull args || isAttrs args;
-      message = "args must be an attribute set or null, got ${typeOf args}";
-      context = "validating args type in build";
+      assertion = isNull flake || isAttrs flake;
+      message = "flake must be an attribute set or null, got ${typeOf flake}";
+      context = "validating flake type in build";
     }; let
       type = systemType class;
       builder = systemBuilder class;
-      hosts = resolve args;
+      hosts = resolve flake;
     in {${type} = mapAttrs (_: host: builder host) hosts;};
 
   systemBuilder = class:

@@ -49,44 +49,43 @@
     };
   };
 
-  outputs = {self, ...} @ inputs: let
-    packages = with inputs; {
-      nixpkgs = nixpkgs.legacyPackages;
-    };
-    modules = {
-      core = with inputs;
-        [
-          hermes-agent.nixosModules.default
-          home-manager.nixosModules.home-manager
-          niri.nixosModules.niri
-          noctalia.nixosModules.default
-          sops.nixosModules.default
-          stylix.nixosModules.stylix
-        ]
-        ++ [
-          # ./base
-        ];
-
-      home = with inputs; [
-        niri.homeModules.config
-        niri.homeModules.niri
-        niri.homeModules.stylix
-        noctalia.homeModules.default
-        sops.homeModules.default
-        stylix.homeManagerModules.stylix
-        vicinae.homeManagerModules.default
-        zen-browser.homeModules.default
-      ];
-    };
-    libraries = with inputs; {
-      nixpkgs = nixpkgs.lib;
-      home-manager = home-manager.lib;
-      treefmt = treefmt.lib;
-      darwin = nix-darwin.lib or {};
-    };
-  in (
+  outputs = {self, ...} @ inputs:
     import ./assembly (
-      import ./. {inherit inputs libraries modules packages;}
-    )
-  );
+      import ./. {
+        packages = with inputs; {
+          nixpkgs = nixpkgs.legacyPackages;
+        };
+        modules = {
+          core = with inputs;
+            [
+              hermes-agent.nixosModules.default
+              home-manager.nixosModules.home-manager
+              niri.nixosModules.niri
+              noctalia.nixosModules.default
+              sops.nixosModules.default
+              stylix.nixosModules.stylix
+            ]
+            ++ [
+              # ./base
+            ];
+
+          home = with inputs; [
+            niri.homeModules.config
+            niri.homeModules.niri
+            niri.homeModules.stylix
+            noctalia.homeModules.default
+            sops.homeModules.default
+            stylix.homeManagerModules.stylix
+            vicinae.homeManagerModules.default
+            zen-browser.homeModules.default
+          ];
+        };
+        libraries = with inputs; {
+          nixpkgs = nixpkgs.lib;
+          home-manager = home-manager.lib;
+          treefmt = treefmt.lib;
+          darwin = nix-darwin.lib or {};
+        };
+      }
+    );
 }
