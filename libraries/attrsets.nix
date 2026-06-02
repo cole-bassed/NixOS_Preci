@@ -21,7 +21,9 @@
         getBySpec
         findFirst
         resolveBySpecs
+        removeNulls
         ;
+      dropNull = removeNulls;
       orderedOf = toOrdered;
       parsedOf = parseOrdered;
       merge = mergeUnique;
@@ -30,6 +32,7 @@
       isNotEmpty = isNotEmpty';
     };
     global = {
+      removeNullAttrs = removeNulls;
       orNullAttr = orNull;
       orDefaultAttr = orDefault;
       orEmptyAttr = orEmpty;
@@ -49,8 +52,8 @@
   inherit
     (attrsets)
     attrNames
+    filterAttrs
     hasAttr
-    # hasAttrByPath
     attrByPath
     getAttr
     listToAttrs
@@ -73,8 +76,10 @@
   inherit (debug) withContext;
   inherit (types) isAttrs isEmpty typeOf isString;
 
-  isEmpty' = input: input == {};
-  isNotEmpty' = input: !isEmpty' input;
+  isEmpty' = input: isAttrs input && input == {};
+  isNotEmpty' = input: isAttrs input && input != {};
+
+  removeNulls = sets: filterAttrs (n: v: v != null) sets;
 
   orNull = input:
     assert withContext {
@@ -105,7 +110,7 @@
       message = "expected an attrset or null, got ${typeOf input}";
       context = "evaluating attrsets.orEmpty";
     };
-      optionalAttrs (input != null && isNotEmpty' input) input;
+      optionalAttrs (isNotEmpty' input) input;
 
   getBySpec = input: spec:
     assert withContext {

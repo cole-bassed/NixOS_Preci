@@ -7,7 +7,7 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.attrsets) filterAttrs optionalAttrs;
+  inherit (lix.attrsets) removeNulls orEmpty;
   inherit
     (lix.options)
     mkModuleArgs
@@ -37,12 +37,12 @@
     config = mkIf enable (
       if scope == "core"
       then {
-        location = filterAttrs (n: v: v != null) {
+        location = removeNulls {
           inherit (cfg) latitude longitude provider;
         };
         time =
           {hardwareClockInLocalTime = cfg.useLocalTime;}
-          // optionalAttrs (cfg.timezone != null) {timeZone = cfg.timezone;};
+          // removeNulls {timeZone = cfg.timezone;};
         i18n.defaultLocale = cfg.locale;
       }
       else {home.language.base = cfg.locale;}

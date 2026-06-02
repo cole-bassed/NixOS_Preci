@@ -72,8 +72,6 @@
       inherit info inputs paths libraries packages;
       inherit (exports) defaults modules;
     };
-
-    utilities = import ./tools {inherit (exports) libraries;};
   };
 in
   exports

@@ -26,7 +26,7 @@
   };
 
   inherit (attrsets) attrByPath setAttrByPath optionalAttrs;
-  inherit (lists) asList;
+  inherit (lists) asList hasAny;
   inherit (options) mkOption mkEnableOption;
   inherit (types) nullOr addCheck float str;
 
@@ -171,8 +171,10 @@
       });
 
   mkLocalTimeOption = {host}: let
-    # Reaching into your newly designed list utility from the previous migration step
-    useLocalTime = lists.scoped.hasAny ["dual-boot" "dualboot-windows"] (host.functionalities or []);
+    useLocalTime =
+      hasAny
+      ["dual-boot" "dualboot-windows"]
+      (host.functionalities or []);
   in
     mkEnableOption ''
       Keeps the hardware clock in local time instead of UTC.
@@ -199,10 +201,3 @@
     };
 in
   exports
-# loc = host.localization or {};
-# latitude = loc.latitude or null;
-# longitude = loc.longitude or null;
-# provider = loc.provider or null;
-# timezone = loc.timezone or null;
-# useLocalTime = hasAny ["dual-boot" "dualboot-windows"] (host.functionalities or []);
-# locale = loc.locale or "en_US.UTF-8";

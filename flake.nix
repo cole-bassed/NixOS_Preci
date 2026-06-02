@@ -40,7 +40,6 @@
       url = "github:nix-community/stylix";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        home-manager.follows = "home-manager";
       };
     };
 
@@ -85,13 +84,9 @@
       treefmt = treefmt.lib;
       darwin = nix-darwin.lib or {};
     };
-
-    args = import ./. {inherit inputs libraries modules packages;};
-    inherit (args.libraries.config) mkConfigurations;
-  in
-    (mkConfigurations {
-      class = "nixos";
-      inherit args;
-    })
-    // args.utilities.formatter;
+  in (
+    import ./assembly (
+      import ./. {inherit inputs libraries modules packages;}
+    )
+  );
 }
