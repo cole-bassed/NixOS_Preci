@@ -1,9 +1,9 @@
 {
-  lib,
+  lix,
   pkgs,
   ...
 } @ args:
-lib.importModules (args
+lix.importModules (args
   // {
     inherit pkgs;
     base = ./.;

@@ -1,15 +1,15 @@
 {
-  lib,
+  lix,
   top,
   host,
   dom,
   mod,
   ...
 }: let
-  inherit (lib.modules) mkIf;
-  inherit (lib.attrsets) filterAttrs optionalAttrs;
+  inherit (lix.modules) mkIf;
+  inherit (lix.attrsets) filterAttrs optionalAttrs;
   inherit
-    (lib.options)
+    (lix.options)
     mkModuleArgs
     mkLatitudeOption
     mkLongitudeOption

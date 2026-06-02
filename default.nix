@@ -1,6 +1,7 @@
 {
   inputs ? {},
   modules ? {},
+  packages ? {},
   libraries ? {nixpkgs = import <nixpkgs/lib>;},
   ...
 }: let
@@ -23,7 +24,7 @@
     env = ./secrets;
     interface = ./interface;
     lib = ./libraries;
-    mods = ./modules;
+    base = ./base;
   };
 
   defaults = {
@@ -54,10 +55,22 @@
     ];
     tags = ["core" "home"];
   };
-in {
-  inherit defaults modules info inputs paths;
-  libraries = import ./libraries {
-    inherit info inputs paths modules libraries;
-    defaults = defaults // {inherit info paths modules libraries;};
+
+  resolved = {
+    mods = with paths; [
+      base
+    ];
+    modules =
+      modules
+      // {core = (modules.core or []) ++ resolved.mods;};
+
+    defaults =
+      defaults
+      // {inherit info paths modules libraries;};
+
+    libraries = import ./libraries {
+      inherit info inputs paths libraries packages;
+      inherit (resolved) defaults modules;
+    };
   };
-}
+in {inherit (resolved) modules libraries;}

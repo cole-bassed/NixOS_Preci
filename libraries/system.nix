@@ -10,15 +10,16 @@
   ...
 }: let
   exports = {
-    scoped = {inherit build resolve systemBuilder systemType;};
+    scoped = {inherit build resolve systemBuilder systemType perSystem supportedSystems;};
     global = {
+      inherit perSystem;
       resolveFlakeConfig = resolve;
       mkConfigurations = build;
     };
   };
 
   inherit (api) hosts;
-  inherit (attrsets) mapAttrs optionalAttrs recursiveUpdate;
+  inherit (attrsets) mapAttrs genAttrs optionalAttrs recursiveUpdate;
   inherit (debug) withContext;
   inherit (lists) elem concatMap asList;
   inherit (modules) collectUserSpecs mkCdAliases mkEnvVars;
@@ -95,10 +96,10 @@
         };
 
       specialArgs =
-        {
+        fromFlake
+        // {
+          "${fromFlake.names.top}_${fromFlake.name}" = "red";
           inherit host flake;
-          inherit (fromFlake.names) top;
-          inherit (fromFlake) inputs;
           "${fromFlake.names.lib}" = removeAttrs (args.libraries or {}) ["lib"];
         }
         // removeAttrs args ["modules"];
@@ -151,5 +152,11 @@
         ];
     })
     hosts;
+
+  supportedSystems = ["x86_64-linux" "aarch64-linux"]; # TODO: api.hosts should tell use all the needed systems
+  perSystem = f:
+    genAttrs supportedSystems (
+      system: f fromFlake.packages.nixpkgs.${system}
+    );
 in
   exports

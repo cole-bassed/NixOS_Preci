@@ -51,6 +51,9 @@
   };
 
   outputs = {self, ...} @ inputs: let
+    packages = with inputs; {
+      nixpkgs = nixpkgs.legacyPackages;
+    };
     modules = {
       core = with inputs;
         [
@@ -62,7 +65,7 @@
           stylix.nixosModules.stylix
         ]
         ++ [
-          ./base
+          # ./base
         ];
 
       home = with inputs; [
@@ -82,7 +85,7 @@
       treefmt = treefmt.lib;
       darwin = nix-darwin.lib or {};
     };
-    args = import ./. {inherit inputs modules libraries;};
+    args = import ./. {inherit inputs libraries modules packages;};
     inherit (args.libraries.config) mkConfigurations;
   in (mkConfigurations {
     class = "nixos";
