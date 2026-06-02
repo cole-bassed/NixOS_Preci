@@ -1,0 +1,11 @@
+keys:
+- &host age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
+- &craole age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+
+creation_rules:
+- path_regex: assembly/secrets/core/secrets\.ya?ml$
+  key_groups:
+  - age: [ *host, *craole ]
+- path_regex: assembly/secrets/home/secrets\.ya?ml$
+  key_groups:
+  - age: [ *craole ]

@@ -1,15 +1,14 @@
-{
+flake: {
   config,
-  inputs,
   host,
   pkgs,
-  lib ? pkgs.lib,
   ...
 }: let
+  inherit (flake) inputs libraries;
   inherit (inputs) sops-nix;
-  inherit (lib.attrsets) attrValues mapAttrs mapAttrs' nameValuePair;
-  inherit (lib.lists) optionals toList unique;
-  inherit (lib.strings) concatStringsSep;
+  inherit (libraries.attrsets) attrValues mapAttrs mapAttrs' nameValuePair;
+  inherit (libraries.lists) optionals toList unique;
+  inherit (libraries.strings) concatStringsSep;
 
   names = {
     user = host.users.primary.name;
