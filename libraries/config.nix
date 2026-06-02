@@ -10,9 +10,18 @@
   ...
 }: let
   exports = {
-    scoped = {inherit build resolve systemBuilder systemType perSystem supportedSystems;};
+    scoped = {
+      inherit
+        build
+        resolve
+        systemBuilder
+        systemType
+        perSystem
+        supportedSystems
+        ;
+    };
     global = {
-      inherit perSystem;
+      forEachSystem = perSystem;
       resolveFlakeConfig = resolve;
       mkConfigurations = build;
     };

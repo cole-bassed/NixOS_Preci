@@ -1,9 +1,11 @@
-{lix, ...}: let
-  inherit (lix.treefmt) evalModule;
-  inherit (lix.config) perSystem;
+{
+  treefmt,
+  perSystem,
+  ...
+}: let
 in {
   formatter = perSystem (pkgs:
-    (evalModule pkgs {
+    (treefmt.evalModule pkgs {
       projectRootFile = "flake.nix";
 
       programs = {

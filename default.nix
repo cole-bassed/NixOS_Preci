@@ -56,13 +56,13 @@
     tags = ["core" "home"];
   };
 
-  resolved = {
+  exports = {
     mods = with paths; [
       base
     ];
     modules =
       modules
-      // {core = (modules.core or []) ++ resolved.mods;};
+      // {core = (modules.core or []) ++ exports.mods;};
 
     defaults =
       defaults
@@ -70,7 +70,10 @@
 
     libraries = import ./libraries {
       inherit info inputs paths libraries packages;
-      inherit (resolved) defaults modules;
+      inherit (exports) defaults modules;
     };
+
+    utilities = import ./tools {inherit (exports) libraries;};
   };
-in {inherit (resolved) modules libraries;}
+in
+  exports

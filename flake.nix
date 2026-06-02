@@ -85,10 +85,13 @@
       treefmt = treefmt.lib;
       darwin = nix-darwin.lib or {};
     };
+
     args = import ./. {inherit inputs libraries modules packages;};
     inherit (args.libraries.config) mkConfigurations;
-  in (mkConfigurations {
-    class = "nixos";
-    inherit args;
-  });
+  in
+    (mkConfigurations {
+      class = "nixos";
+      inherit args;
+    })
+    // args.utilities.formatter;
 }
