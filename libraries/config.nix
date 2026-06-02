@@ -154,9 +154,9 @@
     hosts;
 
   supportedSystems = ["x86_64-linux" "aarch64-linux"]; # TODO: api.hosts should tell use all the needed systems
-  perSystem = f:
+  perSystem = fn:
     genAttrs supportedSystems (
-      system: f fromFlake.packages.nixpkgs.${system}
+      system: fn fromFlake.packages.nixpkgs.${system}
     );
 in
   exports

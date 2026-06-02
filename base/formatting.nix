@@ -1,6 +1,6 @@
 {lix, ...}: let
   inherit (lix.treefmt) evalModule;
-  inherit (lix.systems) perSystem;
+  inherit (lix.config) perSystem;
 in {
   formatter = perSystem (pkgs:
     (evalModule pkgs {
