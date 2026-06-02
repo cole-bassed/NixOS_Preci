@@ -1,11 +1,14 @@
 {
   api,
+  core,
+  home,
   debug,
   attrsets,
   defaults,
   lists,
   modules,
   types,
+  system,
   ...
 }: let
   exports = {
@@ -16,11 +19,12 @@
     };
   };
 
-  inherit (api) hosts users;
+  inherit (api) hosts;
   inherit (attrsets) mapAttrs optionalAttrs recursiveUpdate;
   inherit (debug) withContext;
   inherit (lists) elem concatMap asList;
-  inherit (modules) collectUserSpecs mkCdAliases mkEnvVars nixosSystem darwinSystem;
+  inherit (modules) collectUserSpecs mkCdAliases mkEnvVars;
+  inherit (system) nixosSystem darwinSystem;
   inherit (types) isString typeOf isAttrs isNull;
 
   build = {
@@ -74,8 +78,6 @@
   in
     mapAttrs (_: spec: let
       host = recursiveUpdate defaults.host spec;
-      lib = args.lib or (args.libraries or {});
-
       flake =
         recursiveUpdate (defaults.flake or {}) (host.flake or {})
         // {
@@ -85,16 +87,19 @@
 
       specialArgs =
         {
-          inherit host flake lib;
+          inherit host flake;
           inherit (flake) inputs top;
-          "${args.names.lib}" = lib;
+          lib = args.lib or args.libraries.lib or {};
+          "${args.names.lib}" = removeAttrs (args.libraries or {}) ["lib"];
         }
         // removeAttrs args ["modules"];
     in {
-      inherit (host) system specialArgs;
+      inherit (host) system;
+      inherit specialArgs;
 
       modules =
-        (args.modules.core or [])
+        core
+        ++ (args.modules.core or [])
         ++ (host.modules or [])
         ++ (host.imports or [])
         ++ [
@@ -103,7 +108,7 @@
               backupFileExtension = "BaC";
               useGlobalPkgs = true;
               useUserPackages = true;
-              sharedModules = args.modules.home or [];
+              sharedModules = home ++ (args.modules.home or []);
               extraSpecialArgs = specialArgs;
               users =
                 mapAttrs (_: user: {
@@ -123,13 +128,12 @@
                         programs.home-manager.enable = true;
                       }
                     ]
+                    ++ (user.modules or [])
+                    ++ (user.imports or [])
                     ++ (
                       concatMap
                       (spec: asList (spec.home or null))
-                      (collectUserSpecs {
-                        inherit user;
-                        args = specialArgs;
-                      })
+                      (collectUserSpecs user)
                     );
                 })
                 (host.users.byStatus.enabled.values or {});

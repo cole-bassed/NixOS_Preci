@@ -1,7 +1,5 @@
 {lib}:
-{inherit lib;}
-# // lib
-// {
+{
   attrsets = {
     inherit
       (lib.attrsets)
@@ -171,7 +169,6 @@
 }
 // {
   modules = {
-    inherit (lib) nixosSystem darwinSystem;
     inherit
       (lib)
       applyModuleArgsIfFunction
@@ -370,14 +367,14 @@
 }
 // {
   types = {
+    inherit (lib.filesystem) isPath;
+    inherit (lib.attsets) isAttrs isDerivation;
     inherit (lib.trivial) isBool isFloat isFunction;
     inherit
       (lib.strings)
-      isAttrs
       isConvertibleWithToString
       isInt
       isList
-      isPath
       isStorePath
       isString
       isStringLike

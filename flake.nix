@@ -72,7 +72,15 @@
         zen-browser.homeModules.default
       ];
     };
-    args = import ./. {inherit inputs modules;};
+    libraries = with inputs; {
+      nixpkgs = nixpkgs.lib;
+      home-manager = home-manager.lib;
+      treefmt-nix = treefmt.lib;
+    };
+    args = import ./. {inherit inputs modules libraries;};
     inherit (args.libraries.config) mkConfigurations;
-  in (mkConfigurations {class = "nixos";});
+  in (mkConfigurations {
+    class = "nixos";
+    inherit args;
+  });
 }

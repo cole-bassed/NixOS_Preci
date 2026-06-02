@@ -1,9 +1,16 @@
 {
-  lib,
+  info,
+  libraries,
+  modules,
+  paths,
+  inputs,
   defaults,
 }: let
-  inherit (lib.attrsets) recursiveUpdate optionalAttrs mapAttrs;
-  inherit (lib.lists) elem;
+  name = info.names.lib;
+  legacy = import ./imports {inherit libraries;};
+
+  inherit (legacy.attrsets) recursiveUpdate optionalAttrs mapAttrs;
+  inherit (legacy.lists) elem;
   mkLix = includes:
     recursiveUpdate legacy (
       {inherit defaults;}
@@ -18,9 +25,7 @@
       // optionalAttrs (elem "strings" includes) {inherit (scoped) strings;}
       // optionalAttrs (elem "types" includes) {inherit (scoped) types;}
     );
-  name = defaults.names.lib;
 
-  legacy = import ./nixpkgs.nix {inherit lib;};
   custom = {
     api = import defaults.paths.api (mkLix [
       "attrsets"
@@ -32,14 +37,16 @@
       "lists"
       "types"
     ]);
-    config = import ./config.nix (mkLix [
-      "api"
-      "debug"
-      "module"
-      "filesystem"
-      "lists"
-      "types"
-    ]);
+    config =
+      import ./config.nix (mkLix [
+        "api"
+        "debug"
+        "module"
+        "filesystem"
+        "lists"
+        "types"
+      ])
+      // {inherit (modules) core home;};
     debug = import ./debug.nix (mkLix [
       "lists"
       "types"

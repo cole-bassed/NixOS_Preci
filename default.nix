@@ -1,11 +1,17 @@
 {
-  lib ? null,
-  inputs ? null,
+  inputs ? {},
   modules ? {},
+  libraries ? {nixpkgs = import <nixpkgs/lib>;},
   ...
 }: let
-  names = {
-    lib = "lix";
+  info = rec {
+    name = "dots";
+    home = "/etc/nixos";
+    names = {
+      flake = name;
+      lib = "lix";
+      top = "_";
+    };
   };
 
   paths = {
@@ -21,7 +27,7 @@
   };
 
   defaults = {
-    host = rec {
+    host = {
       name = null;
       id = null;
       description = null;
@@ -29,16 +35,7 @@
       class = "nixos";
       system = "x86_64-linux";
       stateVersion = null; #? Must be the same as when the OS was installed
-      paths = {
-        flake = flake.home;
-      };
-
-      flake = {
-        inherit inputs;
-        name = "dots";
-        home = "/etc/nixos";
-        top = "_";
-      };
+      paths.flake = info.home;
 
       localization = {
         latitude = 18.015;
@@ -57,14 +54,10 @@
     ];
     tags = ["core" "home"];
   };
-
+in {
+  inherit defaults modules info inputs paths;
   libraries = import ./libraries {
-    lib =
-      if lib != null
-      then lib
-      else if inputs ? nixpkgs.lib
-      then inputs.nixpkgs.lib
-      else (import <nixpkgs/lib>);
-    defaults = defaults // {inherit names paths modules;};
+    inherit info inputs paths modules libraries;
+    defaults = defaults // {inherit info paths modules libraries;};
   };
-in {inherit defaults libraries modules names paths;}
+}

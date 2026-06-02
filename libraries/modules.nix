@@ -183,13 +183,10 @@
     else raw;
 
   # import all files from user.imports, each returns { core = {...}; home = {...}; }
-  collectUserSpecs = {
-    args,
-    user,
-  }:
+  collectUserSpecs = args:
     map
-    (fn: import fn (args // {inherit user;}))
-    (asList (user.imports or null));
+    (fn: import fn args)
+    (asList (args.imports or null));
 
   getUsers = declared: let
     # ── group constructor ────────────────────────────────────────────────────
