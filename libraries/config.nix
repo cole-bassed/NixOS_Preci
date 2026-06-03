@@ -2,18 +2,15 @@
   api,
   debug,
   attrsets,
-  defaults,
   lists,
   modules,
   types,
-  # fromFlake,
   src,
   ...
 }: let
   exports = {
     scoped = {
       inherit
-        flake
         systems
         resolve
         systemBuilder
@@ -23,7 +20,6 @@
         ;
     };
     global = {
-      buildFlake = flake;
       buildSystems = systems;
       forEachSystem = perSystem;
       resolveFlakeConfig = resolve;
@@ -32,31 +28,11 @@
   };
 
   inherit (api) hosts;
-  inherit
-    (attrsets)
-    attrValues
-    filterAttrs
-    mapAttrs
-    mergeAttrsList
-    genAttrs
-    optionalAttrs
-    recursiveUpdate
-    ;
+  inherit (attrsets) genAttrs mapAttrs optionalAttrs recursiveUpdate;
   inherit (debug) withContext;
   inherit (lists) elem;
   inherit (modules) mkCdAliases mkEnvVars;
-  inherit
-    (types)
-    isString
-    typeOf
-    isAttrs
-    # isNull
-    ;
-
-  flake = spec:
-    mergeAttrsList (
-      map (path: import path src) (attrValues (filterAttrs (name: _: spec.${name} or false) src.paths))
-    );
+  inherit (types) isString typeOf isAttrs;
 
   systems = {
     flake ? null,
@@ -95,8 +71,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then fromFlake ? libraries.nixpkgs.nixosSystem
-        else fromFlake ? libraries.nix-darwin.darwinSystem;
+        then src ? flake.libraries.nixpkgs.nixosSystem
+        else src ? flake.libraries.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -104,8 +80,8 @@
       context = "validating system builder presence in namespaced flake inputs";
     };
       if class == "nixos"
-      then fromFlake.libraries.nixpkgs.nixosSystem
-      else fromFlake.libraries.darwin.darwinSystem;
+      then src.flake.libraries.nixpkgs.nixosSystem
+      else src.flake.libraries.darwin.darwinSystem;
 
   systemType = class:
     assert withContext {
@@ -121,33 +97,39 @@
       then "darwinConfigurations"
       else "nixosConfigurations";
 
-  resolve = value: let
-    args = recursiveUpdate defaults (optionalAttrs (isAttrs value) value);
+  resolve = {
+    extraArgs ? {},
+    extendedLib,
+  }: let
+    args =
+      if isAttrs extraArgs
+      then extraArgs
+      else throw "config::resolve |> Expected 'extraArgs' to be a set, got ${typeOf extraArgs}";
+    # args =
+    #   recursiveUpdate
+    #   src.defaults
+    #   (optionalAttrs (isAttrs extraArgs) extraArgs);
   in
     mapAttrs (
       _: spec: let
-        host = recursiveUpdate defaults.host spec;
-        flake =
-          recursiveUpdate (defaults.flake or {}) (host.flake or {})
-          // {
-            inputs = args.inputs or (args.extraArgs.inputs or {});
-            home = host.path or (host.home or (host.dots or null));
-          };
+        host = recursiveUpdate args.host spec;
+        # flake =
+        #   recursiveUpdate (defaults.flake or {}) (host.flake or {})
+        #   // {
+        #     inputs = args.inputs or (args.extraArgs.inputs or {});
+        #     home = host.path or (host.home or (host.dots or null));
+        #   };
 
         specialArgs =
-          fromFlake
-          // {
-            "${fromFlake.names.top}_${fromFlake.name}" = "red";
-            inherit host flake;
-            "${fromFlake.names.lib}" = removeAttrs (args.libraries or {}) ["lib"];
-          }
-          // removeAttrs args ["modules"];
+          extendedLib
+          // {inherit src host;}
+          // (removeAttrs args ["modules"]);
       in {
         inherit (host) system;
         inherit specialArgs;
 
         modules =
-          (fromFlake.modules.core or [])
+          (src.flake.modules.core or [])
           ++ (args.modules.core or [])
           ++ (host.modules or [])
           ++ (host.imports or [])
@@ -157,7 +139,7 @@
                 backupFileExtension = "BaC";
                 useGlobalPkgs = true;
                 useUserPackages = true;
-                sharedModules = (fromFlake.modules.home or []) ++ (args.modules.home or []);
+                sharedModules = (src.flake.modules.home or []) ++ (args.modules.home or []);
                 extraSpecialArgs = specialArgs;
                 users = mapAttrs (
                   _: user: {
@@ -192,6 +174,6 @@
     "x86_64-linux"
     "aarch64-linux"
   ]; # TODO: api.hosts should tell use all the needed systems
-  perSystem = fn: genAttrs supportedSystems (system: fn fromFlake.packages.nixpkgs.${system});
+  perSystem = fn: genAttrs supportedSystems (system: fn src.flake.packages.nixpkgs.${system});
 in
   exports

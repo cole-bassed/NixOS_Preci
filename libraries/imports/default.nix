@@ -1,6 +1,7 @@
-{libraries}: let
-  lib = libraries.nixpkgs;
-  curated = import ./nixpkgs.nix {inherit lib;}; # TODO: Split into separate files
-  nixpkgs = lib // curated;
+src: let
+  libraries = src.flake.libraries or {};
+
+  lib = libraries.nixpkgs or (import <nixpkgs/lib>);
+  nixpkgs = lib // (import ./nixpkgs.nix {inherit lib;});
 in
-  libraries // {inherit nixpkgs;} // nixpkgs
+  nixpkgs // {libraries = libraries // {inherit nixpkgs;};}

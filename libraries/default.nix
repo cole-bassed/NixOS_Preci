@@ -1,8 +1,8 @@
 {src, ...}: let
-  legacy = import ./imports {inherit (src.flake) libraries;};
+  legacy = import ./imports src;
 
   custom = let
-  name = src.names.lib;
+    name = src.names.lib;
     inherit (legacy.attrsets) recursiveUpdate optionalAttrs mapAttrs;
     inherit (legacy.lists) elem;
 
@@ -75,7 +75,7 @@
         "debug"
       ]);
     };
-    
+
     scoped = mapAttrs (_: value: (value.scoped or {}) // (value.global or {})) libraries;
 
     global = scoped.attrsets.mergeUnique {
