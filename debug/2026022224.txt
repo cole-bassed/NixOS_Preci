@@ -1,0 +1,6943 @@
+.gitignore:
+
+contents:
+# ── Plaintext secrets / local secret material ────────────────────────────────
+*.age-key
+*.key
+*.pem
+*.p12
+*.pfx
+*.asc
+*.gpg
+*.kdbx
+
+# Never commit raw SSH private keys
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+id_ecdsa
+id_ecdsa.*
+id_dsa
+id_dsa.*
+
+# Local age/sops key material
+.config/age/
+.config/sops/
+age/keys.txt
+sops/age/keys.txt
+
+# Temporary plaintext secret staging files
+secrets/*.plain.*
+secrets/*.decrypted.*
+secrets/*.unencrypted.*
+secrets/*.tmp
+secrets/*.bak
+secrets/*.orig
+
+# Keep encrypted sops files tracked
+!secrets/*.yaml
+!secrets/*.yml
+!secrets/*.json
+!secrets/*.env
+
+# ── Nix outputs / build links ────────────────────────────────────────────────
+result
+result-*
+/build
+/dist
+/out
+
+# ── Direnv / envrc caches ───────────────────────────────────────────────────
+.direnv/
+.envrc.local
+
+# ── Editor / tooling noise ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ── Logs / temporary files ──────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+.cache/
+
+============================
+
+.sops.yaml:
+
+contents:
+keys:
+- &host age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
+- &craole age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+
+creation_rules:
+- path_regex: assembly/secrets/core/secrets\.ya?ml$
+  key_groups:
+  - age: [ *host, *craole ]
+- path_regex: assembly/secrets/home/secrets\.ya?ml$
+  key_groups:
+  - age: [ *craole ]
+
+============================
+
+.vscode/settings.json:
+
+contents:
+{
+  "fileinator.ignoredFolders": [
+    "debug"
+  ]
+}
+
+============================
+
+api/default.nix:
+
+contents:
+{
+  attrsets,
+  lists,
+  modules,
+  defaults,
+  ...
+}: let
+  exports = {
+    scoped = {inherit getUsers;};
+    global = {inherit hosts users;};
+  };
+
+  inherit (attrsets) attrNames mapAttrs;
+  inherit (lists) elemAt filter length;
+  # inherit (modules) getUsers;
+  inherit (modules) collectNamedSpecs getUsers;
+  inherit (defaults) excludes;
+
+  collectSpecs = base:
+    collectNamedSpecs {
+      inherit excludes;
+      args = {
+        inherit attrsets;
+        # inherit lix;
+        # inherit (lix) defaults lib;
+      };
+      inherit base;
+      rekey = true;
+    };
+
+  specs = {
+    hosts = collectSpecs ./hosts;
+    users = collectSpecs ./users;
+  };
+
+  # ── user resolution ────────────────────────────────────────────────────────
+
+  resolveUsers = host: let
+    hostPath = "api/hosts/${host.name}";
+    fail = msg: throw "${hostPath}: ${msg}";
+
+    declared = host.users or {};
+    isSingleUser = length (attrNames declared) == 1;
+
+    resolveUser = userName: config: let
+      spec =
+        specs.users.${userName}
+        or (fail "user '${userName}' not found in api/users");
+
+      defaults' = {
+        role =
+          if isSingleUser
+          then config.role or "administrator"
+          else "user";
+        enable =
+          if isSingleUser
+          then config.enable or true
+          else true;
+        primary =
+          if isSingleUser
+          then config.primary or true
+          else false;
+        autoLogin = false;
+      };
+    in
+      spec // defaults' // config;
+
+    resolved = getUsers (mapAttrs resolveUser declared);
+
+    primary = let
+      enabled = resolved.byStatus.enabled;
+      candidates =
+        filter
+        (n: enabled.values.${n}.primary or false)
+        enabled.names;
+      name =
+        if enabled.count == 0
+        then null
+        else if length candidates == 0 && enabled.count == 1
+        then elemAt enabled.names 0
+        else if length candidates == 0
+        then fail "expected exactly one primary enabled user, found none"
+        else if length candidates > 1
+        then fail "expected exactly one primary enabled user, found ${toString (length candidates)}"
+        else elemAt candidates 0;
+    in {
+      inherit name;
+      value =
+        if name == null
+        then null
+        else enabled.values.${name};
+    };
+  in
+    resolved // {inherit primary;};
+
+  # ── top-level outputs ──────────────────────────────────────────────────────
+
+  hosts =
+    mapAttrs
+    (_: host: host // {users = resolveUsers host;})
+    specs.hosts;
+
+  inherit (specs) users;
+in
+  exports
+
+============================
+
+api/hosts/default.nix:
+
+contents:
+{}
+
+============================
+
+api/hosts/preci/default.nix:
+
+contents:
+{
+  imports = [./hardware-configuration.nix];
+
+  name = "Preci";
+  id = "cfd69003";
+  description = "Dell Precision M2800";
+  type = "laptop";
+  class = "nixos";
+  system = "x86_64-linux";
+  stateVersion = "25.11";
+
+  # paths.flake.local = "/home/craole/.dots";
+
+  # localization = {
+  #   latitude = 18.015;
+  #   longitude = -77.49;
+  #   city = "Mandeville, Jamaica";
+  #   locator = "geoclue2";
+  #   timezone = "America/Jamaica";
+  #   locale = "en_US.UTF-8";
+  # };
+
+  users = {
+    craole = {
+      role = "administrator";
+      primary = true;
+      autoLogin = true;
+    };
+    # cc = {
+    #   role = "service";
+    #   enabled = false;
+    # };
+    # john = {};
+  };
+
+  packages = {
+    unstable = true;
+    allowUnfree = true;
+    kernel = "linuxPackages_cachyos-lto";
+    caches = {
+      nyx = {
+        sub = "https://geo-mirror.chaotic.cx/";
+        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
+      };
+    };
+  };
+
+  displays = {
+    "HDMI-A-3" = {
+      brand = "KTC";
+      resolution = "2560x1440";
+      refreshRate = 100;
+      scale = 1;
+      # Centered below DP-3: (2560 - 1600) / 2 = 480 → x=480; y=900 (below 900px tall DP-3)
+      position = "480x900";
+      size = 27.0;
+      priority = 0; # Primary
+    };
+
+    "DP-3" = {
+      brand = "DELL";
+      resolution = "1600x900";
+      refreshRate = 60;
+      scale = 1;
+      # Centered above HDMI-A-3: (2560 - 1600) / 2 = 480
+      position = "480x0";
+      size = 19.4;
+      priority = 1;
+    };
+  };
+
+  functionalities = [
+    "audio"
+    "battery"
+    "bluetooth"
+    "dualboot-windows"
+    "efi"
+    "gpu"
+    "keyboard"
+    "network"
+    "nvme"
+    "remote"
+    "secureboot"
+    "storage"
+    "touchpad"
+    "tpm"
+    "video"
+    "virtualization"
+    "vpn"
+    "webcam"
+    "wired"
+    "wireless"
+  ];
+
+  services = [
+    "tailscale"
+    "streaming"
+  ];
+}
+
+============================
+
+api/hosts/preci/hardware-configuration.nix:
+
+contents:
+{
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}: let
+  inherit (lib.modules) mkDefault;
+in {
+  imports = [(modulesPath + "/installer/scan/not-detected.nix")];
+
+  boot = {
+    initrd = {
+      availableKernelModules = [
+        "xhci_pci"
+        "ehci_pci"
+        "ahci"
+        "usb_storage"
+        "usbhid"
+        "sd_mod"
+        "sr_mod"
+        "sdhci_pci"
+      ];
+      kernelModules = [];
+    };
+    kernelModules = ["kvm-intel"];
+    kernelPackages = pkgs.linuxPackages_latest;
+    kernelPatches = [
+      {
+        name = "Rust Support";
+        patch = null;
+        features.rust = true;
+      }
+    ];
+    extraModulePackages = [];
+    loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+      timeout = 1;
+    };
+  };
+
+  fileSystems = {
+    "/" = {
+      device = "/dev/disk/by-uuid/05382bd2-cc99-4717-8343-0c6076d81441";
+      fsType = "ext4";
+    };
+
+    "/boot" = {
+      device = "/dev/disk/by-uuid/1FC3-D0C5";
+      fsType = "vfat";
+      options = [
+        "fmask=0077"
+        "dmask=0077"
+      ];
+    };
+  };
+
+  swapDevices = [
+    {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
+  ];
+
+  nixpkgs.hostPlatform = mkDefault "x86_64-linux";
+  networking.networkmanager.enable = true;
+  hardware.cpu.intel.updateMicrocode = mkDefault config.hardware.enableRedistributableFirmware;
+}
+
+============================
+
+api/users/cc.nix:
+
+contents:
+{
+  imports = [];
+
+  description = "Craig 'Craole' Cole";
+
+  git = {
+    craole = "32288735+Craole@users.noreply.github.com";
+    craole-cc = "134658831+craole-cc@users.noreply.github.com";
+    cole-bassed = "75517056+cole-bassed@users.noreply.github.com";
+  };
+}
+
+============================
+
+api/users/craole/applications.nix:
+
+contents:
+{
+  config,
+  top,
+  ...
+}: let
+  profiles = {
+    craole = "32288735+Craole@users.noreply.github.com";
+    craole-cc = "134658831+craole-cc@users.noreply.github.com";
+    cole-bassed = "75517056+cole-bassed@users.noreply.github.com";
+  };
+in {
+  ${top}.applications = {
+    git = {
+      enable = true;
+      inherit profiles;
+      defaultProfile = "craole";
+      extraRepositories = {"${config.home.homeDirectory}/.dots/" = "cole-bassed";};
+    };
+    zen-browser.enable = true;
+  };
+  home.sessionVariables = {
+    EDITOR = "hx";
+    VISUAL = "code";
+  };
+}
+
+============================
+
+api/users/craole/default.nix:
+
+contents:
+# api/users/craole/default.nix
+# Pure user spec — no role, no primary, no autoLogin (those are host concerns).
+{attrsets, ...}: let
+  inherit (attrsets) mapOrderedAttrs;
+
+  applications = mapOrderedAttrs {
+    browsers = ["zen-twilight" "chromium"];
+    editors = ["helix" "neovim"];
+    visuals = ["vscode" "zeditor"];
+    terminals = ["foot" "warp-terminal" "ghostty"];
+    launchers = ["vicinae" "fuzzel"];
+    shells = ["bash" "nushell" "powershell"];
+    bar = "quickshell";
+    prompt = "starship";
+  };
+in {
+  imports = [
+    ./applications
+    ./paths
+  ];
+
+  inherit applications;
+
+  # host-agnostic user metadata
+  description = "Craig 'Craole' Cole";
+  capabilities = [
+    "writing"
+    "conferencing"
+    "development"
+    "creation"
+    "analysis"
+    "management"
+    "gaming"
+    "multimedia"
+  ];
+
+  ssh = "age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg";
+
+  interface = {
+    keyboard = {
+      swapCapsEscape = false;
+      vimKeybinds = false;
+    };
+  };
+
+  style = {
+    autoSwitch = true;
+    theme = {
+      polarity = "dark";
+      accent = "teal";
+      dark = "Catppuccin Frappé";
+      light = "Catppuccin Latte";
+    };
+    icons = {
+      dark = "candy-icons";
+      light = "candy-icons";
+    };
+    cursors = {
+      accent = "mauve";
+      dark = "material";
+      light = "material";
+    };
+    fonts = {
+      emoji = "Noto Color Emoji";
+      monospace = "Maple Mono NF";
+      sans = "Monaspace Radon Frozen";
+      serif = "Noto Serif";
+      material = "Material Symbols Sharp";
+      clock = "Rubik";
+    };
+  };
+}
+
+============================
+
+api/users/craole/paths.nix:
+
+contents:
+{
+  attrsets,
+  options,
+  types,
+  top,
+  config,
+  ...
+}: let
+  inherit (attrsets) mapAttrs optionalAttrs;
+  inherit (options) mkOption;
+  inherit (types) attrs;
+  home = config.home.homeDirectory;
+  gitProfiles = config.${top}.applications.git.profiles or {};
+
+  pictures = let
+    base = home + "/Pictures";
+  in {
+    inherit base;
+    avatars = {
+      inherit base;
+      session = base + "/Avatars/avatar.jpg";
+      whatsapp = base + "/Avatars/avatar.jpg";
+    };
+    wallpapers = {
+      inherit base;
+      light = base + "/Wallpapers/light";
+      dark = base + "/Wallpapers/dark";
+    };
+  };
+
+  downloads = {base = home + "/Downloads";};
+
+  projects = let
+    base = home + "/Projects";
+  in {
+    inherit base;
+    repos =
+      optionalAttrs (gitProfiles != {})
+      (mapAttrs (name: _: base + "/${name}") gitProfiles);
+  };
+in {
+  options.${top}.paths = mkOption {
+    type = attrs;
+    default = {};
+    description = "Derived user filesystem paths exposed as session variables and cd aliases.";
+  };
+
+  config.${top}.paths = {
+    inherit downloads pictures projects;
+    inherit (pictures) avatars wallpapers;
+  };
+}
+
+============================
+
+api/users/default.nix:
+
+contents:
+{}
+
+============================
+
+archive/hardware.nix:
+
+contents:
+{
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}: let
+  inherit (lib.modules) mkDefault;
+in {
+  imports = [(modulesPath + "/installer/scan/not-detected.nix")];
+
+  boot = {
+    initrd = {
+      availableKernelModules = [
+        "xhci_pci"
+        "ehci_pci"
+        "ahci"
+        "usb_storage"
+        "usbhid"
+        "sd_mod"
+        "sr_mod"
+        "sdhci_pci"
+      ];
+      kernelModules = ["amdgpu"];
+    };
+    kernelModules = [
+      "kvm-amd"
+      # "kvm-intel"
+    ];
+    kernelPackages = mkDefault pkgs.linuxPackages_latest;
+    kernelPatches = [
+      {
+        name = "Rust Support";
+        patch = null;
+        features.rust = true;
+      }
+    ];
+    extraModulePackages = [];
+    loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+      timeout = 1;
+    };
+  };
+
+  fileSystems = {
+    "/" = {
+      device = "/dev/disk/by-uuid/05382bd2-cc99-4717-8343-0c6076d81441";
+      fsType = "ext4";
+    };
+
+    "/boot" = {
+      device = "/dev/disk/by-uuid/1FC3-D0C5";
+      fsType = "vfat";
+      options = [
+        "fmask=0077"
+        "dmask=0077"
+      ];
+    };
+  };
+
+  swapDevices = [
+    {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
+  ];
+
+  nixpkgs = {
+    hostPlatform = mkDefault "x86_64-linux";
+    config.allowUnfree = true;
+  };
+
+  networking = {
+    hostName = mkDefault "Preci";
+    hostId = mkDefault "9ebb411d";
+    networkmanager.enable = true;
+  };
+
+  i18n = {
+    defaultLocale = "en_US.UTF-8";
+  };
+  location = {
+    latitude = 18.015;
+    longitude = -77.49;
+    provider = "manual";
+  };
+  time = {
+    timeZone = "America/Jamaica";
+  };
+
+  hardware = {
+    cpu.intel.updateMicrocode = mkDefault config.hardware.enableRedistributableFirmware;
+    graphics = {
+      enable = true;
+      enable32Bit = true;
+    };
+  };
+
+  services = {
+    kmscon.enable = true;
+    getty = {
+      autologinOnce = true;
+      autologinUser = "craole";
+    };
+    xserver = {
+      xkb = {
+        layout = "us";
+        variant = "";
+      };
+      videoDrivers = ["modsetting"];
+    };
+  };
+
+  system.stateVersion = "25.11";
+}
+
+============================
+
+archive/host.nix:
+
+contents:
+{
+  config,
+  host,
+  lib,
+  ...
+}: let
+  inherit (lib.modules) mkDefault;
+  invalid = 999.999;
+  longitude = host.localization.longitude or invalid;
+  latitude = host.localization.latitude or invalid;
+  provider =
+    if longitude == invalid || latitude == invalid
+    then "geoclue"
+    else host.localization.locator or "manual";
+in {
+  system.stateVersion = host.stateVersion;
+
+  networking = {
+    hostName = host.name;
+    hostId = host.id or null;
+  };
+
+  time.timeZone = host.localization.timeZone or null;
+
+  i18n.defaultLocale = host.localization.defaultLocale or "en_US.UTF-8";
+
+  location = {
+    inherit latitude longitude;
+    provider = mkDefault (
+      if longitude == 0.0 && latitude == 0.0
+      then "geoclue"
+      else provider
+    );
+  };
+
+  nixpkgs = {
+    hostPlatform = mkDefault host.system;
+    config.allowUnfree = host.packages.allowUnfree or false;
+  };
+
+  nix.settings.experimental-features = ["nix-command" "flakes"];
+
+  environment.sessionVariables.DOTS = host.dots or null;
+}
+
+============================
+
+assembly/configurations/ai/default.nix:
+
+contents:
+{
+  lib,
+  pkgs,
+  inputs,
+  ...
+} @ args:
+lib.importModules (args
+  // {
+    inherit inputs;
+    base = ./.;
+    includeFiles = true;
+  })
+
+============================
+
+assembly/configurations/ai/hermes.nix:
+
+contents:
+{
+  config,
+  dots,
+  inputs,
+  lib,
+  pkgs,
+  top,
+  ...
+}: let
+  inherit (inputs) hermes-agent;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkModuleArgs mkOption;
+  inherit (lib.types) attrs bool int listOf package str;
+
+  dom = "ai";
+  mod = "hermes";
+
+  inherit (mkModuleArgs {inherit config top dom mod;}) cfg opt mkEnableMod;
+
+  hermesGateway = pkgs.writeShellApplication {
+    name = "hermes-gateway";
+    text = ''
+      exec /run/wrappers/bin/sudo -u hermes \
+        env \
+          HERMES_HOME=/var/lib/hermes/.hermes \
+          HOME=/var/lib/hermes \
+          /run/current-system/sw/bin/hermes "$@"
+    '';
+  };
+
+  dotsHermes = pkgs.writeShellApplication {
+    name = "dots-hermes";
+
+    text = ''
+      unset HERMES_HOME
+      cd "''${DOTS:-${dots}}"
+      exec hermes "$@"
+    '';
+  };
+
+  secrets.env = "services/hermes/env";
+in {
+  imports = [hermes-agent.nixosModules.default];
+
+  options = opt {
+    enable = mkEnableMod.true;
+
+    gatewayPackage = mkOption {
+      type = package;
+      default = hermesGateway;
+      description = "Wrapper package for running the system Hermes instance as the hermes user.";
+    };
+
+    dotsPackage = mkOption {
+      type = package;
+      default = dotsHermes;
+      description = "Wrapper package for launching Hermes from the dotfiles checkout.";
+    };
+
+    container.enable = mkOption {
+      type = bool;
+      default = false;
+      description = "Whether Hermes Agent should run inside its upstream container integration.";
+    };
+
+    extraDependencyGroups = mkOption {
+      type = listOf str;
+      default = [
+        "messaging"
+        "edge-tts"
+      ];
+      description = "Hermes Agent optional dependency groups to install.";
+    };
+
+    settings = mkOption {
+      type = attrs;
+      default = {
+        model = {
+          provider = "openai-codex";
+          default = "gpt-5.5";
+        };
+
+        toolsets = ["all"];
+
+        max_turns = 100;
+
+        terminal = {
+          backend = "local";
+          cwd = "/var/lib/hermes/workspace";
+          timeout = 180;
+        };
+
+        compression = {
+          enabled = true;
+          threshold = 0.85;
+          summary_model = "gpt-5.4-mini";
+        };
+
+        memory = {
+          memory_enabled = true;
+          user_profile_enabled = true;
+        };
+
+        display = {
+          compact = false;
+          personality = "kawaii";
+        };
+
+        agent = {
+          max_turns = 60;
+          verbose = false;
+        };
+      };
+      description = "Hermes Agent config.yaml settings rendered by the NixOS module.";
+    };
+
+    documents = mkOption {
+      type = attrs;
+      default = {
+        "USER.md" = ./documents/USER.md;
+      };
+      description = "Documents linked into Hermes Agent context.";
+    };
+
+    addToSystemPackages = mkOption {
+      type = bool;
+      default = true;
+      description = "Whether the upstream Hermes package should be added to system packages.";
+    };
+
+    extraArgs = mkOption {
+      type = listOf str;
+      default = [
+        # "--verbose"
+      ];
+      description = "Extra command-line arguments passed to the Hermes Agent service.";
+    };
+
+    restart = mkOption {
+      type = str;
+      default = "always";
+      description = "Systemd Restart policy for the Hermes Agent service.";
+    };
+
+    restartSec = mkOption {
+      type = int;
+      default = 5;
+      description = "Seconds to wait before restarting the Hermes Agent service.";
+    };
+  };
+
+  config = mkIf cfg.enable {
+    environment = {
+      systemPackages = [
+        cfg.gatewayPackage
+        cfg.dotsPackage
+      ];
+    };
+
+    services = {
+      hermes-agent = {
+        enable = mkDefault true;
+
+        container = {
+          enable = mkDefault cfg.container.enable;
+        };
+
+        # ── Model ──────────────────────────────────────────────────────────
+        extraDependencyGroups = mkDefault cfg.extraDependencyGroups;
+
+        settings = mkDefault cfg.settings;
+
+        # ── Secrets ────────────────────────────────────────────────────────
+        environmentFiles = [
+          config.sops.secrets.${secrets.env}.path
+        ];
+
+        # ── Documents ──────────────────────────────────────────────────────
+        documents = mkDefault cfg.documents;
+
+        # ── MCP Servers ────────────────────────────────────────────────────
+        # mcpServers.filesystem = {
+        #   command = "npx";
+        #   args = [
+        #     "-y"
+        #     "@modelcontextprotocol/server-filesystem"
+        #     "/home/craole/.dots"
+        #   ];
+        # };
+
+        # ── Container options ──────────────────────────────────────────────
+        # container = {
+        #   enable = true;
+        #   image = "ubuntu:24.04";
+        #   backend = "docker";
+        #   extraVolumes = [
+        #     "/home/craole/.dots:/dots:rw"
+        #     "/home/craole/Projects:/projects:rw"
+        #   ];
+        # };
+
+        # ── Service tuning ─────────────────────────────────────────────────
+        addToSystemPackages = mkDefault cfg.addToSystemPackages;
+
+        extraArgs = mkDefault cfg.extraArgs;
+
+        restart = mkDefault cfg.restart;
+        restartSec = mkDefault cfg.restartSec;
+      };
+    };
+
+    systemd = {
+      services = {
+        hermes-agent = {
+          serviceConfig = {
+            EnvironmentFile = config.sops.secrets.${secrets.env}.path;
+            TimeoutStopSec = 240;
+            UnsetEnvironment = [
+              "MESSAGING_CWD"
+            ];
+          };
+        };
+      };
+
+      tmpfiles = {
+        rules = [
+          "d /var/lib/hermes 0750 hermes hermes - -"
+          "d /var/lib/hermes/.hermes 0750 hermes hermes - -"
+          "d /var/lib/hermes/workspace 0750 hermes hermes - -"
+          "L+ /var/lib/hermes/.hermes/.env - - - - ${config.sops.secrets.${secrets.env}.path}"
+        ];
+      };
+    };
+
+    sops = {
+      secrets = {
+        ${secrets.env} = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0400";
+        };
+      };
+    };
+
+    virtualisation = {
+      docker = {
+        enable = true;
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/alacritty/default.nix:
+
+contents:
+{
+  top,
+  pkgs,
+  lib,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkIf;
+  inherit (lib.options) mkModuleArgs;
+
+  mk = scope: {config, ...}: let
+    _ = mkModuleArgs {inherit config top dom mod scope;};
+    inherit (_) cfg opt mkEnableMod;
+    package = pkgs.${mod};
+    inherit (cfg) enable;
+  in {
+    options = opt {enable = mkEnableMod.false;};
+    config = mkIf enable (
+      if scope == "core"
+      then {environment.systemPackages = [package];}
+      else {programs.${mod} = {inherit enable package;};}
+    );
+  };
+in {
+  core = mk "core";
+  home = mk "home";
+}
+
+============================
+
+assembly/configurations/applications/default.nix:
+
+contents:
+{
+  lib,
+  pkgs,
+  ...
+} @ args:
+lib.importModules (args
+  // {
+    inherit pkgs;
+    base = ./.;
+  })
+
+============================
+
+assembly/configurations/applications/foot/default.nix:
+
+contents:
+{
+  lix,
+  top,
+  pkgs,
+  lib,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkIf;
+  inherit (lib.options) mkModuleArgs;
+
+  mk = scope: {config, ...}: let
+    _ = mkModuleArgs {inherit config top dom mod scope;};
+    inherit (_) cfg opt mkEnableMod;
+    package = pkgs.${mod};
+    inherit (cfg) enable;
+  in {
+    options = opt {enable = mkEnableMod.false;};
+    config = mkIf enable (
+      if scope == "core"
+      then {environment.systemPackages = [package];}
+      else {programs.${mod} = {inherit enable package;};}
+    );
+  };
+in {
+  core = mk "core";
+  home = mk "home";
+}
+
+============================
+
+assembly/configurations/applications/git/default.nix:
+
+contents:
+{
+  top,
+  lib,
+  pkgs,
+  dom,
+  mod,
+  ...
+} @ args: let
+  inherit (lib.lists) concatMap asList;
+  inherit (lib.options) mkModuleArgs;
+
+  mkArgs = {
+    config,
+    scope,
+  }:
+    mkModuleArgs {inherit config top dom mod scope;};
+
+  packages = with pkgs; {
+    inherit git delta gitui git-lfs gh jujutsu;
+  };
+
+  subArgs = args // {inherit packages mkArgs;};
+
+  collect = tag:
+    concatMap (spec: asList (spec.${tag} or null))
+    (map (f: import f subArgs) [
+      ./git.nix
+      ./lfs.nix
+      ./delta.nix
+      ./gitui.nix
+      ./gh.nix
+      ./jj.nix
+      ./profiles.nix
+    ]);
+in {
+  core = collect "core";
+  home = collect "home";
+}
+
+============================
+
+assembly/configurations/applications/git/delta.nix:
+
+contents:
+{
+  lib,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = "delta";
+  inherit (lib.modules) mkDefault mkIf;
+in {
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {environment.systemPackages = [packages.delta];};
+  };
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
+    config = mkIf cfg.enable {
+      programs.delta = {
+        enable = mkDefault true;
+        package = mkDefault packages.delta;
+        enableGitIntegration = mkDefault true;
+        options = {
+          navigate = mkDefault true;
+          side-by-side = mkDefault true;
+        };
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/git/gh.nix:
+
+contents:
+{
+  lib,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = "gh";
+  inherit (lib.modules) mkDefault mkIf;
+in {
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {environment.systemPackages = [packages.${name}];};
+  };
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
+    config = mkIf cfg.enable {
+      programs.${name} = {
+        enable = mkDefault true;
+        package = mkDefault packages.${name};
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/git/git.nix:
+
+contents:
+{
+  lib,
+  mod,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = mod;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) package;
+in {
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {
+      enable = mkEnableMod.false;
+      package = mkOption {
+        type = package;
+        default = packages.${name};
+        description = "Package of '${name}' to install system-wide.";
+      };
+    };
+    config = mkIf cfg.enable {
+      environment.systemPackages = [cfg.package];
+    };
+  };
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {
+      enable = mkEnableMod.false;
+      package = mkOption {
+        type = package;
+        default = packages.${name};
+        description = "Package of '${name}' to enable for the user.";
+      };
+    };
+    config = mkIf cfg.enable {
+      programs.${name} = {
+        enable = mkDefault true;
+        package = mkDefault packages.${name};
+        settings = {
+          init.defaultBranch = mkDefault "main";
+          pull.rebase = mkDefault true;
+          rebase.autoStash = mkDefault true;
+          push.autoSetupRemote = mkDefault true;
+          core.editor = mkDefault "hx";
+          merge.conflictStyle = mkDefault "zdiff3";
+        };
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/git/gitui.nix:
+
+contents:
+{
+  lib,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = "gitui";
+  inherit (lib.modules) mkDefault mkIf;
+in {
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {environment.systemPackages = [packages.${name}];};
+  };
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
+    config = mkIf cfg.enable {
+      programs.${name} = {
+        enable = mkDefault true;
+        package = mkDefault packages.${name};
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/git/jj.nix:
+
+contents:
+{
+  lib,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = "jujutsu";
+  inherit (lib.modules) mkDefault mkIf;
+in {
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {environment.systemPackages = [packages.${name}];};
+  };
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
+    config = mkIf cfg.enable {
+      programs.${name} = {
+        enable = mkDefault true;
+        package = mkDefault packages.${name};
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/git/lfs.nix:
+
+contents:
+{
+  lib,
+  mod,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = "lfs";
+  inherit (lib.modules) mkDefault mkIf;
+in {
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {environment.systemPackages = [packages.${name}];};
+  };
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {
+      programs.${mod}.${name}.enable = mkDefault true;
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/git/profiles.nix:
+
+contents:
+{
+  lib,
+  pkgs,
+  mod,
+  packages,
+  mkArgs,
+  ...
+}: let
+  name = "profiles";
+  inherit (lib.attrsets) attrNames attrValues mapAttrs mapAttrs' optionalAttrs;
+  inherit (lib.lists) all optionals;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkOption;
+  inherit (lib.strings) concatStringsSep;
+  inherit (lib.types) attrsOf literalExpression str;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt;
+
+    home = config.home.homeDirectory;
+
+    mkUser = profile: {
+      name = profile;
+      email = cfg.${name}.${profile};
+    };
+
+    mkGitInclude = path: profile: {
+      condition = "gitdir:${path}";
+      contents.user = mkUser profile;
+    };
+
+    mkGithubHost = profile: {
+      HostName = "github.com";
+      User = "git";
+      IdentityFile = "${home}/.ssh/github/${profile}";
+      IdentitiesOnly = true;
+    };
+
+    autoRepos =
+      mapAttrs'
+      (profile: _: {
+        name = "${cfg.projectRoot}/${profile}/";
+        value = profile;
+      })
+      cfg.${name};
+
+    allRepos = autoRepos // cfg.extraRepositories;
+
+    hasProfiles = cfg.${name} != {};
+
+    ghClone = pkgs.writeShellApplication {
+      name = "gh-clone";
+      runtimeInputs = [packages.${mod} pkgs.coreutils];
+      text = ''
+        usage() {
+          cat <<'EOF'
+        usage:
+          gh-clone <profile> <owner/repo>
+          gh-clone <profile> <owner/repo> <target-name>
+
+        examples:
+          gh-clone craole-cc craole-cc/dots
+          gh-clone craole Craole/example
+          gh-clone cole-bassed cole-bassed/site website
+        EOF
+        }
+
+        profile="''${1:-}"
+        repo="''${2:-}"
+        target="''${3:-}"
+
+        if [ -z "$profile" ] || [ -z "$repo" ]; then
+          usage
+          exit 2
+        fi
+
+        case "$profile" in
+          ${concatStringsSep "|" (attrNames cfg.${name})})
+            ;;
+          *)
+            echo "error: unknown profile: $profile" >&2
+            echo "valid ${name}: ${concatStringsSep ", " (attrNames cfg.${name})}" >&2
+            exit 2
+            ;;
+        esac
+
+        case "$repo" in
+          */*)
+            ;;
+          *)
+            echo "error: repo must look like owner/repo" >&2
+            exit 2
+            ;;
+        esac
+
+        owner="''${repo%%/*}"
+        name="''${repo##*/}"
+        name="''${name%.git}"
+
+        [ -z "$target" ] && target="$name"
+
+        base="${cfg.projectRoot}/$profile"
+        dest="$base/$target"
+        url="git@github_$profile:$owner/$name.git"
+
+        mkdir -p "$base"
+
+        if [ -e "$dest" ]; then
+          echo "error: destination already exists: $dest" >&2
+          exit 1
+        fi
+
+        git clone "$url" "$dest"
+      '';
+    };
+  in {
+    options = opt {
+      ${name} = mkOption {
+        type = attrsOf str;
+        default = {};
+        description = "Git ${name} mapping username to email address.";
+        example = literalExpression ''
+          {
+            craole = "32288735+Craole@users.noreply.github.com";
+          }
+        '';
+      };
+
+      defaultProfile = mkOption {
+        type = str;
+        default = "";
+        description = "Default profile name for git user configuration.";
+      };
+
+      projectRoot = mkOption {
+        type = str;
+        default = "${home}/Projects";
+        description = "Base directory for project repositories.";
+      };
+
+      extraRepositories = mkOption {
+        type = attrsOf str;
+        default = {};
+        description = ''
+          Extra repository path-to-profile mappings. Paths not under
+          ''${projectRoot}/<<profile>/ must be declared here.
+        '';
+      };
+    };
+
+    config = mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = !hasProfiles || cfg.${name} ? ${cfg.defaultProfile};
+          message = "applications.git.defaultProfile must be a key in applications.git.${name}";
+        }
+        {
+          assertion = !hasProfiles || all (p: cfg.${name} ? ${p}) (attrValues cfg.extraRepositories);
+          message = "All ${name} in applications.git.extraRepositories must exist in applications.git.${name}";
+        }
+      ];
+
+      home.packages = optionals hasProfiles [ghClone];
+
+      programs = {
+        ${mod} = {
+          settings = optionalAttrs hasProfiles {
+            user = mkUser cfg.defaultProfile;
+          };
+          includes = optionals hasProfiles (attrValues (mapAttrs mkGitInclude allRepos));
+        };
+
+        ssh = mkIf hasProfiles {
+          enable = mkDefault true;
+          enableDefaultConfig = mkDefault false;
+          settings =
+            {
+              "*" = {
+                AddKeysToAgent = "no";
+                ForwardAgent = false;
+                ServerAliveInterval = 0;
+              };
+            }
+            // mapAttrs'
+            (profile: _: {
+              name = "github_${profile}";
+              value = mkGithubHost profile;
+            })
+            cfg.${name};
+        };
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/kitty/default.nix:
+
+contents:
+{
+  lix,
+  top,
+  pkgs,
+  lib,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkIf;
+  inherit (lib.options) mkModuleArgs;
+
+  mk = scope: {config, ...}: let
+    _ = mkModuleArgs {inherit config top dom mod scope;};
+    inherit (_) cfg opt mkEnableMod;
+    package = pkgs.${mod};
+    inherit (cfg) enable;
+  in {
+    options = opt {enable = mkEnableMod.false;};
+    config = mkIf enable (
+      if scope == "core"
+      then {environment.systemPackages = [package];}
+      else {programs.${mod} = {inherit enable package;};}
+    );
+  };
+in {
+  core = mk "core";
+  home = mk "home";
+}
+
+============================
+
+assembly/configurations/applications/noctalia/default.nix:
+
+contents:
+{
+  lix,
+  top,
+  lib,
+  inputs,
+  pkgs,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkDefault mkForce mkIf;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) package str;
+  inherit (lix) mkModuleArgs mkEnable;
+in {
+  core = [];
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnableMod;
+  in {
+    imports = [inputs.noctalia.homeModules.default];
+
+    options = opt {
+      enable = mkEnableMod.false;
+      package = mkOption {
+        type = package;
+        default = pkgs.noctalia-shell;
+        description = "Noctalia shell package used for the common Wayland panel/bar layer.";
+      };
+      command = mkOption {
+        type = str;
+        default = "noctalia-shell";
+        description = "Command used by compositor-specific startup hooks.";
+      };
+      onHyprland = (mkEnable {name = "Noctalia on Hyprland";}).true;
+      onNiri = (mkEnable {name = "Noctalia on Niri";}).true;
+    };
+
+    config = mkIf cfg.enable {
+      programs.noctalia-shell = {
+        enable = mkDefault true;
+        package = mkForce cfg.package;
+        # The upstream module warns that systemd integration is deprecated, so
+        # keep startup explicit in each compositor for now.
+        systemd.enable = mkDefault false;
+      };
+
+      programs.niri.settings.spawn-at-startup = mkIf cfg.onNiri [{argv = [cfg.command];}];
+      wayland.windowManager.hyprland.settings.exec-once = mkIf cfg.onHyprland [cfg.command];
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/starship/default.nix:
+
+contents:
+{
+  lix,
+  top,
+  pkgs,
+  lib,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkIf;
+  inherit (lib.options) mkModuleArgs;
+
+  mk = scope: {config, ...}: let
+    _ = mkModuleArgs {inherit config top dom mod scope;};
+    inherit (_) cfg opt mkEnableMod;
+    package = pkgs.${mod};
+    inherit (cfg) enable;
+  in {
+    options = opt {enable = mkEnableMod.false;};
+    config = mkIf enable (
+      if scope == "core"
+      then {environment.systemPackages = [package];}
+      else {programs.${mod} = {inherit enable package;};}
+    );
+  };
+in {
+  core = mk "core";
+  home = mk "home";
+}
+
+============================
+
+assembly/configurations/applications/vicinae/default.nix:
+
+contents:
+{
+  lix,
+  top,
+  lib,
+  pkgs,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) bool package;
+  inherit (lix) mkEnable mkModuleArgs;
+in {
+  core = [];
+
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnableMod;
+
+    # Shared launch command used by both compositors
+    launch = "${cfg.package}/bin/vicinae";
+  in {
+    options = opt {
+      enable = mkEnableMod.false;
+
+      package = mkOption {
+        type = package;
+        default = pkgs.vicinae;
+        description = "Vicinae package to install for the desktop launcher application profile.";
+      };
+
+      fallbackPackage = mkOption {
+        type = package;
+        default = pkgs.fuzzel;
+        description = "Fallback launcher package used when Vicinae cannot open.";
+      };
+
+      systemd.enable = mkOption {
+        type = bool;
+        default = true;
+        description = "Whether to start the Vicinae daemon through Home Manager's user service.";
+      };
+
+      onHyprland = (mkEnable {name = "Vicinae on Hyprland";}).true;
+      onNiri = (mkEnable {name = "Vicinae on Niri";}).true;
+    };
+
+    config = mkIf cfg.enable {
+      programs.vicinae = {
+        enable = mkDefault true;
+        package = mkDefault cfg.package;
+        systemd.enable = mkDefault cfg.systemd.enable;
+      };
+
+      home.packages = [cfg.fallbackPackage];
+
+      wayland.windowManager.hyprland.settings.bind = mkIf cfg.onHyprland [
+        "SUPER, Z, exec, ${launch}"
+      ];
+
+      programs.niri.settings.binds = mkIf cfg.onNiri {
+        "Mod+Z".action.spawn = [launch];
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/bookmarks.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.bookmarks = mkOption {
+        type = attrs;
+        default = {
+          force = true;
+          settings = [
+            {
+              name = "Nix Sites";
+              toolbar = true;
+              bookmarks = [
+                {
+                  name = "homepage";
+                  url = "https://nixos.org/";
+                }
+                {
+                  name = "wiki";
+                  tags = ["wiki" "nix"];
+                  url = "https://wiki.nixos.org/";
+                }
+                {
+                  name = "packages";
+                  url = "https://search.nixos.org/packages";
+                }
+              ];
+            }
+            {
+              name = "Development";
+              bookmarks = [
+                {
+                  name = "GitHub";
+                  url = "https://github.com";
+                }
+              ];
+            }
+          ];
+        };
+        description = "Declarative bookmarks for the configured profile.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/containers.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs bool;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.containersForce = mkOption {
+        type = bool;
+        default = true;
+        description = "Whether to delete containers not declared in this module.";
+      };
+      profile.containers = mkOption {
+        type = attrs;
+        default = {
+          Personal = {
+            color = "purple";
+            icon = "fingerprint";
+            id = 1;
+          };
+          Work = {
+            color = "blue";
+            icon = "briefcase";
+            id = 2;
+          };
+          Shopping = {
+            color = "yellow";
+            icon = "dollar";
+            id = 3;
+          };
+        };
+        description = "Declarative Zen containers for the configured profile.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/default.nix:
+
+contents:
+{
+  lib,
+  inputs,
+  top,
+  pkgs,
+  dom,
+  mod,
+  ...
+} @ args: let
+  inherit (lib.lists) asList concatMap;
+  inherit (lib.options) mkModuleArgs;
+
+  mkArgs = {
+    config,
+    scope,
+  }:
+    mkModuleArgs {inherit config top dom mod scope;};
+
+  packages = {
+    inherit (pkgs) firefoxpwa;
+  };
+
+  subArgs = args // {inherit packages mkArgs;};
+
+  collect = tag:
+    concatMap (spec: asList (spec.${tag} or null))
+    (map (f: import f subArgs) [
+      ./general.nix
+      ./bookmarks.nix
+      ./containers.nix
+      ./keyboard.nix
+      ./pins.nix
+      ./policies.nix
+      ./program.nix
+      ./search.nix
+      ./settings.nix
+      ./spaces.nix
+      ./style.nix
+    ]);
+in {
+  core = [];
+  home = [inputs.zen-browser.homeModules.twilight] ++ collect "home";
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/general.nix:
+
+contents:
+{
+  lib,
+  packages,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) bool enum listOf package str;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt mkEnableMod;
+  in {
+    options = opt {
+      enable = mkEnableMod.false;
+      channel = mkOption {
+        type = enum ["beta" "twilight" "twilight-official"];
+        default = "twilight";
+        description = "Zen Browser release channel/package to use.";
+      };
+      setAsDefaultBrowser = mkOption {
+        type = bool;
+        default = true;
+        description = "Whether Zen should be set as the default browser by the upstream module.";
+      };
+      nativeMessagingHosts = mkOption {
+        type = listOf package;
+        default = [packages.firefoxpwa];
+        description = "Native messaging host packages exposed to Zen.";
+      };
+      profile.name = mkOption {
+        type = str;
+        default = "default";
+        description = "Zen profile name to configure.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/keyboard.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs int listOf nullOr;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.keyboardShortcutsVersion = mkOption {
+        type = nullOr int;
+        default = 19;
+        description = "Expected Zen keyboard shortcut schema version.";
+      };
+      profile.keyboardShortcuts = mkOption {
+        type = listOf attrs;
+        default = [
+          {
+            id = "zen-compact-mode-toggle";
+            key = "c";
+            modifiers = {
+              control = true;
+              alt = true;
+            };
+          }
+          {
+            id = "zen-toggle-sidebar";
+            key = "x";
+            modifiers = {
+              control = true;
+              alt = true;
+            };
+          }
+          {
+            id = "key_quitApplication";
+            disabled = true;
+          }
+          {
+            id = "key_reload";
+            key = "r";
+            modifiers.control = true;
+          }
+          {
+            id = "key_reload_skip_cache";
+            key = "r";
+            modifiers = {
+              control = true;
+              shift = true;
+            };
+          }
+        ];
+        description = "Declarative keyboard shortcut overrides for the configured profile.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/pins.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs bool enum;
+
+  githubPin = {
+    "GitHub" = {
+      id = "48e8a119-5a14-4826-9545-91c8e8dd3bf6";
+      url = "https://github.com";
+      position = 101;
+    };
+  };
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.pinsForce = mkOption {
+        type = bool;
+        default = true;
+        description = "Whether to apply pinsForceAction to undeclared pinned tabs.";
+      };
+      profile.pinsForceAction = mkOption {
+        type = enum ["remove" "demote"];
+        default = "remove";
+        description = "Action to take for undeclared pinned tabs when pinsForce is enabled.";
+      };
+      profile.pins = mkOption {
+        type = attrs;
+        default =
+          githubPin
+          // {
+            Email = {
+              id = "9d8a8f91-7e29-4688-ae2e-da4e49d4a179";
+              url = "https://mail.protonmail.com";
+              position = 100;
+              isEssential = true;
+            };
+            "Dev Tools" = {
+              id = "d85a9026-1458-4db6-b115-346746bcc692";
+              isGroup = true;
+              isFolderCollapsed = false;
+              editedTitle = true;
+              position = 200;
+              folderIcon = "chrome://browser/skin/zen-icons/selectable/eye.svg";
+            };
+            "NixOS Packages" = {
+              id = "f8dd784e-11d7-430a-8f57-7b05ecdb4c77";
+              url = "https://search.nixos.org/packages";
+              folderParentId = "d85a9026-1458-4db6-b115-346746bcc692";
+              position = 201;
+            };
+            "NixOS Options" = {
+              id = "92931d60-fd40-4707-9512-a57b1a6a3919";
+              url = "https://search.nixos.org/options";
+              folderParentId = "d85a9026-1458-4db6-b115-346746bcc692";
+              position = 202;
+            };
+            Docs = {
+              id = "a4b044aa-ec6e-4a0a-81bd-cf59c90ad0b7";
+              url = "https://docs.zen-browser.app";
+              position = 300;
+            };
+            Issues = {
+              id = "eb41c041-f720-4702-a955-c163ef040e25";
+              url = "https://github.com/zen-browser/desktop/issues";
+              position = 301;
+            };
+          };
+        description = "Declarative pinned tabs, groups, folders, and essentials.";
+      };
+      profile.joinedTabs = mkOption {
+        type = attrs;
+        default = {
+          "Docs and issues" = {
+            id = "docs-issues-split";
+            gridType = "vsep";
+            tabs = [
+              "a4b044aa-ec6e-4a0a-81bd-cf59c90ad0b7"
+              "eb41c041-f720-4702-a955-c163ef040e25"
+            ];
+          };
+        };
+        description = "Zen split-view joined tab groups built from stable declared pin IDs.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/policies.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.attrsets) mapAttrs;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs;
+
+  mkExtensionSettings = mapAttrs (_: pluginId: {
+    install_url = "https://addons.mozilla.org/firefox/downloads/latest/${pluginId}/latest.xpi";
+    installation_mode = "force_installed";
+  });
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      policies = mkOption {
+        type = attrs;
+        default = {
+          AutofillAddressEnabled = true;
+          AutofillCreditCardEnabled = false;
+          DisableAppUpdate = true;
+          DisableFeedbackCommands = true;
+          DisableFirefoxStudies = true;
+          DisablePocket = true;
+          DisableTelemetry = true;
+          DontCheckDefaultBrowser = true;
+          NoDefaultBookmarks = true;
+          OfferToSaveLogins = false;
+          EnableTrackingProtection = {
+            Value = true;
+            Locked = true;
+            Cryptomining = true;
+            Fingerprinting = true;
+          };
+          Preferences = {
+            "browser.startup.homepage" = {
+              Value = "about:blank";
+              Status = "locked";
+            };
+            "browser.tabs.warnOnClose" = {
+              Value = true;
+              Status = "locked";
+            };
+          };
+          ExtensionSettings = mkExtensionSettings {
+            "wappalyzer@crunchlabz.com" = "wappalyzer";
+            "{85860b32-02a8-431a-b2b1-40fbd64c9c69}" = "github-file-icons";
+          };
+        };
+        description = "Firefox policy-template settings applied to Zen through policies.json.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/program.nix:
+
+contents:
+{
+  inputs,
+  lib,
+  pkgs,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.modules) mkDefault mkIf;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg;
+
+    selectedUnwrappedPackage = inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}."${cfg.channel}-unwrapped";
+  in {
+    config = mkIf cfg.enable {
+      programs.zen-browser = {
+        enable = mkDefault true;
+        setAsDefaultBrowser = mkDefault cfg.setAsDefaultBrowser;
+        policies = mkDefault cfg.policies;
+        nativeMessagingHosts = mkDefault cfg.nativeMessagingHosts;
+        unwrappedPackage = mkDefault selectedUnwrappedPackage;
+
+        profiles.${cfg.profile.name} = {
+          settings = mkDefault cfg.profile.settings;
+          mods = mkDefault cfg.profile.mods;
+          search = mkDefault cfg.profile.search;
+          bookmarks = mkDefault cfg.profile.bookmarks;
+          containersForce = mkDefault cfg.profile.containersForce;
+          containers = mkDefault cfg.profile.containers;
+          spacesForce = mkDefault cfg.profile.spacesForce;
+          spaces = mkDefault cfg.profile.spaces;
+          pinsForce = mkDefault cfg.profile.pinsForce;
+          pinsForceAction = mkDefault cfg.profile.pinsForceAction;
+          pins = mkDefault cfg.profile.pins;
+          joinedTabs = mkDefault cfg.profile.joinedTabs;
+          keyboardShortcutsVersion = mkDefault cfg.profile.keyboardShortcutsVersion;
+          keyboardShortcuts = mkDefault cfg.profile.keyboardShortcuts;
+          userChrome = mkDefault cfg.profile.userChrome;
+        };
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/search.nix:
+
+contents:
+{
+  lib,
+  pkgs,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.search = mkOption {
+        type = attrs;
+        default = {
+          force = true;
+          default = "ddg";
+          engines = {
+            mynixos = {
+              name = "My NixOS";
+              urls = [
+                {
+                  template = "https://mynixos.com/search?q={searchTerms}";
+                  params = [
+                    {
+                      name = "query";
+                      value = "searchTerms";
+                    }
+                  ];
+                }
+              ];
+              icon = "${pkgs.nixos-icons}/share/icons/hicolor/scalable/apps/nix-snowflake.svg";
+              definedAliases = ["@nx"];
+            };
+            github = {
+              name = "GitHub Search";
+              urls = [{template = "https://github.com/search?q={searchTerms}";}];
+              definedAliases = ["@gh"];
+            };
+          };
+        };
+        description = "Search engines and defaults for the configured profile.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/settings.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs listOf str;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.settings = mkOption {
+        type = attrs;
+        default = {
+          "zen.workspaces.continue-where-left-off" = true;
+          "zen.view.compact.hide-tabbar" = true;
+          "zen.urlbar.behavior" = "float";
+          "zen.welcome-screen.seen" = true;
+        };
+        description = "about:config preferences written to prefs.js for the configured profile.";
+      };
+      profile.mods = mkOption {
+        type = listOf str;
+        default = [
+          "e122b5d9-d385-4bf8-9971-e137809097d0" # No Top Sites
+          "253a3a74-0cc4-47b7-8b82-996a64f030d5" # Floating History
+          "4ab93b88-151c-451b-a1b7-a1e0e28fa7f8" # No Sidebar Scrollbar
+          "7190e4e9-bead-4b40-8f57-95d852ddc941" # Tab title fixes
+          "803c7895-b39b-458e-84f8-a521f4d7a064" # Hide Inactive Workspaces
+          "906c6915-5677-48ff-9bfc-096a02a72379" # Floating Status Bar
+        ];
+        description = "Zen Store mod UUIDs installed into the configured profile.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/spaces.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs bool;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.spacesForce = mkOption {
+        type = bool;
+        default = true;
+        description = "Whether to delete spaces not declared in this module.";
+      };
+      profile.spaces = mkOption {
+        type = attrs;
+        default = {
+          Personal = {
+            id = "c6de089c-410d-4206-961d-ab11f988d40a";
+            position = 1000;
+            icon = "🏠";
+          };
+          Work = {
+            id = "cdd10fab-4fc5-494b-9041-325e5759195b";
+            position = 2000;
+            icon = "💼";
+            container = 2;
+            theme = {
+              type = "gradient";
+              colors = [
+                {
+                  red = 100;
+                  green = 150;
+                  blue = 200;
+                  algorithm = "floating";
+                  type = "explicit-lightness";
+                  lightness = 50;
+                }
+              ];
+              opacity = 0.8;
+              texture = 0.5;
+            };
+          };
+          Shopping = {
+            id = "78aabdad-8aae-4fe0-8ff0-2a0c6c4ccc24";
+            position = 3000;
+            icon = "💸";
+            container = 3;
+          };
+        };
+        description = "Declarative Zen spaces for the configured profile.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/applications/zen-browser/style.nix:
+
+contents:
+{
+  lib,
+  mkArgs,
+  ...
+}: let
+  inherit (lib.options) mkOption;
+  inherit (lib.types) str;
+in {
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) opt;
+  in {
+    options = opt {
+      profile.userChrome = mkOption {
+        type = str;
+        default = ''
+          #navigator-toolbox {
+            background-color: #2b2b2b;
+          }
+
+          #TabsToolbar {
+            min-height: 28px;
+          }
+
+          .tab-icon-image {
+            width: 16px;
+            height: 16px;
+          }
+        '';
+        description = "Custom userChrome.css content for Zen UI customization.";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/base/default.nix:
+
+contents:
+# {
+#   lix,
+#   pkgs,
+#   ...
+# } @ args:
+# lix.importModules (args
+#   // {
+#     inherit pkgs;
+#     base = ./.;
+#     includeFiles = true;
+#   })
+flake:
+flake.libraries.modules.importModules {
+  base = ./.;
+  args = flake;
+  includeFiles = true;
+}
+
+============================
+
+assembly/configurations/base/localization.nix:
+
+contents:
+{
+  lix,
+  top,
+  host,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lix.modules) mkIf;
+  inherit (lix.attrsets) removeNulls orEmpty;
+  inherit
+    (lix.options)
+    mkModuleArgs
+    mkLatitudeOption
+    mkLongitudeOption
+    mkGeoProviderOption
+    mkTimezoneOption
+    mkLocaleOption
+    mkLocalTimeOption
+    ;
+
+  mk = scope: {config, ...}: let
+    _ = mkModuleArgs {inherit config top dom mod scope;};
+    inherit (_) cfg opt mkEnableMod;
+    inherit (cfg) enable;
+  in {
+    options = opt {
+      enable = mkEnableMod.true;
+      latitude = mkLatitudeOption {inherit host;};
+      longitude = mkLongitudeOption {inherit host;};
+      provider = mkGeoProviderOption {inherit host;};
+      timezone = mkTimezoneOption {inherit host;};
+      locale = mkLocaleOption {inherit host;};
+      useLocalTime = mkLocalTimeOption {inherit host;};
+    };
+
+    config = mkIf enable (
+      if scope == "core"
+      then {
+        location = removeNulls {
+          inherit (cfg) latitude longitude provider;
+        };
+        time =
+          {hardwareClockInLocalTime = cfg.useLocalTime;}
+          // removeNulls {timeZone = cfg.timezone;};
+        i18n.defaultLocale = cfg.locale;
+      }
+      else {home.language.base = cfg.locale;}
+    );
+  };
+in {
+  core = mk "core";
+  home = mk "home";
+}
+
+============================
+
+assembly/configurations/base/review/filesystem.nix:
+
+contents:
+{pkgs, ...}: {
+  environment = {
+    systemPackages = with pkgs; [
+      eza
+      lsd
+    ];
+
+    shellAliases = {
+      l = "lsd --git";
+      ll = "l --long --almost-all";
+      lt = "l --tree";
+      lr = "l --recursive";
+    };
+  };
+
+  programs = {
+    udevil = {
+      enable = true;
+    };
+    yazi = {
+      enable = true;
+    };
+  };
+
+  services = {
+    udisks2 = {
+      enable = true;
+      mountOnMedia = true;
+    };
+  };
+}
+
+============================
+
+assembly/configurations/base/review/fonts.nix:
+
+contents:
+{pkgs, ...}: {
+  boot = {
+    kernelParams = ["fbcon=font:TER16x32"];
+  };
+
+  console = {
+    packages = [pkgs.terminus_font];
+    font = "ter-v32n";
+  };
+
+  services = {
+    kmscon = {
+      hwRender = true;
+      fonts = [
+        {
+          name = "Maple Mono NF";
+          package = pkgs.maple-mono.NF;
+        }
+      ];
+      extraConfig = "font-size=32";
+      extraOptions = "--term xterm-256color";
+    };
+  };
+}
+
+============================
+
+assembly/configurations/base/review/maintenance.nix:
+
+contents:
+{
+  config,
+  pkgs,
+  dots,
+  ...
+}: let
+  apps = config.programs;
+
+  dotsRun = pkgs.writeShellApplication {
+    name = "dots-run";
+
+    runtimeInputs = with pkgs; [
+      coreutils
+      findutils
+      gnugrep
+      sudo
+    ];
+
+    text = ''
+      dots="''${DOTS:-${dots}}"
+
+      if [ "$#" -eq 0 ]; then
+        echo "usage: dots-run <command> [args...]" >&2
+        exit 2
+      fi
+
+      dots_writable() {
+        [ -w "$dots" ] &&
+          ! find "$dots" -not -user "$(id -un)" -print -quit | grep -q .
+      }
+
+      if dots_writable; then
+        "$@"
+      else
+        sudo "$@"
+      fi
+    '';
+  };
+
+  dotsEdit = pkgs.writeShellApplication {
+    name = "dots-edit";
+
+    runtimeInputs = [
+      dotsRun
+    ];
+
+    text = ''
+      editor="''${EDITOR:-hx}"
+      dots="''${DOTS:-${dots}}"
+
+      dots-run "$editor" "$dots"
+    '';
+  };
+
+  dotsCode = pkgs.writeShellApplication {
+    name = "dots-code";
+
+    runtimeInputs = [
+      dotsRun
+    ];
+
+    text = ''
+      visual="''${VISUAL:-code}"
+      dots="''${DOTS:-${dots}}"
+
+      dots-run "$visual" "$dots"
+    '';
+  };
+
+  dotsFormat = pkgs.writeShellApplication {
+    name = "dots-format";
+
+    runtimeInputs = with pkgs; [
+      alejandra
+      statix
+      dotsRun
+    ];
+
+    text = ''
+      dots="''${DOTS:-${dots}}"
+
+      dots-run statix fix "$dots"
+      dots-run alejandra "$dots"
+    '';
+  };
+
+  dotsUpdate = pkgs.writeShellApplication {
+    name = "dots-update";
+
+    runtimeInputs = with pkgs; [
+      nix
+      dotsRun
+    ];
+
+    text = ''
+      dots="''${DOTS:-${dots}}"
+
+      cd "$dots"
+      dots-run nix flake update
+    '';
+  };
+in {
+  nix = {
+    settings.experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
+  };
+
+  environment = {
+    sessionVariables = {
+      DOTS = dots;
+      EDITOR = "hx";
+      VISUAL = "code";
+    };
+
+    shellAliases = {
+      ede-dots = "dots-edit";
+      ide-dots = "dots-code";
+
+      cddots = ''cd "$DOTS"'';
+      up = "dots-update";
+      hix = "dots-edit";
+      edots = "dots-edit";
+      vdots = "dots-code";
+      fdots = "dots-format";
+      fix = "dots-format";
+
+      llx = ''ll "$DOTS"'';
+      ltx = ''lt "$DOTS"'';
+      ltr = ''lr "$DOTS"'';
+
+      build = ''nh os build "$DOTS"'';
+      check = ''nh os test "$DOTS"'';
+      switch = ''nh os switch "$DOTS"'';
+    };
+
+    systemPackages = with pkgs; [
+      #~@ dotDots - helper commands
+      dotsRun # ? Run commands against DOTS with sudo only when needed
+      dotsEdit # ? Open DOTS using EDITOR with sudo only when needed
+      dotsCode # ? Open DOTS using VISUAL with sudo only when needed
+      dotsFormat # ? Format DOTS using alejandra with sudo only when needed
+      dotsUpdate # ? Update DOTS flake lock with sudo only when needed
+
+      #~@ Nix - formatters, LSPs, cache, prefetchers
+      alejandra # ? Opinionated Nix formatter (primary)
+      nixfmt # ? RFC-style Nix formatter (secondary)
+      statix # ? Lints and suggestions for Nix - fixes antipatterns
+      cachix # ? Binary cache management CLI
+      nil # ? Nix LSP for static analysis
+      nixd # ? Nix language server daemon
+      nix-index # ? Index nixpkgs files for nix-locate
+      nix-info # ? System info helper for bug reports
+      nix-output-monitor # ? Pretty build progress - pipe via nom
+      nix-prefetch # ? Prefetch arbitrary sources
+      nix-prefetch-docker # ? Prefetch Docker image hashes
+      nix-prefetch-github # ? Prefetch GitHub repo hashes
+      nix-prefetch-scripts # ? Common prefetch script helpers
+      nvfetcher # ? Auto-update/pin flake sources
+
+      #~@ System - core utilities, hardware inspection
+      coreutils # ? GNU core utilities
+      uutils-coreutils-noprefix # ? Rust reimplementation of coreutils
+      findutils # ? GNU find, xargs, locate
+      gawk # ? GNU awk for text processing
+      getent # ? Query Name Service Switch databases
+      gnused # ? GNU stream editor
+      lshw # ? Detailed hardware lister
+      pciutils # ? PCI tools - lspci
+      usbutils # ? USB tools - lsusb
+      gnome-randr # ? Display configuration for GNOME/Wayland
+      wlr-randr # ? Display configuration for wlroots WMs
+      wl-clipboard-rs # ? Command-line copy/paste utilities for Wayland, written with Rust
+      procs # ? Modern ps replacement with tree view
+
+      #~@ Files - navigation, search, sync, cleanup
+      dua # ? Interactive disk usage analyzer (TUI)
+      dust # ? Intuitive du replacement
+      eza # ? Modern ls with git integration
+      fd # ? Fast, user-friendly find alternative
+      fzf # ? General-purpose fuzzy finder
+      lsd # ? Stylish ls with icons and Git integration
+      ouch # ? 7zip wrapper for [de]compressing archives with progress
+      p7zip # ? 7zip CLI for archive management
+      rsync # ? Fast incremental file sync/transfer
+      sad # ? CLI find-and-replace (batch sed)
+      sd # ? CLI find and replace (sed alternative)
+      trashy # ? Safe trash-aware rm alternative
+
+      #~@ Network - transfer, GitHub
+      curl # ? Command-line HTTP client
+      wget # ? Non-interactive network downloader
+
+      #~@ Dev - editors, VCS, data, media
+      # bat # ? Cat clone with syntax highlighting and paging
+      helix # ? Modal editor with native LSP + tree-sitter
+      vscode-fhs
+      zed-editor-fhs
+      imagemagick # ? Image conversion and manipulation
+      jql # ? JSON Query Language CLI tool built with Rust
+      jq # ? Lightweight and flexible command-line JSON processor
+      qimgv # ? Fast image viewer with minimal UI
+      ripgrep # ? Fast recursive grep (rg)
+      viu # ? Fast terminal image viewer with truecolor support
+
+      #~@ Shell - monitoring, productivity, aesthetics
+      btop # ? Rich resource monitor (htop replacement)
+      fastfetch # ? Fast system info fetcher
+      fend # ? Arbitrary-precision calculator REPL
+      figlet # ? ASCII art text banners
+    ];
+  };
+
+  programs = {
+    bash = {
+      enable = true;
+      blesh.enable = true;
+      undistractMe = {
+        enable = true;
+        timeout = 60;
+        playSound = false;
+      };
+      vteIntegration = true;
+    };
+
+    bcc = {
+      enable = true;
+    };
+
+    direnv = {
+      enable = true;
+      silent = true;
+      settings = {
+        global = {
+          log_format = "-";
+          log_filter = "^$";
+        };
+      };
+    };
+
+    git = {
+      enable = true;
+      lfs.enable = true;
+      prompt.enable = true;
+      config = {
+        init = {
+          defaultBranch = "main";
+        };
+      };
+    };
+    nix-ld.enable = true;
+
+    bat = {
+      enable = true;
+      extraPackages = with pkgs.bat-extras; [
+        # batdiff
+        # batman
+        # prettybat
+      ];
+      settings = {};
+    };
+
+    fzf = {
+      fuzzyCompletion = true;
+      keybindings = true;
+    };
+
+    starship = {
+      enable = true;
+    };
+
+    nh = {
+      enable = true;
+      flake = dots;
+      clean = {
+        enable = true;
+        dates = "weekly";
+        extraArgs = "--keep 5 --keep-since 3d";
+      };
+    };
+
+    television = {
+      enable = true;
+      enableBashIntegration = apps.bash.enable;
+      enableFishIntegration = apps.fish.enable;
+      enableZshIntegration = apps.zsh.enable;
+    };
+
+    tmux = {
+      enable = true;
+    };
+  };
+
+  services = {};
+}
+
+============================
+
+assembly/configurations/base/review/remote.nix:
+
+contents:
+{
+  services = {
+    openssh = {
+      enable = true;
+      openFirewall = true;
+    };
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+    };
+  };
+}
+
+============================
+
+assembly/configurations/base/review/users/default.nix:
+
+contents:
+{
+  inputs,
+  host,
+  top,
+  lib,
+  ...
+}: let
+  inherit (lib.attrsets) attrValues filterAttrs mapAttrs;
+  inherit (lib.lists) asList concatMap;
+  inherit (lib.modules) collectUserSpecs getUsers mkCdAliases mkEnvVars;
+
+  hostUsers =
+    if host.users ? values
+    then host.users
+    else getUsers host.users;
+  loginUsers = filterAttrs (_: user: (user.role or "") != "service") hostUsers.values;
+  adminUsers = hostUsers.byRole.administrator.values;
+in {
+  imports =
+    [inputs.home-manager.nixosModules.home-manager]
+    ++ concatMap
+    (user:
+      concatMap (spec: asList (spec.core or null))
+      (collectUserSpecs {
+        inherit user;
+        args = {inherit lib top host inputs;};
+      }))
+    (attrValues loginUsers);
+
+  users.users =
+    mapAttrs (_: user: {
+      inherit (user) description;
+      group = user.group or user.name;
+      isNormalUser = (user.role or "") != "service";
+      isSystemUser = (user.role or "") == "service";
+      extraGroups =
+        if user.role == "administrator"
+        then ["networkmanager" "wheel"]
+        else if user.role == "service"
+        then ["networkmanager"]
+        else [];
+    })
+    hostUsers.values;
+
+  users.groups = mapAttrs (_: user: {}) hostUsers.values;
+
+  security.sudo = {
+    execWheelOnly = true;
+    extraRules =
+      map (user: {
+        users = [user.name];
+        commands = [
+          {
+            command = "ALL";
+            options = ["SETENV" "NOPASSWD"];
+          }
+        ];
+      })
+      (attrValues adminUsers);
+  };
+
+  home-manager = {
+    backupFileExtension = "BaC";
+    # extraSpecialArgs = {inherit inputs  top host;};
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    users =
+      mapAttrs (_: user: {
+        config,
+        osConfig,
+        top,
+        ...
+      }: {
+        imports =
+          [
+            {
+              home = {
+                inherit (osConfig.system) stateVersion;
+                sessionVariables = mkEnvVars "" (config.${top}.paths or {});
+                shellAliases = mkCdAliases (config.${top}.paths or {});
+              };
+              programs.home-manager.enable = true;
+            }
+          ]
+          ++ concatMap
+          (spec: asList (spec.home or null))
+          (collectUserSpecs {
+            inherit user;
+            args = {inherit lib top host inputs;};
+          });
+      })
+      loginUsers;
+  };
+}
+
+============================
+
+assembly/configurations/default.nix:
+
+contents:
+flake: let
+  inherit (flake.libraries.modules) importModules;
+
+  core =
+    (flake.modules.core or [])
+    ++ [
+      (importModules {
+        base = ./.;
+        args = flake;
+        excludes =
+          flake.defaults.excludes
+          ++ [
+            "ai"
+            "applications"
+            "interface"
+          ];
+      })
+    ];
+in
+  flake.libraries.mkConfigurations {
+    class = "nixos";
+    flake = flake // {modules = flake.modules // {inherit core;};};
+  }
+
+============================
+
+assembly/configurations/interface/browsers/default.nix:
+
+contents:
+{
+  home = ./home.nix;
+}
+
+============================
+
+assembly/configurations/interface/browsers/home.nix:
+
+contents:
+{
+  config,
+  lib,
+  pkgs,
+  top,
+  ...
+}: let
+  inherit (lib.attrsets) genAttrs;
+  inherit (lib.lists) optional;
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkEnableOption mkOption;
+  inherit (lib.types) nullOr package str;
+
+  dom = "interface";
+  mod = "browsers";
+
+  cfg = config.${top}.${dom}.${mod};
+
+  browserMimeTypes = [
+    "text/html"
+    "x-scheme-handler/about"
+    "x-scheme-handler/http"
+    "x-scheme-handler/https"
+  ];
+
+  defaultDesktop =
+    if cfg.primary.desktop != null
+    then cfg.primary.desktop
+    else cfg.secondary.desktop;
+in {
+  options.${top}.${dom}.${mod} = {
+    enable = mkEnableOption "desktop browser defaults";
+
+    primary.package = mkOption {
+      type = nullOr package;
+      default = null;
+      description = ''
+        Preferred Zen/Twilight browser package when the flake provides one.
+        Null means no Zen/Twilight browser target is currently available.
+      '';
+    };
+
+    primary.desktop = mkOption {
+      type = nullOr str;
+      default = null;
+      description = "Desktop file name for the preferred primary browser.";
+    };
+
+    secondary.package = mkOption {
+      type = package;
+      default = pkgs.chromium;
+      description = "Chromium-based fallback browser package.";
+    };
+
+    secondary.desktop = mkOption {
+      type = str;
+      default = "chromium-browser.desktop";
+      description = "Desktop file name for the Chromium-based fallback browser.";
+    };
+  };
+
+  config = mkIf cfg.enable {
+    home.packages =
+      [cfg.secondary.package]
+      ++ optional (cfg.primary.package != null) cfg.primary.package;
+
+    xdg.mimeApps = {
+      enable = mkDefault true;
+      defaultApplications = genAttrs browserMimeTypes (_:
+        mkDefault (
+          [defaultDesktop]
+          ++ optional (cfg.secondary.desktop != defaultDesktop) cfg.secondary.desktop
+        ));
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/control/default.nix:
+
+contents:
+{
+  home = [
+    ./options.nix
+    ./hyprland.nix
+    ./niri.nix
+    ./packages.nix
+  ];
+}
+
+============================
+
+assembly/configurations/interface/control/hyprland.nix:
+
+contents:
+# modules/interface/keybinds/hyprland.nix
+{
+  config,
+  lib,
+  top,
+  ...
+}: let
+  dom = "interface";
+  mod = "control";
+  cfg = config.${top}.${dom}.${mod};
+
+  inherit (lib.attrsets) filterAttrs;
+  inherit (lib.modules) mkDefault mkIf;
+
+  inherit (cfg) actions modifier;
+  enabled = filterAttrs (_: a: a.command != null) actions;
+
+  bind = key: dispatch: "${modifier}, ${key}, ${dispatch}";
+  bindAlt = key: dispatch: "ALT, ${key}, ${dispatch}";
+  bindCtrl = key: dispatch: "${modifier} CTRL, ${key}, ${dispatch}";
+
+  exec = key: action: bind key "exec, ${action.command}";
+  execCtrl = key: action: bindCtrl key "exec, ${action.command}";
+  execAlt = key: action: bindAlt key "exec, ${action.command}";
+
+  when = cond: value:
+    if cond
+    then [value]
+    else [];
+in {
+  config = mkIf (cfg.enable && cfg.onHyprland) {
+    wayland.windowManager.hyprland.settings = {
+      "$mod" = mkDefault modifier;
+
+      bindr =
+        when
+        (enabled ? primaryLauncher)
+        "${modifier}, Super_L, exec, ${enabled.primaryLauncher.command}";
+
+      bind =
+        (
+          when
+          (enabled ? secondaryLauncher)
+          (exec "Space" enabled.secondaryLauncher)
+        )
+        ++ (
+          when
+          (enabled ? showKeybinds)
+          (execCtrl "slash" enabled.showKeybinds)
+        )
+        ++ (
+          when
+          (enabled ? terminal)
+          (exec "Return" enabled.terminal)
+        )
+        ++ (
+          when
+          (enabled ? scratchpadTerminal)
+          (exec "grave" enabled.scratchpadTerminal)
+        )
+        ++ (
+          when
+          (enabled ? primaryBrowser)
+          (exec "B" enabled.primaryBrowser)
+        )
+        ++ (
+          when
+          (enabled ? secondaryBrowser)
+          (execAlt "B" enabled.secondaryBrowser)
+        )
+        ++ (
+          when
+          (enabled ? visualTools)
+          (exec "V" enabled.visualTools)
+        )
+        ++ (
+          when
+          (enabled ? fileManager)
+          (exec "F" enabled.fileManager)
+        )
+        ++ (
+          when
+          (enabled ? editor)
+          (exec "E" enabled.editor)
+        )
+        ++ (
+          when
+          (actions.fullscreen.description != null)
+          (bindAlt "Return" "fullscreen, 0")
+        )
+        ++ (
+          when
+          (actions.fullscreen.description != null)
+          (bindCtrl "F" "fullscreen, 0")
+        )
+        ++ (
+          when
+          (actions.logout.description != null)
+          (bindCtrl "Q" "exit")
+        )
+        ++ (
+          when
+          (actions.closeWindow.description != null)
+          (bind "Q" "killactive")
+        )
+        ++ (
+          when
+          (actions.reloadConfig.description != null)
+          (bindCtrl "R" "exec, hyprctl reload")
+        )
+        ++ (
+          when
+          (enabled ? lock)
+          (execCtrl "L" enabled.lock)
+        )
+        ++ (
+          when
+          (enabled ? screenshot)
+          (bind "Print" "exec, ${enabled.screenshot.command}")
+        );
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/control/niri.nix:
+
+contents:
+# modules/interface/keybinds/niri.nix
+{
+  config,
+  lib,
+  top,
+  ...
+}: let
+  dom = "interface";
+  mod = "control";
+  cfg = config.${top}.${dom}.${mod};
+
+  inherit (lib.attrsets) filterAttrs optionalAttrs;
+  inherit (lib.modules) mkIf;
+
+  inherit (cfg) actions;
+  enabled = filterAttrs (_: a: a.command != null) actions;
+
+  spawn = command: {action.spawn = ["sh" "-lc" command];};
+
+  withTitle = key: title: action: {
+    ${key} =
+      (spawn action.command)
+      // {hotkey-overlay.title = title;};
+  };
+
+  # ---------------------------------------------------------------------------
+  # Upstream default binds — restored explicitly because programs.niri.settings.binds
+  # is a plain attrset that replaces rather than merges with niri's built-ins.
+  # Derived from niri-wm/niri resources/default-config.kdl (main branch).
+  # ---------------------------------------------------------------------------
+  defaults = {
+    # Hotkey overlay
+    "Mod+Shift+Slash" = {action.show-hotkey-overlay = [];};
+
+    # Focus
+    "Mod+Left" = {action.focus-column-left = [];};
+    "Mod+Right" = {action.focus-column-right = [];};
+    "Mod+Up" = {action.focus-window-up = [];};
+    "Mod+Down" = {action.focus-window-down = [];};
+    "Mod+H" = {action.focus-column-left = [];};
+    "Mod+L" = {action.focus-column-right = [];};
+    "Mod+K" = {action.focus-window-up = [];};
+    "Mod+J" = {action.focus-window-down = [];};
+
+    # Focus monitor
+    "Mod+Ctrl+Left" = {action.focus-monitor-left = [];};
+    "Mod+Ctrl+Right" = {action.focus-monitor-right = [];};
+    "Mod+Ctrl+Up" = {action.focus-monitor-up = [];};
+    "Mod+Ctrl+Down" = {action.focus-monitor-down = [];};
+    "Mod+Ctrl+H" = {action.focus-monitor-left = [];};
+    "Mod+Ctrl+L" = {action.focus-monitor-right = [];};
+    "Mod+Ctrl+K" = {action.focus-monitor-up = [];};
+    "Mod+Ctrl+J" = {action.focus-monitor-down = [];};
+
+    # Move windows
+    "Mod+Shift+Left" = {action.move-column-left = [];};
+    "Mod+Shift+Right" = {action.move-column-right = [];};
+    "Mod+Shift+Up" = {action.move-window-up = [];};
+    "Mod+Shift+Down" = {action.move-window-down = [];};
+    "Mod+Shift+H" = {action.move-column-left = [];};
+    "Mod+Shift+L" = {action.move-column-right = [];};
+    "Mod+Shift+K" = {action.move-window-up = [];};
+    "Mod+Shift+J" = {action.move-window-down = [];};
+
+    # Move to monitor
+    "Mod+Ctrl+Shift+Left" = {action.move-column-to-monitor-left = [];};
+    "Mod+Ctrl+Shift+Right" = {action.move-column-to-monitor-right = [];};
+    "Mod+Ctrl+Shift+Up" = {action.move-column-to-monitor-up = [];};
+    "Mod+Ctrl+Shift+Down" = {action.move-column-to-monitor-down = [];};
+    "Mod+Ctrl+Shift+H" = {action.move-column-to-monitor-left = [];};
+    "Mod+Ctrl+Shift+L" = {action.move-column-to-monitor-right = [];};
+    "Mod+Ctrl+Shift+K" = {action.move-column-to-monitor-up = [];};
+    "Mod+Ctrl+Shift+J" = {action.move-column-to-monitor-down = [];};
+
+    # Column / window sizing
+    "Mod+R" = {action.switch-preset-column-width = [];};
+    "Mod+Shift+R" = {action.switch-preset-window-height = [];};
+    "Mod+Ctrl+R" = {action.reset-window-height = [];};
+    "Mod+Minus" = {action.set-column-width = "-10%";};
+    "Mod+Equal" = {action.set-column-width = "+10%";};
+    "Mod+Shift+Minus" = {action.set-window-height = "-10%";};
+    "Mod+Shift+Equal" = {action.set-window-height = "+10%";};
+    "Mod+I" = {action.expand-column-to-available-width = [];};
+
+    # Fullscreen / centering
+    "Mod+Shift+F" = {action.fullscreen-window = [];};
+    "Mod+Shift+C" = {action.center-column = [];};
+
+    # Stacking / column manipulation
+    "Mod+Comma" = {action.consume-window-into-column = [];};
+    "Mod+Period" = {action.expel-window-from-column = [];};
+    "Mod+BracketLeft" = {action.consume-or-expel-window-left = [];};
+    "Mod+BracketRight" = {action.consume-or-expel-window-right = [];};
+
+    # Overview
+    "Mod+Tab" = {action.toggle-overview = [];};
+
+    # Workspaces
+    "Mod+Page_Down" = {action.focus-workspace-down = [];};
+    "Mod+Page_Up" = {action.focus-workspace-up = [];};
+    "Mod+U" = {action.focus-workspace-down = [];};
+    # Mod+I is taken above by expand-column-to-available-width
+    "Mod+Shift+Page_Down" = {action.move-column-to-workspace-down = [];};
+    "Mod+Shift+Page_Up" = {action.move-column-to-workspace-up = [];};
+    "Mod+Shift+U" = {action.move-column-to-workspace-down = [];};
+    "Mod+Shift+I" = {action.move-column-to-workspace-up = [];};
+
+    "Mod+1" = {action.focus-workspace = 1;};
+    "Mod+2" = {action.focus-workspace = 2;};
+    "Mod+3" = {action.focus-workspace = 3;};
+    "Mod+4" = {action.focus-workspace = 4;};
+    "Mod+5" = {action.focus-workspace = 5;};
+    "Mod+6" = {action.focus-workspace = 6;};
+    "Mod+7" = {action.focus-workspace = 7;};
+    "Mod+8" = {action.focus-workspace = 8;};
+    "Mod+9" = {action.focus-workspace = 9;};
+
+    "Mod+Shift+1" = {action.move-column-to-workspace = 1;};
+    "Mod+Shift+2" = {action.move-column-to-workspace = 2;};
+    "Mod+Shift+3" = {action.move-column-to-workspace = 3;};
+    "Mod+Shift+4" = {action.move-column-to-workspace = 4;};
+    "Mod+Shift+5" = {action.move-column-to-workspace = 5;};
+    "Mod+Shift+6" = {action.move-column-to-workspace = 6;};
+    "Mod+Shift+7" = {action.move-column-to-workspace = 7;};
+    "Mod+Shift+8" = {action.move-column-to-workspace = 8;};
+    "Mod+Shift+9" = {action.move-column-to-workspace = 9;};
+
+    # Scroll navigation
+    "Mod+WheelScrollDown" = {
+      action.focus-workspace-down = [];
+      cooldown-ms = 150;
+    };
+    "Mod+WheelScrollUp" = {
+      action.focus-workspace-up = [];
+      cooldown-ms = 150;
+    };
+    "Mod+WheelScrollRight" = {action.focus-column-right = [];};
+    "Mod+WheelScrollLeft" = {action.focus-column-left = [];};
+    "Mod+Shift+WheelScrollDown" = {
+      action.focus-column-right = [];
+      cooldown-ms = 150;
+    };
+    "Mod+Shift+WheelScrollUp" = {
+      action.focus-column-left = [];
+      cooldown-ms = 150;
+    };
+
+    # Screenshots (native niri actions; grim+slurp variant added below)
+    "Print" = {action.screenshot = [];};
+    "Ctrl+Print" = {action.screenshot-screen = [];};
+    "Alt+Print" = {action.screenshot-window = [];};
+
+    # Media / system keys
+    "XF86AudioRaiseVolume" = {
+      action.spawn = ["wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1+"];
+      allow-when-locked = true;
+    };
+    "XF86AudioLowerVolume" = {
+      action.spawn = ["wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1-"];
+      allow-when-locked = true;
+    };
+    "XF86AudioMute" = {
+      action.spawn = ["wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"];
+      allow-when-locked = true;
+    };
+    "XF86AudioMicMute" = {
+      action.spawn = ["wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"];
+      allow-when-locked = true;
+    };
+    "XF86MonBrightnessUp" = {action.spawn = ["brightnessctl" "set" "10%+"];};
+    "XF86MonBrightnessDown" = {action.spawn = ["brightnessctl" "set" "10%-"];};
+
+    # Inhibit shortcut passthrough (useful in VMs / remote desktop)
+    "Mod+Escape" = {action.toggle-keyboard-shortcuts-inhibit = [];};
+  };
+in {
+  config = mkIf (cfg.enable && cfg.onNiri) {
+    programs.niri.settings.binds =
+      # All upstream defaults first — semantic layer overrides via // below.
+      defaults
+      # Niri doesn't safely support a bare Mod key bind through niri-flake,
+      # so Win alone is Hyprland-only. Win+Space is the shared recovery path.
+      // (
+        optionalAttrs (enabled ? secondaryLauncher)
+        (withTitle "Mod+Space" "Open Fuzzel" enabled.secondaryLauncher)
+      )
+      // (
+        optionalAttrs (enabled ? terminal)
+        (withTitle "Mod+Return" "Open terminal" enabled.terminal)
+      )
+      # Scratchpad overrides Mod+Grave (which defaults would map to toggle-overview
+      # if we had put it there — we didn't, so this is additive).
+      // (
+        optionalAttrs (enabled ? scratchpadTerminal)
+        (withTitle "Mod+Grave" "Open scratchpad terminal" enabled.scratchpadTerminal)
+      )
+      // (
+        optionalAttrs (enabled ? primaryBrowser)
+        (withTitle "Mod+B" "Open primary browser" enabled.primaryBrowser)
+      )
+      // (
+        optionalAttrs (enabled ? secondaryBrowser)
+        (withTitle "Mod+Alt+B" "Open secondary browser" enabled.secondaryBrowser)
+      )
+      // (
+        optionalAttrs (enabled ? visualTools)
+        (withTitle "Mod+V" "Open visual tools" enabled.visualTools)
+      )
+      // (
+        optionalAttrs (enabled ? fileManager)
+        (withTitle "Mod+F" "Open file manager" enabled.fileManager)
+      )
+      // (
+        optionalAttrs (enabled ? editor)
+        (withTitle "Mod+E" "Open editor" enabled.editor)
+      )
+      // (
+        optionalAttrs (actions.fullscreen.description != null) {
+          "Alt+Return" = {
+            action.fullscreen-window = [];
+            hotkey-overlay.title = "Toggle fullscreen";
+          };
+          "Mod+Ctrl+F" = {
+            action.fullscreen-window = [];
+            hotkey-overlay.title = "Toggle fullscreen";
+          };
+        }
+      )
+      // (
+        optionalAttrs (actions.logout.description != null) {
+          "Mod+Ctrl+Q" = {
+            action.quit.skip-confirmation = true;
+            hotkey-overlay.title = "Exit niri";
+          };
+        }
+      )
+      // (
+        optionalAttrs (actions.closeWindow.description != null) {
+          "Mod+Q" = {
+            action.close-window = [];
+            hotkey-overlay.title = "Close focused window";
+          };
+        }
+      )
+      // (
+        optionalAttrs (enabled ? lock)
+        (withTitle "Mod+Ctrl+L" "Lock session" enabled.lock)
+      )
+      // (
+        optionalAttrs (actions.showKeybinds.description != null) {
+          "Mod+Ctrl+Slash" = {
+            action.show-hotkey-overlay = [];
+            hotkey-overlay.title = "Show common keybinds";
+          };
+        }
+      )
+      # grim+slurp region screenshot on Mod+Print; native Print stays from defaults.
+      // (
+        optionalAttrs (enabled ? screenshot) {
+          "Mod+Print" = {
+            action.spawn = ["sh" "-lc" enabled.screenshot.command];
+            hotkey-overlay.title = "Region screenshot → clipboard";
+          };
+        }
+      );
+
+    # reloadConfig is intentionally Hyprland-only: niri reloads automatically
+    # and niri-flake doesn't expose a stable reload-config action.
+  };
+}
+
+============================
+
+assembly/configurations/interface/control/options.nix:
+
+contents:
+{
+  lib,
+  top,
+  ...
+}: let
+  dom = "interface";
+  mod = "control";
+
+  inherit (lib.options) mkEnableOption mkOption;
+  inherit (lib.types) nullOr str submodule;
+
+  mkActionOption = description: defaults:
+    mkOption {
+      type = submodule {
+        options = {
+          command = mkOption {
+            type = nullOr str;
+            default = defaults.command or null;
+            description = "Shell command for the ${description} action.";
+          };
+          description = mkOption {
+            type = str;
+            default = defaults.description or description;
+            description = "Human-readable label for the ${description} action.";
+          };
+        };
+      };
+      default = {};
+      description = "Shared semantic interface action for ${description}.";
+    };
+in {
+  options.${top}.${dom}.${mod} = {
+    enable = mkEnableOption "shared interface/session keybind profile";
+
+    modifier = mkOption {
+      type = str;
+      default = "SUPER";
+      description = ''
+        Primary compositor modifier key. Hyprland uses this directly; Niri
+        maps it to its compositor-agnostic Mod alias.
+      '';
+    };
+
+    onHyprland =
+      mkEnableOption "translate shared keybind actions to Hyprland syntax"
+      // {default = true;};
+
+    onNiri =
+      mkEnableOption "translate shared keybind actions to Niri syntax"
+      // {default = true;};
+
+    actions = {
+      primaryLauncher = mkActionOption "primary launcher" {
+        command = "vicinae open";
+        description = "Open Vicinae";
+      };
+      secondaryLauncher = mkActionOption "secondary launcher" {
+        command = "fuzzel";
+        description = "Open Fuzzel";
+      };
+      showKeybinds = mkActionOption "show keybinds/help" {
+        command = "dots-common-keybinds";
+        description = "Show common keybinds";
+      };
+      terminal = mkActionOption "terminal" {
+        command = "foot";
+        description = "Open terminal";
+      };
+      scratchpadTerminal = mkActionOption "scratchpad/quake terminal" {
+        command = "foot --app-id dots-scratchpad";
+        description = "Open scratchpad terminal";
+      };
+      primaryBrowser = mkActionOption "primary browser" {
+        command = "zen";
+        description = "Open primary browser";
+      };
+      secondaryBrowser = mkActionOption "secondary browser" {
+        command = "chromium";
+        description = "Open secondary browser";
+      };
+      visualTools = mkActionOption "visual tools" {
+        command = "vicinae open || fuzzel";
+        description = "Open visual tools";
+      };
+      fileManager = mkActionOption "file manager" {
+        command = "xdg-open $HOME";
+        description = "Open file manager";
+      };
+      editor = mkActionOption "editor" {
+        command = "code";
+        description = "Open editor";
+      };
+      fullscreen = mkActionOption "fullscreen" {
+        description = "Toggle fullscreen";
+      };
+      logout = mkActionOption "logout/exit session" {
+        description = "Exit compositor session";
+      };
+      closeWindow = mkActionOption "close window" {
+        description = "Close focused window";
+      };
+      reloadConfig = mkActionOption "reload config" {
+        description = "Reload compositor config";
+      };
+      lock = mkActionOption "lock" {
+        command = "loginctl lock-session";
+        description = "Lock session";
+      };
+      screenshot = mkActionOption "screenshot" {
+        command = ''grim -g "$(slurp)" - | wl-copy'';
+        description = "Take a screenshot";
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/control/packages.nix:
+
+contents:
+{
+  config,
+  lib,
+  pkgs,
+  top,
+  ...
+}: let
+  dom = "interface";
+  mod = "control";
+  cfg = config.${top}.${dom}.${mod};
+
+  inherit (lib.meta) getExe;
+  inherit (lib.modules) mkIf;
+in {
+  home.packages = mkIf cfg.enable (with pkgs; [
+    (
+      writeShellScriptBin "dots-common-keybinds" ''
+        ${getExe libnotify} "Common desktop keybinds" "$(cat <<'HELP'
+        Win: primary launcher (Hyprland)
+        Win+Space: secondary launcher
+        Win+Ctrl+/: show keybind help
+        Win+Enter: terminal
+        Win+`: scratchpad terminal
+        Win+B: primary browser
+        Win+Alt+B: secondary browser
+        Win+V: visual tools launcher
+        Win+F: file manager
+        Win+E: editor
+        Alt+Enter / Win+Ctrl+F: fullscreen
+        Win+Q: close focused window
+        Win+Ctrl+L: lock session
+        Win+Ctrl+Q: logout/exit session
+        Print: screenshot
+        HELP
+        )"
+      ''
+    )
+    brightnessctl
+    grim
+    libnotify
+    slurp
+    wl-clipboard
+  ]);
+}
+
+============================
+
+assembly/configurations/interface/default.nix:
+
+contents:
+{lib, ...} @ args:
+lib.importModules (args
+  // {
+    base = ./.;
+  })
+
+============================
+
+assembly/configurations/interface/gaming/default.nix:
+
+contents:
+{
+  core = {pkgs, ...}: {
+    programs = {
+      gamescope.enable = true;
+    };
+
+    environment = {
+      systemPackages = [
+        pkgs.mangohud
+      ];
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/keyd/default.nix:
+
+contents:
+{
+  lix,
+  lib,
+  top,
+  dom,
+  mod,
+  ...
+}: let
+  inherit (lib.modules) mkDefault mkIf;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) listOf str;
+  inherit (lib.options) mkModuleArgs;
+in {
+  core = {config, ...}: let
+    inherit (mkModuleArgs {inherit config top dom mod;}) cfg opt mkEnableMod;
+  in {
+    options = opt {
+      enable = mkEnableMod.false;
+
+      ids = mkOption {
+        type = listOf str;
+        default = ["*"];
+        description = ''
+          keyd keyboard ids to target. The current default keeps the temporary
+          global fallback active until the RK71-specific device id is known.
+        '';
+      };
+
+      capsAsEsc =
+        mkEnableMod.true
+        // {
+          description = ''
+            Whether CapsLock maps to Escape.
+
+            device id once it is known. The RK71 needs Caps Lock as Escape, but
+            the CIDOO keyboard already handles that in hardware.
+          '';
+        };
+
+      metaTap =
+        mkEnableMod.true
+        // {
+          description = ''
+            Whether Super+Z is registerd as Left Meta
+            tap Super  → send Super+Z  (caught by niri as Mod+Z → vicinae open)
+            hold Super → Super modifier (all other Mod+* binds unaffected)
+          '';
+        };
+    };
+
+    config = mkIf cfg.enable {
+      services.keyd = {
+        enable = mkDefault true;
+        keyboards.default = {
+          ids = mkDefault cfg.ids;
+          settings.main = {
+            # TODO: Replace this temporary global fallback with an RK71-specific
+            capslock = mkIf cfg.capsAsEsc (mkDefault "esc");
+            leftmeta = mkIf cfg.metaTap "overload(meta, macro(leftmeta+z))";
+          };
+        };
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/login/default.nix:
+
+contents:
+{
+  core = {pkgs, ...}: {
+    programs = {
+      regreet.enable = true;
+    };
+
+    services = {
+      greetd = {
+        enable = true;
+        settings = {
+          default_session = {
+            command = "${pkgs.cage}/bin/cage -s -- ${pkgs.regreet}/bin/regreet";
+            user = "greeter";
+          };
+        };
+      };
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/protocols/default.nix:
+
+contents:
+{
+  core = [
+    ./wayland.nix
+  ];
+}
+
+============================
+
+assembly/configurations/interface/protocols/wayland.nix:
+
+contents:
+{pkgs, ...}: {
+  programs = {
+    uwsm.enable = true;
+  };
+
+  environment = {
+    sessionVariables = {
+      NIXOS_OZONE_WL = "1";
+    };
+    systemPackages = with pkgs; [
+      wl-clipboard-rs
+      wayland-utils
+      libsecret
+      cage
+    ];
+  };
+}
+
+============================
+
+assembly/configurations/interface/sessions/default.nix:
+
+contents:
+{
+  core = [
+    ./hyprland.nix
+    ./niri.nix
+  ];
+}
+
+============================
+
+assembly/configurations/interface/sessions/hyprland.nix:
+
+contents:
+{
+  programs = {
+    hyprland = {
+      enable = true;
+      withUWSM = true;
+    };
+  };
+}
+
+============================
+
+assembly/configurations/interface/sessions/niri.nix:
+
+contents:
+{
+  inputs,
+  pkgs,
+  ...
+}: let
+  inherit (inputs.niri) nixosModules overlays;
+in {
+  imports = [nixosModules.niri];
+  nixpkgs.overlays = [overlays.niri];
+
+  programs = {
+    niri = {
+      enable = true;
+      package = pkgs.niri-unstable;
+    };
+
+    uwsm.waylandCompositors.niri = {
+      prettyName = "Niri";
+      comment = "Niri compositor managed by UWSM";
+      binPath = "/run/current-system/sw/bin/niri-session";
+    };
+  };
+
+  environment.systemPackages = with pkgs; [
+    xwayland-satellite-unstable
+  ];
+}
+
+============================
+
+assembly/default.nix:
+
+contents:
+flake:
+{}
+// import ./configurations flake
+// import ./packages flake
+// import ./secrets flake
+// import ./templates flake
+// import ./utilities flake
+
+============================
+
+assembly/packages/default.nix:
+
+contents:
+flake: let
+  inherit (flake.libraries) forEachSystem;
+in {
+  packages = forEachSystem (pkgs: {});
+  devShells = forEachSystem (pkgs: {
+    default = pkgs.mkShell {
+      inherit (flake) name;
+      packages = with pkgs; [git sops];
+    };
+  });
+}
+
+============================
+
+assembly/secrets/core/default.nix:
+
+contents:
+flake: {
+  config,
+  host,
+  pkgs,
+  ...
+}: let
+  inherit (flake) inputs libraries;
+  inherit (inputs) sops-nix;
+  inherit (libraries.attrsets) attrValues mapAttrs mapAttrs' nameValuePair;
+  inherit (libraries.lists) optionals toList unique;
+  inherit (libraries.strings) concatStringsSep;
+
+  names = {
+    user = host.users.primary.name;
+    host = host.name;
+  };
+
+  join = {
+    prefix ? [],
+    name,
+    suffix ? [],
+    sep ? "-",
+  }:
+    concatStringsSep sep (
+      optionals (prefix != null) (toList prefix)
+      ++ [name]
+      ++ optionals (suffix != null) (toList suffix)
+    );
+
+  resolved = config.sops.secrets;
+
+  ssh = {
+    host.paths.key = join {
+      name = "ssh_host_ed25519_key";
+      prefix = ["/etc" "ssh"];
+      sep = "/";
+    };
+
+    user = let
+      name = names.user;
+      sys = names.host;
+      home = "/home/${name}";
+
+      mk = {
+        secret = {
+          prefix,
+          suffix ? null,
+        }:
+          join {
+            inherit name prefix suffix;
+            sep = "/";
+          };
+
+        path = {
+          base ? [],
+          file,
+          ext ? null,
+        }:
+          join {
+            name =
+              if ext != null
+              then file + ext
+              else file;
+            prefix = [home] ++ base;
+            sep = "/";
+          };
+      };
+
+      github = let
+        base = [".ssh" "github"];
+      in {
+        craole = {
+          inherit base;
+          file = "craole";
+        };
+        craole-cc = {
+          inherit base;
+          file = "craole-cc";
+        };
+        cole-bassed = {
+          inherit base;
+          file = "cole-bassed";
+        };
+      };
+
+      spec =
+        {
+          ${sys} = {
+            base = [".ssh"];
+            file = "id_ed25519";
+          };
+        }
+        // mapAttrs' (n: v: nameValuePair "github-${n}" v) github;
+
+      keys =
+        mapAttrs (_: key: {
+          private = mk.secret {
+            prefix = ["ssh"];
+            suffix = [key.file "private"];
+          };
+          public = mk.secret {
+            prefix = ["ssh"];
+            suffix = [key.file "public"];
+          };
+        })
+        spec;
+
+      paths =
+        mapAttrs (_: key: {
+          private = mk.path {
+            base = key.base or [".ssh"];
+            inherit (key) file;
+          };
+          public = mk.path {
+            base = key.base or [".ssh"];
+            inherit (key) file;
+            ext = key.ext or ".pub";
+          };
+        })
+        spec;
+
+      secrets = mapAttrs' (n: _:
+        nameValuePair keys.${n}.private {
+          owner = name;
+          path = paths.${n}.private;
+          mode = "0600";
+        })
+      spec;
+
+      dirs = unique (
+        map (key:
+          join {
+            name = concatStringsSep "/" (key.base or [".ssh"]);
+            prefix = [home];
+            sep = "/";
+          })
+        (attrValues spec)
+      );
+
+      dirRules = map (dir: "d ${dir} 0700 ${name} users - -") dirs;
+    in {inherit spec keys paths secrets dirs dirRules;};
+  };
+
+  user = {
+    name = names.user;
+    sys = names.host;
+    home = "/home/${names.user}";
+    keys.login.${names.host} = join {
+      name = names.user;
+      prefix = ["users"];
+      suffix = "passwordHash";
+      sep = "/";
+    };
+    inherit (ssh) user;
+  };
+
+  secrets = {
+    login = user.keys.login.${names.host};
+    ssh = ssh.user.secrets;
+  };
+in {
+  imports = [sops-nix.nixosModules.sops];
+
+  environment.systemPackages = with pkgs; [
+    age
+    ssh-to-age
+    ssh-to-pgp
+    sops
+    gnupg
+    openssh
+  ];
+
+  systemd.tmpfiles.rules = ssh.user.dirRules;
+
+  sops = {
+    defaultSopsFile = ./secrets.yaml;
+    defaultSopsFormat = "yaml";
+
+    age.sshKeyPaths = [ssh.host.paths.key];
+
+    secrets =
+      {${secrets.login}.neededForUsers = true;}
+      // secrets.ssh;
+  };
+
+  users.users.${names.user}.hashedPasswordFile =
+    resolved.${secrets.login}.path;
+}
+
+============================
+
+assembly/secrets/core/secrets.yaml:
+
+contents:
+users:
+    craole:
+        passwordHash: ENC[AES256_GCM,data:abAVSuMkVSeqwLNSmnJoYdwahc1fF8IRP4lX/iz/+d9WZpcE8uR3otNGUhZL8aYQATeRQI2SIeMJ81xqrUCfQexFeSozu4TpwQ==,iv:Ss7GEFuOIt3Adn0EOr9F7HUuoFL1L+TNFpa44/N4c+k=,tag:TwYuDEpBrfdC35jgDYxYCQ==,type:str]
+ssh:
+    craole:
+        id_ed25519:
+            private: ENC[AES256_GCM,data:XrgsRhN6gDZ9YFxwn6VGgboyhpQUR7ulfsWvc5wGwkZqu9xl2ZMbr4hfx0bnPcV67JUuSyQ/Tk929f8sOOvfHM6fIhkPs1Qe5n70cG0TFGG6Xu5d5ZXOWDN4Uj//diEzniWKRnihNGUD+h529yoAHTJ4W9citIg2aPkvX8yqR7txSIxBehcNePTC77NWWEl4YQyxZw0H3OXKTk/EnCWuY3dzzVDRdtQIc8t0TjdGbIhUNzd7AaxLoJgeZUZ15xERXX/AYakj1TqTekiB4Qq+eWcrWpH0UsSG3VRZAaBVlPmHMSAmxhSoX7TwC8pTcE2NJHF9Hk5Swl+WsAIdRnZTnGBQX88Nry/FAUKCsb1gHVvv/kQkMo1FsepSTP9dlPcf/2SdCeP78UfQDsflwgmzYpTWDjiXd1U4FYUpEWRk2HGy36Uoqjs5c3hkL+yG17sLv/qkJ7c+an0dmoPeMbOIJdwK3Jp6qWD3aYm6IHroD78oBx27mQUfNtI8f77sZIyjQFmV42CGscUuqOlb5k3K,iv:A5z5xsJBsqZgWHpe+csNElc4Ws19By09tH0lJDQmAuo=,tag:3NNGqoQwHyRorqxNA9S3Yw==,type:str]
+            public: ENC[AES256_GCM,data:bXvvWvcclZIDL5YrtXR8l27wtq4pBvm04PDhDCB36m/FjDRrwmXSaplUpeUO2EgVMTfbfarwWbe/L9XrtMSfzkrMUmNC9KZ5V1dGkZPQSjQceGBIh3FtGs6cZriv,iv:zXbUjyc8WIi8WLlNYctatlzdHoSMx8UXe0UNyHPoDxU=,tag:WGYR2Q3SyUnv/mLHMhDP3g==,type:str]
+        craole:
+            private: ENC[AES256_GCM,data:BPIdFDvZnx/cuRmUg/ddbPA3bCJfJ7qSP7Qur5sPbsqSsfmjh5NwFMSWu+gzF3XT7iKi+dQJZZm+NF7+qKosTQTEPFxtHtMBxCEGPBRl8WKDStEWK2DVH0aiUHK2ykFFM9MPTWVw74mLImMzlNhNPmGp7KwiIGwSuUFCC7BnQ28Af4BkZVfFrzUhr2I/EghtLl4+DZbLULVMAMn5Ko258hE9zmMK5+ru5wyjHCjhU90L3NrUwdBaJ6NngU+6UKLVONshRUxaSdzPC71Q2LCu6vxj47li++DMxMwHtAcd95JZgbUK2G5brY6cfFAbraH/9RrZfaMeJtrCkTUc8m9+Jv0+sZyA5lddlwOzlK/wcOh1mghUItDvCelxCB/mnvc+oiTw+9U8aB3sND1Os7k9TEwfWrU/BmtvTIuUJSvqAfiPIJwxDOCEcTuf+r434yilrEi8q2DjPlXljl5BcisAaknwxPDXADNoST+UTM71m2dxn9GPjq7zMPrdDcfNv8auFMRj6xTw1WFrlEfmlz02,iv:nLPWqtWW8MJLRtopAE9yiOmyywqB2XJfo6BXnaMgxRk=,tag:RqMp1rIab96oxYQA9gtqkg==,type:str]
+            public: ENC[AES256_GCM,data:PaYCUIdwwkitUgswLBmSIjPeHsRDKEU1oFumLNmn5G+rZXCMcaaZy6vRIM1jSVNb3c9jnuD80ONvTI8uzq6yyNpg5PPq/DE+MfFLVpZBvlt5jSJEbYEP4mSMmcjF,iv:uQVOBmhOIEuHU06UE+h2VRIZ5u7pG9ltTIKOXZyACpw=,tag:UrVk8DNKFMUvlnZa1G2CIw==,type:str]
+        craole-cc:
+            private: ENC[AES256_GCM,data:PcucH5KRbu6iIEFT1sj5U5XnKQ3bngC+Dv8uMizLEWZ5acfGnPWpJXNml3VAU98wbPrvcv65PAJJJ0vYogdM7EzYzHEu35JUeVB/RZPAZ4Lp5D8qgL1PDNfM8YNUOYIXOTmc1voxllKOa/jg4E6cwx0M45mjMbPxOGHWVUTzvkox1a80ibP+/RJDrhvy25qyftebLfKo38pNQgXRy6JYaj8qOLvXZqx+Q+GhUlvpsEmhxcH04kT8VFtog/EgsO3QGurSNLdGtXPY8cEsSJVHiZfMu7fNbJzdQcToOOWmLlM9XvUl12GPbjeTA5D+bf4gowVKGiDpUu6Slnri+ISlhPRItBseGyfXuOzW1E00tpgHKB0t6DIqBGngokWgX3Cr30zs34tUs19UHJl0OZKrcnZOE3DQzi1N7yZBBpXWZvvcNUqzHnWeAxW5tfASnGRPSdyFrrYFI+UhqvWCa4eD0hCTpuWwsAq8QglSG2vTMWHVTSzD/l6IYab6mkj+9sdTOzdQW/p7kBd5lSnLaRw3,iv:PJFdGBJKPfaE8t6o02NRP9iL40+CCFh6I/8hxs4hkxo=,tag:s78OE4St9gFI21DzFB8sbw==,type:str]
+            public: ENC[AES256_GCM,data:5X5qf0/LWdYs+VN5AigihONh4tDoA3TMcAn4WNw4doILPYyaX9FnQ0Jkf5SYZsGDN9Lu1S7YpDVXMMF8zStpNiMrd+WwYxaRafFbBic8YeZiVxLrl5zv6DHwVoc/,iv:281cuHaBVfInG/rfn0SuwwlcPfTESDPdIF8ICfF1MY4=,tag:XndEAB6ORwIMVq8uv4Xw6A==,type:str]
+        cole-bassed:
+            private: ENC[AES256_GCM,data:3D5FOfQpVnW/QDEns2cQk8QM9DHCVztYSGMVvRURWD7HNzAkUxLJ+YLYRltL4xwTkwlwuC3d25imIueunWIvE2DLfmv2KIBXSq/AbmniyysYNpne+Z3AURlNLVz8HZcE5dG5L+pjSuk+F4vr5uMtqL6MAvftBS0DzK3EJqMDeS0bzM7rqyccAh7L2qANGVH3d2oKGbzXhQ7JL3XDEwcw/rpXDawW5CwkyBxsX2vTnvIs3J3Y1pWDadPJrwwqL1lpVx8uK0n6KRZd72CncHSgF5kqkopnpRgHRaRkknMfBqAHDHJ0xTS7QxHm/a5T6r5ATOep1Y3ZziOzbKFPQNFcIdHjMzAyvNsQyKYYmEg7UsbDkAxgInu82YW9uIz2XrbZa8pzFimfmfLu57PcI2M4wb4U2XRWIc799feCdi2c17gq17RXhKLR+Dw1En1c0BbqV//3IFV+suoqc+1CeEwRtTlhdryxeWeXVlWcLzwaLYFMy4j5FrfUupX77/CajQrFwWE6Hy5ed0VLxYKU8VO8,iv:wi3NKpZZbDWWd5jTVCol8/2Z2kDWd9KEAWyAnASQrUU=,tag:V+CGYV2Hi+3Lp7xzrWzfmA==,type:str]
+            public: ENC[AES256_GCM,data:ZEKBnI2aN9o1nUv8YVDciWg16zDiJZBMq0f5OAsRJYFvQGGJFXbtqbbYLe04mKBR557MClFin9ujfHhmJZxNWAkbfF9qXg8n0Z52QozyBCi2VwdsnAh97TSVCvsk,iv:15Izr3PU9g7uWlAqz5TmXbFzmLAnA1QH4ZgZxHT9jZw=,tag:bTHrAL1qX1e0deZQ3MwGSQ==,type:str]
+services:
+    hermes:
+        env: ENC[AES256_GCM,data:sF7RmsrAFL+EANMCZChNQWUoPluf3XnKIEXlK/3p/eZ3jMBMECx+O6doI11AIFmiYDzWvDSoChA+YWqdh9ucMLKk2Vcx+zwEtB+up9yqjCELLx07aQbmwL4McjwmW1DHnmagKzMd4aBVyGtwt66y85cSyipFxgYIdcIQI6zDp45z+R1NvsJ7I6911st3B9CGN2MVXhorDRfKXM7tTmA5A6WU3eqzUuFuI1cEg1Go9AvRaiCALShpZymz7DSZ5GBtxaDye1L2k5HOFe4YccC8FjOVLrjRB82sR4zog0/MDFnnTgws2zhY4JjfPNzTCZSOf9X2j6SAIuK56c6KsLAZmHk7MYRqNHIUnLXE1/wLo7yACKuycR9brzqBddCMdbUBUYs8nwooDpNGszV3iXzGQWXGGvGDz2v0DxNjdomLH4HRu7kd02hwbzTwTCguh7JreRWk0kzEEF5FMhNUJ+4=,iv:eEkUxSPTRGyVDNUBRJ754IOorYdJZFR5eviIJqiSDgw=,tag:cLFHNBsFiU6IwukUyWBxaA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJODRMVXBMNWNFbm55emxp
+            aytaVmxIVUNQZENqLzlRYjdBb1RtWVR6dnhBCjEzd2JYV1FOSURRM1VxS3Q0RVcv
+            LzhrV0pPcHY1SlArL3R4ZStNVDRkZlUKLS0tIHhHbmk3YWZiMzd0ODFhVUYybzJ4
+            UE9naG9VTCtHTHdtYnByclArYjNXM1EKC9T3hKGf481VNKkXisK4rET8CPHX1G29
+            XWb/oee/uKchzbhSPp+yY0QjioSJH70GPYS4Yc6w8ZEzmEENsUeYhg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB2eGtlK0NORzNZSkJ3a3ZH
+            RVEyNExIdkxNVUw4QWVPM0J6SmxFZ28vVlJZClBlWXJ2c1N3U21GaWc1cnVLWUJH
+            L3ZISkYwbnpYOTZxSC80WE5QZ0Y0SUEKLS0tIFlmR3BvZTZjdmtJVERJVGNLZ2tT
+            RUlGS2Q0NjM2ZDM5Mkxubks4MEdROU0KK/k+b8NVgojYj67qKdnY3toDEgynkc1D
+            rNron+zQZO+4ht7Sx/9cHDk1M6J1A3yJeAy5v//RG6zB59WSfbnE6A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+    lastmodified: "2026-05-30T07:10:38Z"
+    mac: ENC[AES256_GCM,data:fy90zVtq1wX5Lhf6nH4N5V2jnwGV6d0NSUZc7fjWyY40iw9oeHlr38yOh+EqXoU2ERuyhUKVxFyZhghKzL1A04MIn7c0Tj9NQ0N2h28K/gT2SbGjJcbGY9pxxDtOJlJLcev9bNsc4Qnsy9OPyvE25gQd/Wy2EuJ0BeX6x7YudlM=,iv:4a9o4xejlRbhBQapgxy35lM/i6aOCNDSgKMEhWd2xIw=,tag:o52rq1obQQkFsdm4pKeiFQ==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.13.1
+
+============================
+
+assembly/secrets/default.nix:
+
+contents:
+flake:
+flake.libraries.modules.importModules {
+  base = ./.;
+  args = flake;
+}
+
+============================
+
+assembly/secrets/home/default.nix:
+
+contents:
+flake: _: {home = [];}
+
+============================
+
+assembly/secrets/home/secrets.yaml:
+
+contents:
+users:
+    craole:
+        passwordHash: ENC[AES256_GCM,data:abAVSuMkVSeqwLNSmnJoYdwahc1fF8IRP4lX/iz/+d9WZpcE8uR3otNGUhZL8aYQATeRQI2SIeMJ81xqrUCfQexFeSozu4TpwQ==,iv:Ss7GEFuOIt3Adn0EOr9F7HUuoFL1L+TNFpa44/N4c+k=,tag:TwYuDEpBrfdC35jgDYxYCQ==,type:str]
+ssh:
+    craole:
+        id_ed25519:
+            private: ENC[AES256_GCM,data:XrgsRhN6gDZ9YFxwn6VGgboyhpQUR7ulfsWvc5wGwkZqu9xl2ZMbr4hfx0bnPcV67JUuSyQ/Tk929f8sOOvfHM6fIhkPs1Qe5n70cG0TFGG6Xu5d5ZXOWDN4Uj//diEzniWKRnihNGUD+h529yoAHTJ4W9citIg2aPkvX8yqR7txSIxBehcNePTC77NWWEl4YQyxZw0H3OXKTk/EnCWuY3dzzVDRdtQIc8t0TjdGbIhUNzd7AaxLoJgeZUZ15xERXX/AYakj1TqTekiB4Qq+eWcrWpH0UsSG3VRZAaBVlPmHMSAmxhSoX7TwC8pTcE2NJHF9Hk5Swl+WsAIdRnZTnGBQX88Nry/FAUKCsb1gHVvv/kQkMo1FsepSTP9dlPcf/2SdCeP78UfQDsflwgmzYpTWDjiXd1U4FYUpEWRk2HGy36Uoqjs5c3hkL+yG17sLv/qkJ7c+an0dmoPeMbOIJdwK3Jp6qWD3aYm6IHroD78oBx27mQUfNtI8f77sZIyjQFmV42CGscUuqOlb5k3K,iv:A5z5xsJBsqZgWHpe+csNElc4Ws19By09tH0lJDQmAuo=,tag:3NNGqoQwHyRorqxNA9S3Yw==,type:str]
+            public: ENC[AES256_GCM,data:bXvvWvcclZIDL5YrtXR8l27wtq4pBvm04PDhDCB36m/FjDRrwmXSaplUpeUO2EgVMTfbfarwWbe/L9XrtMSfzkrMUmNC9KZ5V1dGkZPQSjQceGBIh3FtGs6cZriv,iv:zXbUjyc8WIi8WLlNYctatlzdHoSMx8UXe0UNyHPoDxU=,tag:WGYR2Q3SyUnv/mLHMhDP3g==,type:str]
+        craole:
+            private: ENC[AES256_GCM,data:BPIdFDvZnx/cuRmUg/ddbPA3bCJfJ7qSP7Qur5sPbsqSsfmjh5NwFMSWu+gzF3XT7iKi+dQJZZm+NF7+qKosTQTEPFxtHtMBxCEGPBRl8WKDStEWK2DVH0aiUHK2ykFFM9MPTWVw74mLImMzlNhNPmGp7KwiIGwSuUFCC7BnQ28Af4BkZVfFrzUhr2I/EghtLl4+DZbLULVMAMn5Ko258hE9zmMK5+ru5wyjHCjhU90L3NrUwdBaJ6NngU+6UKLVONshRUxaSdzPC71Q2LCu6vxj47li++DMxMwHtAcd95JZgbUK2G5brY6cfFAbraH/9RrZfaMeJtrCkTUc8m9+Jv0+sZyA5lddlwOzlK/wcOh1mghUItDvCelxCB/mnvc+oiTw+9U8aB3sND1Os7k9TEwfWrU/BmtvTIuUJSvqAfiPIJwxDOCEcTuf+r434yilrEi8q2DjPlXljl5BcisAaknwxPDXADNoST+UTM71m2dxn9GPjq7zMPrdDcfNv8auFMRj6xTw1WFrlEfmlz02,iv:nLPWqtWW8MJLRtopAE9yiOmyywqB2XJfo6BXnaMgxRk=,tag:RqMp1rIab96oxYQA9gtqkg==,type:str]
+            public: ENC[AES256_GCM,data:PaYCUIdwwkitUgswLBmSIjPeHsRDKEU1oFumLNmn5G+rZXCMcaaZy6vRIM1jSVNb3c9jnuD80ONvTI8uzq6yyNpg5PPq/DE+MfFLVpZBvlt5jSJEbYEP4mSMmcjF,iv:uQVOBmhOIEuHU06UE+h2VRIZ5u7pG9ltTIKOXZyACpw=,tag:UrVk8DNKFMUvlnZa1G2CIw==,type:str]
+        craole-cc:
+            private: ENC[AES256_GCM,data:PcucH5KRbu6iIEFT1sj5U5XnKQ3bngC+Dv8uMizLEWZ5acfGnPWpJXNml3VAU98wbPrvcv65PAJJJ0vYogdM7EzYzHEu35JUeVB/RZPAZ4Lp5D8qgL1PDNfM8YNUOYIXOTmc1voxllKOa/jg4E6cwx0M45mjMbPxOGHWVUTzvkox1a80ibP+/RJDrhvy25qyftebLfKo38pNQgXRy6JYaj8qOLvXZqx+Q+GhUlvpsEmhxcH04kT8VFtog/EgsO3QGurSNLdGtXPY8cEsSJVHiZfMu7fNbJzdQcToOOWmLlM9XvUl12GPbjeTA5D+bf4gowVKGiDpUu6Slnri+ISlhPRItBseGyfXuOzW1E00tpgHKB0t6DIqBGngokWgX3Cr30zs34tUs19UHJl0OZKrcnZOE3DQzi1N7yZBBpXWZvvcNUqzHnWeAxW5tfASnGRPSdyFrrYFI+UhqvWCa4eD0hCTpuWwsAq8QglSG2vTMWHVTSzD/l6IYab6mkj+9sdTOzdQW/p7kBd5lSnLaRw3,iv:PJFdGBJKPfaE8t6o02NRP9iL40+CCFh6I/8hxs4hkxo=,tag:s78OE4St9gFI21DzFB8sbw==,type:str]
+            public: ENC[AES256_GCM,data:5X5qf0/LWdYs+VN5AigihONh4tDoA3TMcAn4WNw4doILPYyaX9FnQ0Jkf5SYZsGDN9Lu1S7YpDVXMMF8zStpNiMrd+WwYxaRafFbBic8YeZiVxLrl5zv6DHwVoc/,iv:281cuHaBVfInG/rfn0SuwwlcPfTESDPdIF8ICfF1MY4=,tag:XndEAB6ORwIMVq8uv4Xw6A==,type:str]
+        cole-bassed:
+            private: ENC[AES256_GCM,data:3D5FOfQpVnW/QDEns2cQk8QM9DHCVztYSGMVvRURWD7HNzAkUxLJ+YLYRltL4xwTkwlwuC3d25imIueunWIvE2DLfmv2KIBXSq/AbmniyysYNpne+Z3AURlNLVz8HZcE5dG5L+pjSuk+F4vr5uMtqL6MAvftBS0DzK3EJqMDeS0bzM7rqyccAh7L2qANGVH3d2oKGbzXhQ7JL3XDEwcw/rpXDawW5CwkyBxsX2vTnvIs3J3Y1pWDadPJrwwqL1lpVx8uK0n6KRZd72CncHSgF5kqkopnpRgHRaRkknMfBqAHDHJ0xTS7QxHm/a5T6r5ATOep1Y3ZziOzbKFPQNFcIdHjMzAyvNsQyKYYmEg7UsbDkAxgInu82YW9uIz2XrbZa8pzFimfmfLu57PcI2M4wb4U2XRWIc799feCdi2c17gq17RXhKLR+Dw1En1c0BbqV//3IFV+suoqc+1CeEwRtTlhdryxeWeXVlWcLzwaLYFMy4j5FrfUupX77/CajQrFwWE6Hy5ed0VLxYKU8VO8,iv:wi3NKpZZbDWWd5jTVCol8/2Z2kDWd9KEAWyAnASQrUU=,tag:V+CGYV2Hi+3Lp7xzrWzfmA==,type:str]
+            public: ENC[AES256_GCM,data:ZEKBnI2aN9o1nUv8YVDciWg16zDiJZBMq0f5OAsRJYFvQGGJFXbtqbbYLe04mKBR557MClFin9ujfHhmJZxNWAkbfF9qXg8n0Z52QozyBCi2VwdsnAh97TSVCvsk,iv:15Izr3PU9g7uWlAqz5TmXbFzmLAnA1QH4ZgZxHT9jZw=,tag:bTHrAL1qX1e0deZQ3MwGSQ==,type:str]
+services:
+    hermes:
+        env: ENC[AES256_GCM,data:sF7RmsrAFL+EANMCZChNQWUoPluf3XnKIEXlK/3p/eZ3jMBMECx+O6doI11AIFmiYDzWvDSoChA+YWqdh9ucMLKk2Vcx+zwEtB+up9yqjCELLx07aQbmwL4McjwmW1DHnmagKzMd4aBVyGtwt66y85cSyipFxgYIdcIQI6zDp45z+R1NvsJ7I6911st3B9CGN2MVXhorDRfKXM7tTmA5A6WU3eqzUuFuI1cEg1Go9AvRaiCALShpZymz7DSZ5GBtxaDye1L2k5HOFe4YccC8FjOVLrjRB82sR4zog0/MDFnnTgws2zhY4JjfPNzTCZSOf9X2j6SAIuK56c6KsLAZmHk7MYRqNHIUnLXE1/wLo7yACKuycR9brzqBddCMdbUBUYs8nwooDpNGszV3iXzGQWXGGvGDz2v0DxNjdomLH4HRu7kd02hwbzTwTCguh7JreRWk0kzEEF5FMhNUJ+4=,iv:eEkUxSPTRGyVDNUBRJ754IOorYdJZFR5eviIJqiSDgw=,tag:cLFHNBsFiU6IwukUyWBxaA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBJODRMVXBMNWNFbm55emxp
+            aytaVmxIVUNQZENqLzlRYjdBb1RtWVR6dnhBCjEzd2JYV1FOSURRM1VxS3Q0RVcv
+            LzhrV0pPcHY1SlArL3R4ZStNVDRkZlUKLS0tIHhHbmk3YWZiMzd0ODFhVUYybzJ4
+            UE9naG9VTCtHTHdtYnByclArYjNXM1EKC9T3hKGf481VNKkXisK4rET8CPHX1G29
+            XWb/oee/uKchzbhSPp+yY0QjioSJH70GPYS4Yc6w8ZEzmEENsUeYhg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB2eGtlK0NORzNZSkJ3a3ZH
+            RVEyNExIdkxNVUw4QWVPM0J6SmxFZ28vVlJZClBlWXJ2c1N3U21GaWc1cnVLWUJH
+            L3ZISkYwbnpYOTZxSC80WE5QZ0Y0SUEKLS0tIFlmR3BvZTZjdmtJVERJVGNLZ2tT
+            RUlGS2Q0NjM2ZDM5Mkxubks4MEdROU0KK/k+b8NVgojYj67qKdnY3toDEgynkc1D
+            rNron+zQZO+4ht7Sx/9cHDk1M6J1A3yJeAy5v//RG6zB59WSfbnE6A==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+    lastmodified: "2026-05-30T07:10:38Z"
+    mac: ENC[AES256_GCM,data:fy90zVtq1wX5Lhf6nH4N5V2jnwGV6d0NSUZc7fjWyY40iw9oeHlr38yOh+EqXoU2ERuyhUKVxFyZhghKzL1A04MIn7c0Tj9NQ0N2h28K/gT2SbGjJcbGY9pxxDtOJlJLcev9bNsc4Qnsy9OPyvE25gQd/Wy2EuJ0BeX6x7YudlM=,iv:4a9o4xejlRbhBQapgxy35lM/i6aOCNDSgKMEhWd2xIw=,tag:o52rq1obQQkFsdm4pKeiFQ==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.13.1
+
+============================
+
+assembly/templates/default.nix:
+
+contents:
+flake: {
+  # Exposes flake templates via outputs.templates.${name}
+  templates = {
+    # basic-module = {
+    #   path = ./basic-module;
+    #   description = "Structural blueprint for a new core module";
+    # };
+  };
+}
+
+============================
+
+assembly/utilities/default.nix:
+
+contents:
+flake:
+{}
+// import ./format flake
+
+============================
+
+assembly/utilities/format/default.nix:
+
+contents:
+flake: let
+  path = flake.inputs.self;
+  inherit (flake.libraries) forEachSystem treefmt;
+
+  evalFor = pkgs:
+    treefmt.evalModule pkgs {
+      projectRootFile = "flake.nix";
+      programs = {
+        alejandra.enable = true;
+        statix.enable = true;
+      };
+    };
+in {
+  formatter = forEachSystem (pkgs: (evalFor pkgs).config.build.wrapper);
+
+  checks = forEachSystem (pkgs: {
+    formatting = (evalFor pkgs).config.build.check path;
+  });
+}
+
+============================
+
+default.nix:
+
+contents:
+{
+  inputs ? {},
+  modules ? {},
+  packages ? {},
+  libraries ? {nixpkgs = import <nixpkgs/lib>;},
+  ...
+}: let
+  info = rec {
+    name = "dots";
+    home = "/etc/nixos";
+    names = {
+      flake = name;
+      lib = "lix";
+      top = "_";
+    };
+  };
+
+  paths = {
+    src = ./.;
+    api = ./api;
+    docs = ./documentation;
+    cfg = ./assembly;
+    lib = ./libraries;
+  };
+
+  defaults = {
+    host = {
+      name = null;
+      id = null;
+      description = null;
+      type = null;
+      class = "nixos";
+      system = "x86_64-linux";
+      stateVersion = null; #? Must be the same as when the OS was installed
+      paths.flake = info.home;
+
+      localization = {
+        latitude = 18.015;
+        longitude = -77.49;
+        locator = "manual";
+        city = "Mandeville/Jamaica";
+        timezone = "America/Jamaica";
+        locale = "en_US.UTF-8";
+      };
+    };
+    excludes = [
+      "archive"
+      "backup"
+      "review"
+      "temp"
+    ];
+    tags = ["core" "home"];
+  };
+in {
+  inherit inputs packages modules defaults;
+  inherit (info) name;
+  libraries = import ./libraries {
+    inherit
+      defaults
+      info
+      inputs
+      libraries
+      modules
+      packages
+      paths
+      ;
+  };
+}
+
+============================
+
+documentation/default.nix:
+
+contents:
+{}
+
+============================
+
+flake.nix:
+
+contents:
+{
+  description = "Configuration Flake";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    hermes-agent.url = "github:NousResearch/hermes-agent";
+    vicinae.url = "github:vicinaehq/vicinae";
+    quickshell.url = "github:outfoxxed/quickshell";
+
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    sops = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    niri = {
+      url = "github:sodiboo/niri-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    noctalia = {
+      url = "github:noctalia-dev/noctalia-shell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        home-manager.follows = "home-manager";
+      };
+    };
+
+    stylix = {
+      url = "github:nix-community/stylix";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
+    treefmt = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = {self, ...} @ inputs:
+    import ./assembly (
+      import ./. {
+        inherit inputs;
+        packages = with inputs; {
+          nixpkgs = nixpkgs.legacyPackages;
+        };
+        modules = {
+          core = with inputs; [
+            hermes-agent.nixosModules.default
+            home-manager.nixosModules.home-manager
+            niri.nixosModules.niri
+            noctalia.nixosModules.default
+            sops.nixosModules.default
+            stylix.nixosModules.stylix
+          ];
+
+          home = with inputs; [
+            niri.homeModules.config
+            niri.homeModules.niri
+            niri.homeModules.stylix
+            noctalia.homeModules.default
+            sops.homeModules.default
+            stylix.homeManagerModules.stylix
+            vicinae.homeManagerModules.default
+            zen-browser.homeModules.default
+          ];
+        };
+        libraries = with inputs; {
+          nixpkgs = nixpkgs.lib;
+          home-manager = home-manager.lib;
+          treefmt = treefmt.lib;
+          darwin = nix-darwin.lib or {};
+        };
+      }
+    );
+}
+
+============================
+
+libraries/attrsets.nix:
+
+contents:
+{
+  attrsets,
+  debug,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        getOrderedOr
+        toOrdered
+        mapOrdered
+        parseOrdered
+        mapParsedOrdered
+        mergeUnique
+        orNull
+        orDefault
+        orEmpty
+        getBySpec
+        findFirst
+        resolveBySpecs
+        removeNulls
+        ;
+      dropNull = removeNulls;
+      orderedOf = toOrdered;
+      parsedOf = parseOrdered;
+      merge = mergeUnique;
+
+      isEmpty = isEmpty';
+      isNotEmpty = isNotEmpty';
+    };
+    global = {
+      removeNullAttrs = removeNulls;
+      orNullAttr = orNull;
+      orDefaultAttr = orDefault;
+      orEmptyAttr = orEmpty;
+      toOrderedAttrs = toOrdered;
+      mapOrderedAttrs = mapOrdered;
+      parseOrderedAttrs = parseOrdered;
+      mapParsedOrderedAttrs = mapParsedOrdered;
+      mergeUniqueAttrs = mergeUnique;
+      getAttrBySpec = getBySpec;
+      findFirstAttrs = findFirst;
+      resolveAttrsBySpecs = resolveBySpecs;
+      isEmptyAttr = isEmpty';
+      isNotEmptyAttr = isNotEmpty';
+    };
+  };
+
+  inherit
+    (attrsets)
+    attrNames
+    filterAttrs
+    hasAttr
+    attrByPath
+    getAttr
+    listToAttrs
+    mapAttrs
+    optionalAttrs
+    ;
+  inherit
+    (lists)
+    concatMap
+    filter
+    findFirstList
+    foldl'
+    genList
+    isList
+    length
+    map
+    nthOr
+    ;
+  inherit (strings) concatStringsSep;
+  inherit (debug) withContext;
+  inherit (types) isAttrs isEmpty typeOf isString;
+
+  isEmpty' = input: isAttrs input && input == {};
+  isNotEmpty' = input: isAttrs input && input != {};
+
+  removeNulls = sets: filterAttrs (n: v: v != null) sets;
+
+  orNull = input:
+    assert withContext {
+      name = "attrsets.orNull";
+      assertion = isEmpty input || isAttrs input;
+      message = "expected an attrset, got ${typeOf input}";
+      context = "evaluating attrsets.orNull";
+    };
+      if isEmpty input || !(isAttrs input)
+      then null
+      else input;
+
+  orDefault = default: input:
+    assert withContext {
+      name = "attrsets.orDefault";
+      assertion = isAttrs default && isAttrs input;
+      message = "expected attrsets, got default=${typeOf default} input=${typeOf input}";
+      context = "evaluating attrsets.orDefault";
+    };
+      if isNotEmpty' input
+      then input
+      else default;
+
+  orEmpty = input:
+    assert withContext {
+      name = "attrsets.orEmpty";
+      assertion = isNull input || isAttrs input;
+      message = "expected an attrset or null, got ${typeOf input}";
+      context = "evaluating attrsets.orEmpty";
+    };
+      optionalAttrs (isNotEmpty' input) input;
+
+  getBySpec = input: spec:
+    assert withContext {
+      name = "attrsets.getBySpec";
+      assertion = isNull input || isAttrs input;
+      message = "expected input to be an attrset or null, got ${typeOf input}";
+      context = "evaluating attrsets.getBySpec";
+    };
+      if input == null
+      then null
+      else if isList spec
+      then attrByPath spec null input
+      else if isString spec && hasAttr spec input
+      then getAttr spec input
+      else null;
+
+  findFirst = {
+    sets,
+    specs,
+    default ? null,
+  }:
+    assert withContext {
+      name = "attrsets.findFirst'";
+      assertion = isList sets && isList specs;
+      message = "expected sets and specs to be lists";
+      context = "evaluating attrsets.findFirst";
+    };
+      findFirstList (x: x != null) default
+      (concatMap (input: map (spec: getBySpec input spec) specs) sets);
+
+  resolveBySpecs = {
+    input,
+    specs,
+    default ? null,
+  }:
+    assert withContext {
+      name = "attrsets.resolveBySpecs";
+      assertion = (input == null || isAttrs input) && isList specs;
+      message = "expected input to be an attrset or null, and specs to be a list";
+      context = "evaluating attrsets.resolveBySpecs";
+    };
+      findFirst {
+        sets = [input];
+        inherit specs default;
+      };
+
+  mergeUnique = {
+    items,
+    getAttrs,
+    what ? "attributes",
+    owner ? (name: name),
+  }:
+    foldl'
+    (
+      acc: name: let
+        incoming = getAttrs name;
+        collisions = filter (k: hasAttr k acc) (attrNames incoming);
+      in
+        if collisions == []
+        then acc // incoming
+        else
+          throw ''
+            ${what}: collision(s) detected in '${owner name}':
+              ${concatStringsSep ", " collisions}
+            Each merged attribute name must be unique.
+          ''
+    )
+    {}
+    (attrNames items);
+
+  getOrderedOr = {
+    key,
+    set,
+    default ? null,
+  }:
+    if hasAttr key set
+    then getAttr key set
+    else default;
+
+  toOrdered = {value}: let
+    count =
+      if isList value
+      then length value
+      else 1;
+  in
+    listToAttrs (
+      map (position: {
+        name = toString (position + 1);
+        value = nthOr {
+          inherit position value;
+        };
+      }) (genList (x: x) count)
+    );
+
+  mapOrdered = set:
+    mapAttrs (_: value: toOrdered {inherit value;}) set;
+
+  parseOrdered = value: let
+    ordered =
+      if isAttrs value
+      then value
+      else toOrdered {inherit value;};
+
+    primary = getOrderedOr {
+      key = "1";
+      set = ordered;
+    };
+    secondary = getOrderedOr {
+      key = "2";
+      set = ordered;
+    };
+    tertiary = getOrderedOr {
+      key = "3";
+      set = ordered;
+    };
+
+    preferred = primary;
+    fallback = secondary;
+
+    default =
+      if isList value
+      then
+        if value == []
+        then null
+        else
+          nthOr {
+            position = (length value) - 1;
+            inherit value;
+          }
+      else if isAttrs value
+      then
+        getOrderedOr {
+          key = "default";
+          set = value;
+          default = primary;
+        }
+      else value;
+  in
+    ordered
+    // {inherit primary secondary tertiary preferred fallback default;};
+
+  mapParsedOrdered = set: mapAttrs (_: parseOrdered) set;
+in
+  exports
+
+============================
+
+libraries/config.nix:
+
+contents:
+{
+  api,
+  debug,
+  attrsets,
+  defaults,
+  lists,
+  modules,
+  types,
+  fromFlake,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        build
+        resolve
+        systemBuilder
+        systemType
+        perSystem
+        supportedSystems
+        ;
+    };
+    global = {
+      forEachSystem = perSystem;
+      resolveFlakeConfig = resolve;
+      mkConfigurations = build;
+    };
+  };
+
+  inherit (api) hosts;
+  inherit (attrsets) mapAttrs genAttrs optionalAttrs recursiveUpdate;
+  inherit (debug) withContext;
+  inherit (lists) elem;
+  inherit (modules) mkCdAliases mkEnvVars;
+  inherit (types) isString typeOf isAttrs isNull;
+
+  build = {
+    flake ? null,
+    class ? "nixos",
+  }:
+    assert withContext {
+      name = "config.build";
+      assertion = isString class;
+      message = "class must be a string, got ${typeOf class}";
+      context = "validating class type in build";
+    };
+    assert withContext {
+      name = "config.build";
+      assertion = isNull flake || isAttrs flake;
+      message = "flake must be an attribute set or null, got ${typeOf flake}";
+      context = "validating flake type in build";
+    }; let
+      type = systemType class;
+      builder = systemBuilder class;
+      hosts = resolve flake;
+    in {${type} = mapAttrs (_: builder) hosts;};
+
+  systemBuilder = class:
+    assert withContext {
+      name = "config.systemBuilder";
+      assertion = elem class ["nixos" "darwin"];
+      message = ''expected one of ["nixos" "darwin"], got ${class}'';
+      context = "parsing builder type from class";
+    };
+    assert withContext {
+      name = "config.systemBuilder";
+      assertion =
+        if class == "nixos"
+        then fromFlake ? libraries.nixpkgs.nixosSystem
+        else fromFlake ? libraries.nix-darwin.darwinSystem;
+      message = ''
+        The required compiler for class "${class}" was not found in your flake inputs.
+        Make sure you have passed the correct downstream lib/builder mapping.
+      '';
+      context = "validating system builder presence in namespaced flake inputs";
+    };
+      if class == "nixos"
+      then fromFlake.libraries.nixpkgs.nixosSystem
+      else fromFlake.libraries.darwin.darwinSystem;
+
+  systemType = class:
+    assert withContext {
+      name = "config.systemType";
+      assertion = elem class ["nixos" "darwin"];
+      message = ''expected one of ["nixos" "darwin"], got ${class}'';
+      context = "parsing type of config from class for config.mkConfigurations";
+    };
+      if class == "darwin"
+      then "darwinConfigurations"
+      else "nixosConfigurations";
+
+  resolve = value: let
+    args =
+      recursiveUpdate
+      defaults
+      (optionalAttrs (isAttrs value) value);
+  in
+    mapAttrs (_: spec: let
+      host = recursiveUpdate defaults.host spec;
+      flake =
+        recursiveUpdate (defaults.flake or {}) (host.flake or {})
+        // {
+          inputs = args.inputs or (args.extraArgs.inputs or {});
+          home = host.path or (host.home or (host.dots or null));
+        };
+
+      specialArgs =
+        fromFlake
+        // {
+          "${fromFlake.names.top}_${fromFlake.name}" = "red";
+          inherit host flake;
+          "${fromFlake.names.lib}" = removeAttrs (args.libraries or {}) ["lib"];
+        }
+        // removeAttrs args ["modules"];
+    in {
+      inherit (host) system;
+      inherit specialArgs;
+
+      modules =
+        (fromFlake.modules.core or [])
+        ++ (args.modules.core or [])
+        ++ (host.modules or [])
+        ++ (host.imports or [])
+        ++ [
+          {
+            home-manager = {
+              backupFileExtension = "BaC";
+              useGlobalPkgs = true;
+              useUserPackages = true;
+              sharedModules = (fromFlake.modules.home or []) ++ (args.modules.home or []);
+              extraSpecialArgs = specialArgs;
+              users =
+                mapAttrs (_: user: {
+                  config,
+                  osConfig,
+                  top,
+                  ...
+                }: {
+                  imports =
+                    [
+                      {
+                        home = {
+                          inherit (osConfig.system) stateVersion;
+                          sessionVariables = mkEnvVars "" (config.${top}.paths or {});
+                          shellAliases = mkCdAliases (config.${top}.paths or {});
+                        };
+                        programs.home-manager.enable = true;
+                      }
+                    ]
+                    ++ (user.modules or [])
+                    ++ (user.imports or []);
+                })
+                (host.users.byStatus.enabled.values or {});
+            };
+          }
+        ];
+    })
+    hosts;
+
+  supportedSystems = ["x86_64-linux" "aarch64-linux"]; # TODO: api.hosts should tell use all the needed systems
+  perSystem = fn:
+    genAttrs supportedSystems (
+      system: fn fromFlake.packages.nixpkgs.${system}
+    );
+in
+  exports
+
+============================
+
+libraries/debug.nix:
+
+contents:
+{debug, ...}: let
+  exports = {
+    scoped = {
+      inherit
+        mkTest
+        mkTest'
+        mkThrows
+        assertMsgFunc
+        assertWithContext
+        warnWithContext
+        ;
+    };
+    global = {
+      withContext = assertWithContext;
+    };
+  };
+
+  inherit (debug) addErrorContext assertMsg deepSeq traceIf tryEval;
+
+  assertMsgFunc = {
+    name,
+    assertion,
+    message,
+  }:
+    assertMsg assertion "${name}: ${message}";
+
+  assertWithContext = {
+    name,
+    assertion,
+    message,
+    context,
+  }: addErrorContext
+    "while ${context}"
+    (assert assertMsgFunc {
+      inherit name assertion message;
+    }; true);
+
+  _build = desired: outcome: command: let
+    value = deepSeq outcome outcome;
+  in {
+    inherit desired command;
+    result = value;
+    passed = desired == value;
+  };
+
+  warnWithContext = {
+    name,
+    assertion,
+    message,
+    context,
+  }:
+    deepSeq
+    (traceIf (!assertion) "[${name}] while ${context}: ${message}" true)
+    assertion;
+
+  /**
+  Create a named test case with desired output, outcome expression, and an
+  optional command string for display in test results.
+
+  # Type
+  ```nix
+  mkTest :: { desired :: a, outcome :: a, command :: string? } -> Test
+  ```
+
+  # Examples
+  ```nix
+  mkTest {
+    desired = "foo-bar";
+    command = ''normalize "Foo Bar"'';
+    outcome = normalize "Foo Bar";
+  }
+  ```
+  */
+  mkTest = {
+    desired,
+    outcome,
+    command ? null,
+  }:
+    _build desired outcome command;
+
+  /**
+  Positional shorthand for `mkTest` - no command string.
+
+  Useful in enum and validator test blocks where the expression is self-evident.
+
+  # Type
+  ```nix
+  mkTest' :: a -> a -> Test
+  ```
+
+  # Examples
+  ```nix
+  validatesRust = mkTest' true  (languages.validator.check "rust")
+  correctCount  = mkTest' 4     (length cpuBrands.values)
+  ```
+  */
+  mkTest' = desired: outcome: _build desired outcome null;
+
+  /**
+  Create a test case that expects evaluation to throw.
+
+  Uses `builtins.tryEval` to catch the error - the test passes only if
+  evaluation fails.
+
+  # Type
+  ```nix
+  mkThrows :: a -> Test
+  ```
+
+  # Examples
+  ```nix
+  mkThrows (validate { fnName = "f"; argName = "x"; desired = "set"; predicate = isAttrs; outcome = "oops"; })
+  ```
+  */
+  mkThrows = outcome:
+    mkTest {
+      desired = {
+        success = false;
+        value = false;
+      };
+      outcome = tryEval outcome;
+    };
+in
+  exports
+
+============================
+
+libraries/default.nix:
+
+contents:
+{
+  defaults,
+  info,
+  inputs,
+  libraries,
+  modules,
+  packages,
+  paths,
+}: let
+  name = info.names.lib;
+  flake =
+    {
+      inherit modules inputs paths packages;
+      inherit (info.names) top;
+      libraries = legacy;
+    }
+    // info;
+  legacy = import ./imports {inherit libraries;};
+
+  inherit (legacy.attrsets) recursiveUpdate optionalAttrs mapAttrs;
+  inherit (legacy.lists) elem;
+  mkLix = includes:
+    recursiveUpdate legacy (
+      {inherit defaults;}
+      // optionalAttrs (elem "api" includes) {inherit (scoped) api;}
+      // optionalAttrs (elem "attrsets" includes) {inherit (scoped) attrsets;}
+      // optionalAttrs (elem "config" includes) {inherit (scoped) config;}
+      // optionalAttrs (elem "debug" includes) {inherit (scoped) debug;}
+      // optionalAttrs (elem "filesystem" includes) {inherit (scoped) filesystem;}
+      // optionalAttrs (elem "lists" includes) {inherit (scoped) lists;}
+      // optionalAttrs (elem "modules" includes) {inherit (scoped) modules;}
+      // optionalAttrs (elem "options" includes) {inherit (scoped) options;}
+      // optionalAttrs (elem "strings" includes) {inherit (scoped) strings;}
+      // optionalAttrs (elem "types" includes) {inherit (scoped) types;}
+    );
+
+  custom = {
+    api = import paths.api (mkLix [
+      "attrsets"
+      "modules"
+      "lists"
+    ]);
+    attrsets = import ./attrsets.nix (mkLix [
+      "debug"
+      "lists"
+      "types"
+    ]);
+    config = import ./config.nix (mkLix [
+        "api"
+        "debug"
+        "modules"
+        "filesystem"
+        "lists"
+        "types"
+      ]
+      // {fromFlake = flake;});
+    debug = import ./debug.nix (mkLix [
+      "lists"
+      "types"
+    ]);
+    filesystem = import ./filesystem.nix (mkLix [
+      "debug"
+      "lists"
+    ]);
+    lists = import ./lists.nix (mkLix [
+      "debug"
+      "types"
+    ]);
+    modules = import ./modules.nix (mkLix [
+      "debug"
+      "filesystem"
+      "lists"
+      "types"
+    ]);
+    options = import ./options.nix (mkLix [
+      "debug"
+      "lists"
+      "types"
+    ]);
+    strings = import ./strings.nix (mkLix [
+      "debug"
+      "lists"
+      "types"
+    ]);
+    types = import ./types.nix (mkLix [
+      "debug"
+    ]);
+  };
+
+  scoped =
+    mapAttrs
+    (_: value: (value.scoped or {}) // (value.global or {}))
+    custom;
+
+  global = scoped.attrsets.mergeUnique {
+    items = custom;
+    getAttrs = library: custom.${library}.global or (custom.${library} or {});
+    what = "libraries";
+    owner = library: "${name}.${library}.global";
+  };
+in
+  recursiveUpdate legacy (
+    # {"${flake.top}_${flake.name}" = "red";}
+    {}
+    // global
+    // scoped
+  )
+
+============================
+
+libraries/filesystem.nix:
+
+contents:
+{lists, ...}: let
+  exports = {
+    scoped = {inherit entrypoint entrypoints;};
+    global = {inherit entrypoint entrypoints;};
+  };
+
+  # inherit (debug) withContext;
+  inherit (lists) head;
+  entrypoints.nix = let
+    ext = "nix";
+    candidates = map (name: "${name}.${ext}") [
+      "default"
+      "shell"
+      "flake"
+      "configuration"
+      "_"
+    ];
+    primary = head candidates;
+  in {inherit ext candidates primary;};
+  entrypoint = entrypoints.nix.primary;
+in
+  exports
+
+============================
+
+libraries/imports/default.nix:
+
+contents:
+{libraries}: let
+  lib = libraries.nixpkgs;
+  curated = import ./nixpkgs.nix {inherit lib;}; # TODO: Split into separate files
+  nixpkgs = lib // curated;
+in
+  libraries // {inherit nixpkgs;} // nixpkgs
+
+============================
+
+libraries/imports/nixpkgs.nix:
+
+contents:
+{lib}:
+{
+  attrsets = {
+    inherit
+      (lib.attrsets)
+      attrByPath
+      attrNames
+      attrsToList
+      attrVals
+      attrValues
+      cartesianProduct
+      catAttrs
+      chooseDevOutputs
+      collect
+      concatMapAttrs
+      dontRecurseIntoAttrs
+      filterAttrs
+      filterAttrsRecursive
+      foldAttrs
+      foldlAttrs
+      genAttrs
+      genAttrs'
+      getAttr
+      getAttrFromPath
+      getAttrs
+      getBin
+      getDev
+      getFirstOutput
+      getInclude
+      getLib
+      getMan
+      getOutput
+      getStatic
+      hasAttr
+      hasAttrByPath
+      intersectAttrs
+      isAttrs
+      isDerivation
+      listToAttrs
+      longestValidPathPrefix
+      mapAttrs
+      mapAttrs'
+      mapAttrsRecursive
+      mapAttrsRecursiveCond
+      mapAttrsToList
+      mapAttrsToListRecursive
+      mapAttrsToListRecursiveCond
+      mapCartesianProduct
+      matchAttrs
+      mergeAttrsList
+      nameValuePair
+      optionalAttrs
+      overrideExisting
+      recurseIntoAttrs
+      recursiveUpdate
+      recursiveUpdateUntil
+      removeAttrs
+      setAttrByPath
+      showAttrPath
+      toDerivation
+      unionOfDisjoint
+      updateManyAttrsByPath
+      zipAttrs
+      zipAttrsWith
+      zipAttrsWithNames
+      ;
+  };
+}
+// {
+  filesystem = {
+    inherit (lib.trivial) pathExists;
+    inherit
+      (lib.filesystem)
+      baseNameOf
+      dirOf
+      hashFile
+      haskellPathsInDir
+      isPath
+      listFilesRecursive
+      locateDominatingFile
+      packagesFromDirectoryRecursive
+      pathIsDirectory
+      pathIsRegularFile
+      pathType
+      readDir
+      readFileType
+      resolveDefaultNix
+      ;
+  };
+}
+// {
+  debug = {
+    inherit (builtins) tryEval;
+    inherit (lib.asserts) assertMsg;
+    inherit (lib.debug) addErrorContext traceIf;
+    inherit (lib.trivial) deepSeq;
+  };
+}
+// {
+  lists = {
+    findFirstList = lib.lists.findFirst;
+    inherit
+      (lib.lists)
+      all
+      allUnique
+      any
+      commonPrefix
+      compareLists
+      concatAttrValues
+      concatLists
+      concatMap
+      count
+      crossLists
+      drop
+      dropEnd
+      elem
+      elemAt
+      filter
+      findFirst
+      findFirstIndex
+      findSingle
+      flatten
+      foldl
+      foldl'
+      foldr
+      forEach
+      genList
+      groupBy
+      groupBy'
+      hasPrefix
+      head
+      ifilter0
+      imap0
+      imap1
+      init
+      intersectLists
+      isList
+      last
+      length
+      listDfs
+      map
+      mutuallyExclusive
+      naturalSort
+      optional
+      optionals
+      partition
+      range
+      remove
+      removePrefix
+      replaceElemAt
+      replicate
+      reverseList
+      singleton
+      sort
+      sortOn
+      sublist
+      subtractLists
+      tail
+      take
+      takeEnd
+      toList
+      toposort
+      unique
+      uniqueStrings
+      zipLists
+      zipListsWith
+      ;
+  };
+}
+// {
+  modules = {
+    inherit
+      (lib)
+      applyModuleArgsIfFunction
+      collectModules
+      defaultOrderPriority
+      defaultOverridePriority
+      dischargeProperties
+      doRename
+      evalModules
+      evalOptionValue
+      filterOverrides
+      filterOverrides'
+      fixMergeModules
+      fixupOptionType
+      importApply
+      importJSON
+      importTOML
+      mergeAttrDefinitionsWithPrio
+      mergeDefinitions
+      mergeModules
+      mergeModules'
+      mergeOptionDecls
+      mkAfter
+      mkAliasAndWrapDefinitions
+      mkAliasAndWrapDefsWithPriority
+      mkAliasDefinitions
+      mkAliasIfDef
+      mkAliasOptionModule
+      mkAliasOptionModuleMD
+      mkAssert
+      mkBefore
+      mkChangedOptionModule
+      mkDefault
+      mkDefinition
+      mkDerivedConfig
+      mkFixStrictness
+      mkForce
+      mkIf
+      mkImageMediaOverride
+      mkMerge
+      mkMergedOptionModule
+      mkOptionDefault
+      mkOrder
+      mkOverride
+      mkRemovedOptionModule
+      mkRenamedOptionModule
+      mkRenamedOptionModuleWith
+      mkVMOverride
+      pushDownProperties
+      setDefaultModuleLocation
+      sortProperties
+      unifyModuleSyntax
+      ;
+  };
+}
+// {
+  options = {
+    inherit
+      (lib.options)
+      getFiles
+      getValues
+      isOption
+      literalCode
+      literalExpression
+      literalMD
+      mergeDefaultOption
+      mergeEqualOption
+      mergeOneOption
+      mergeUniqueOption
+      mkEnableOption
+      mkOption
+      mkPackageOption
+      mkSinkUndeclaredOptions
+      optionAttrSetToDocList
+      optionAttrSetToDocList'
+      renderOptionValue
+      scrubOptionValue
+      showDefs
+      showFiles
+      showOption
+      showOptionWithDefLocs
+      unknownModule
+      ;
+  };
+}
+// {
+  strings = {
+    inherit
+      (lib.strings)
+      addContextFrom
+      appendContext
+      charToInt
+      cmakeBool
+      cmakeFeature
+      cmakeOptionType
+      commonPrefixLength
+      commonSuffixLength
+      compareVersions
+      concatImapStrings
+      concatImapStringsSep
+      concatLines
+      concatMapAttrsStringSep
+      concatMapStrings
+      concatMapStringsSep
+      concatStrings
+      concatStringsSep
+      elem
+      elemAt
+      enableFeature
+      enableFeatureAs
+      escape
+      escapeC
+      escapeNixIdentifier
+      escapeNixString
+      escapeRegex
+      escapeShellArg
+      escapeShellArgs
+      escapeURL
+      escapeXML
+      fileContents
+      filter
+      fixedWidthNumber
+      fixedWidthString
+      floatToString
+      fromJSON
+      genList
+      getName
+      getVersion
+      hasInfix
+      hasPrefix
+      hasSuffix
+      head
+      intersperse
+      isAttrs
+      isConvertibleWithToString
+      isInt
+      isList
+      isPath
+      isStorePath
+      isString
+      isStringLike
+      isValidPosixName
+      join
+      levenshtein
+      levenshteinAtMost
+      lowerChars
+      makeBinPath
+      makeIncludePath
+      makeLibraryPath
+      makeSearchPath
+      makeSearchPathOutput
+      match
+      mesonBool
+      mesonEnable
+      mesonOption
+      nameFromURL
+      normalizePath
+      optionalString
+      parseDrvName
+      readFile
+      removePrefix
+      removeSuffix
+      replaceString
+      replaceStrings
+      replicate
+      sanitizeDerivationName
+      split
+      splitString
+      splitStringBy
+      storeDir
+      stringAsChars
+      stringLength
+      stringToCharacters
+      substring
+      tail
+      toCamelCase
+      toInt
+      toIntBase10
+      toJSON
+      toLower
+      toSentenceCase
+      toShellVar
+      toShellVars
+      toUpper
+      trim
+      trimWith
+      typeOf
+      unsafeDiscardStringContext
+      upperChars
+      versionAtLeast
+      versionOlder
+      withFeature
+      withFeatureAs
+      ;
+  };
+}
+// {
+  types = {
+    inherit (lib.filesystem) isPath;
+    inherit (lib.attrsets) isAttrs isDerivation;
+    inherit (lib.trivial) isBool isFloat isFunction;
+    inherit
+      (lib.strings)
+      isConvertibleWithToString
+      isInt
+      isList
+      isStorePath
+      isString
+      isStringLike
+      isValidPosixName
+      typeOf
+      ;
+    inherit
+      (lib.types)
+      addCheck
+      anything
+      attrs
+      attrsOf
+      attrsWith
+      attrTag
+      bool
+      boolByOr
+      coercedTo
+      commas
+      defaultFunctor
+      defaultTypeMerge
+      deferredModule
+      deferredModuleWith
+      either
+      enum
+      envVar
+      externalPath
+      fileset
+      float
+      functionTo
+      int
+      ints
+      isOptionType
+      isType
+      json
+      lazyAttrsOf
+      lines
+      listOf
+      loaOf
+      luaInline
+      mergeTypes
+      mkOptionType
+      noCheckForDocsModule
+      nonEmptyListOf
+      nonEmptyStr
+      nullOr
+      number
+      numbers
+      oneOf
+      optionDeclaration
+      optionDescriptionPhrase
+      optionType
+      package
+      passwdEntry
+      path
+      pathInStore
+      pathWith
+      pkgs
+      port
+      raw
+      separatedString
+      serializableValueWith
+      setType
+      shellPackage
+      singleLineStr
+      str
+      strMatching
+      submodule
+      submoduleWith
+      toml
+      uniq
+      unique
+      unspecified
+      ;
+  };
+}
+
+============================
+
+libraries/lists.nix:
+
+contents:
+{
+  attrsets,
+  debug,
+  lists,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit asList nthOr orNull orDefault orEmpty;
+
+      atOr = nthOr;
+      has = has';
+      hasAny = hasAny';
+      isEmpty = isEmpty';
+      isNotEmpty = isNotEmpty';
+    };
+    global = {
+      isEmptyList = isEmpty';
+      isNotEmptyList = isNotEmpty';
+      orDefaultList = orDefault;
+      orNullList = orNull;
+      toList' = asList;
+      valueInList = nthOr;
+
+      # Added to global exports
+      inList = has';
+      anyInList = hasAny';
+    };
+  };
+
+  inherit (attrsets) isAttrs;
+  inherit (debug) assertWithContext;
+  inherit (lists) elemAt isList length optionals toList any elem; # Inherited 'any' and 'elem'
+  inherit (types) typeOf isEmpty;
+
+  isEmpty' = value: value == [];
+  isNotEmpty' = value: !isEmpty' value;
+
+  # --- Membership Checks ---
+
+  has' = item: list:
+    assert assertWithContext {
+      name = "lists.has";
+      assertion = isList list;
+      message = "expected a list to search within, got ${typeOf list}";
+      context = "evaluating lists.has";
+    };
+      elem item list;
+
+  hasAny' = candidates: list:
+    assert assertWithContext {
+      name = "lists.hasAny";
+      assertion = isList list;
+      message = "expected a target list to search within, got ${typeOf list}";
+      context = "evaluating lists.hasAny";
+    };
+      any (candidate: elem candidate list) (asList candidates);
+
+  # --- Existing Methods ---
+
+  orNull = value:
+    assert assertWithContext {
+      name = "lists.orNull";
+      assertion = isEmpty value || isList value;
+      message = "expected a list, got ${typeOf value}";
+      context = "evaluating lists.orNull";
+    };
+      if isEmpty value || !(isList value)
+      then null
+      else value;
+
+  orDefault = default: value:
+    assert assertWithContext {
+      name = "lists.orDefault";
+      assertion = isList default && isList value;
+      message = "expected lists, got default=${typeOf default} value=${typeOf value}";
+      context = "evaluating lists.orDefault";
+    };
+      if isNotEmpty' value
+      then value
+      else default;
+
+  orEmpty = value:
+    assert assertWithContext {
+      name = "lists.orEmpty";
+      assertion = value == null || isList value;
+      message = "expected a list or null, got ${typeOf value}";
+      context = "evaluating lists.orEmpty";
+    };
+      optionals (isNotEmpty' value) value;
+
+  asList = val: optionals (val != null) (toList val);
+
+  nthOr = input: let
+    fromArgs = {
+      position,
+      value,
+      default ? null,
+    }:
+      if isList value
+      then
+        if length value > position
+        then elemAt value position
+        else default
+      else if position == 0
+      then value
+      else default;
+  in
+    if isAttrs input
+    then fromArgs input
+    else
+      position:
+        fromArgs {
+          value = input;
+          inherit position;
+        };
+in
+  exports
+
+============================
+
+libraries/modules.nix:
+
+contents:
+{
+  attrsets,
+  defaults,
+  filesystem,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    # scoped = {
+    # };
+    global = {
+      inherit
+        collectNamedSpecs
+        collectSpecs
+        getUsers
+        importAll
+        importModule
+        importModules
+        importProfiles
+        mkCdAliases
+        mkEnvVars
+        mkHomeUser
+        mkHomeUsers
+        readDirAttrs
+        resolveEntrypoint
+        ;
+    };
+  };
+
+  inherit (attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (filesystem) baseNameOf pathExists readDir entrypoint entrypoints;
+  inherit (lists) asList any concatMap elem findFirst length;
+  inherit (strings) hasSuffix toUpper;
+  inherit (types) isAttrs isString isFunction;
+  inherit (entrypoints.nix) candidates;
+
+  readDirAttrs = {
+    base,
+    excludes ? defaults.excludes,
+    predicate ? null,
+    includeFiles ? false,
+  }:
+    filterAttrs
+    (name: type: let
+      defaultPredicate =
+        if includeFiles
+        then
+          type
+          == "directory"
+          || (type == "regular" && hasSuffix ".nix" name && name != "default.nix")
+        else type == "directory";
+    in
+      (
+        if predicate != null
+        then predicate name type
+        else defaultPredicate
+      )
+      && !(elem name excludes)
+      && (
+        if type == "directory"
+        then any (f: pathExists (base + "/${name}/${f}")) candidates
+        else true
+      ))
+    (readDir base);
+
+  # find the first candidate that exists under base/name/, fall back to entrypoint
+  resolveEntrypoint = {
+    base,
+    name,
+  }:
+    findFirst
+    (f: pathExists (base + "/${name}/${f}"))
+    entrypoint
+    candidates;
+
+  importModule = {
+    args ? {},
+    base,
+    name,
+    path ? null,
+  }: let
+    isDir = (readDir base).${name} == "directory";
+    resolved =
+      if isDir
+      then
+        base
+        + "/${name}/${
+          if path != null
+          then path
+          else resolveEntrypoint {inherit base name;}
+        }"
+      else base + "/${name}";
+    imported = import resolved;
+  in
+    # resolved;
+    if isFunction imported
+    then imported args
+    else imported;
+
+  # collect { core = [...]; home = [...]; } across all subdirs of base
+  collectSpecs = {
+    args,
+    extraArgs ? {},
+    base,
+    excludes ? defaults.excludes,
+    tags ? defaults.tags,
+    includeFiles ? false,
+    rawTag ? "core",
+  }: let
+    entries = readDirAttrs {inherit base excludes includeFiles;};
+    specs =
+      mapAttrsToList
+      (name: type: let
+        module = importModule {
+          inherit base name;
+          args =
+            args
+            // {
+              dom = baseNameOf (toString base);
+              mod = name;
+            }
+            // extraArgs;
+        };
+      in
+        if type == "regular"
+        then {${rawTag} = module;}
+        else module)
+      entries;
+  in
+    genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);
+
+  # collect { <name> = { core = [...]; home = [...]; }; } keyed by subdir name
+  # used by profiles so we know which home belongs to which user
+  collectNamedSpecs = {
+    args,
+    extraArgs ? {},
+    base,
+    excludes ? defaults.excludes,
+    tags ? defaults.tags,
+    rekey ? false, # when true, rekey by spec.name instead of dir name
+  }: let
+    entries = readDirAttrs {inherit base excludes;};
+    raw =
+      mapAttrs
+      (name: _:
+        importModule {
+          inherit base name;
+          args =
+            args
+            // {
+              dom = baseNameOf (toString base);
+              mod = name;
+            }
+            // extraArgs;
+        })
+      entries;
+  in
+    if rekey
+    then
+      mapAttrs' (dirName: spec: {
+        name = spec.name or dirName;
+        value = spec // {name = spec.name or dirName;};
+      })
+      raw
+    else raw;
+
+  getUsers = declared: let
+    # ── group constructor ────────────────────────────────────────────────────
+    mkGroup = attrs: let
+      names = attrNames attrs;
+      values = mapAttrs (name: user:
+        user
+        // {
+          inherit name;
+          home = user.home or "/home/${name}";
+          description = user.description or name;
+        })
+      attrs;
+      count = length names;
+    in {inherit names values count;};
+
+    # ── filter helpers ───────────────────────────────────────────────────────
+
+    filterByStatus = status: attrs:
+      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
+
+    filterByRole = wantedRole: attrs:
+      filterAttrs (
+        _: u: let
+          role = u.role or "";
+          isNormal = role == "" || role == "user" || role == "normal";
+        in
+          if wantedRole == "normal"
+          then isNormal
+          else role == wantedRole
+      )
+      attrs;
+
+    # ── cross-cutting group index ────────────────────────────────────────────
+    # byStatus and byRole are mutually enriched: each slice gets the other
+    # dimension attached, so callers can do .byStatus.enabled.byRole.admin etc.
+
+    mkStatusIndex = attrs:
+      genAttrs ["enabled" "disabled"] (status: let
+        subset = filterByStatus status attrs;
+      in
+        (mkGroup subset) // {byRole = mkRoleIndex subset;});
+
+    mkRoleIndex = attrs:
+      genAttrs ["normal" "administrator" "service" "guest"] (role: let
+        subset = filterByRole role attrs;
+      in
+        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
+
+    # ── assemble ─────────────────────────────────────────────────────────────
+
+    users = mapAttrs (_: u:
+      {
+        role = "user";
+        enable = true;
+      }
+      // u)
+    declared;
+  in
+    (mkGroup users)
+    // {
+      byStatus = mkStatusIndex users;
+      byRole = mkRoleIndex users;
+    };
+
+  mkHomeUsers = host:
+    mapAttrs (_: user: {
+      config,
+      osConfig,
+      top,
+      ...
+    }:
+      mkHomeUser {inherit user config osConfig top;})
+    (getUsers host).normal.raw;
+
+  mkHomeUser = {
+    user,
+    config,
+    osConfig,
+    top,
+  }: {
+    imports =
+      [
+        (let
+          paths = config.${top}.paths or {};
+        in {
+          home = {
+            inherit (osConfig.system) stateVersion;
+            sessionVariables = mkEnvVars "" paths;
+            shellAliases = mkCdAliases paths;
+          };
+          programs.home-manager.enable = true;
+        })
+      ]
+      ++ (user.imports or []);
+  };
+
+  # modules: shared across all users
+  # profiles: per-user, keyed by directory name
+  importAll = args @ {
+    base,
+    excludes ? defaults.excludes,
+    tags ? defaults.tags,
+    extraArgs ? {},
+    includeFiles ? false,
+    kind ? "modules",
+    ...
+  }:
+    if kind == "modules"
+    then let
+      specs = collectSpecs {inherit args base excludes tags extraArgs includeFiles;};
+    in {
+      imports = specs.core or [];
+      home-manager.sharedModules = specs.home or [];
+    }
+    else if kind == "profiles"
+    then let
+      byName = collectNamedSpecs {inherit args base excludes tags extraArgs;};
+    in {
+      imports = concatMap (profile: asList (profile.core or null)) (attrValues byName);
+      home-manager.users =
+        mapAttrs (
+          name: profile: {config, ...}: mkHomeUser {inherit config name profile;}
+        )
+        byName;
+    }
+    else throw "Expected kind to be one of [modules profiles], got ${kind}";
+
+  # convenience: importModules is importAll with kind = "modules"
+  importModules = args @ {
+    base,
+    excludes ? defaults.excludes,
+    tags ? defaults.tags,
+    extraArgs ? {},
+    includeFiles ? false,
+    ...
+  }:
+    importAll (args
+      // {
+        kind = "modules";
+        inherit includeFiles;
+      });
+
+  # convenience: importProfiles is importAll with kind = "profiles"
+  importProfiles = args @ {
+    base,
+    excludes ? defaults.excludes,
+    tags ? defaults.tags,
+    extraArgs ? {},
+    ...
+  }:
+    importAll (args // {kind = "profiles";});
+
+  # flatten paths attrset into env vars
+  # { pictures = { base = "/home/craole/Pictures"; }; }
+  # → PICTURES="/home/craole/Pictures"
+  mkEnvVars = prefix: attrs:
+    foldlAttrs (
+      acc: name: value: let
+        key = toUpper "${prefix}${
+          if prefix == ""
+          then name
+          else "_${name}"
+        }";
+      in
+        if isAttrs value && value ? base
+        then acc // {"${key}" = value.base;} // mkEnvVars key value
+        else if isString value
+        then acc // {"${key}" = value;}
+        else acc
+    ) {}
+    attrs;
+
+  # generate `cd` aliases from paths
+  # { pictures.base = "/home/craole/Pictures"; }
+  # → pics = "cd /home/craole/Pictures"
+  mkCdAliases = attrs:
+    foldlAttrs (
+      acc: name: value:
+        if isAttrs value && value ? base
+        then acc // {"cd${name}" = "cd ${value.base}";}
+        else acc
+    ) {}
+    attrs;
+in
+  exports
+
+============================
+
+libraries/options.nix:
+
+contents:
+{
+  attrsets,
+  lists,
+  options,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        mkEnable
+        mkCfg
+        mkOpt
+        mkEnableMod
+        mkModuleArgs
+        mkFloatOption
+        mkLatitudeOption
+        mkLongitudeOption
+        mkGeoProviderOption
+        mkTimezoneOption
+        mkLocalTimeOption
+        mkLocaleOption
+        ;
+    };
+    global = {inherit mkModuleArgs;};
+  };
+
+  inherit (attrsets) attrByPath setAttrByPath optionalAttrs;
+  inherit (lists) asList hasAny;
+  inherit (options) mkOption mkEnableOption;
+  inherit (types) nullOr addCheck float str;
+
+  mkEnable = {
+    name ? null,
+    mod ? null,
+    description ? null,
+    scope ? "core",
+  }: let
+    module =
+      if name != null && name != ""
+      then name
+      else if mod != null && mod != ""
+      then mod
+      else null;
+
+    description' =
+      if description != null
+      then description
+      else if module != null
+      then "Whether ${module} should be enabled ${
+        if scope == "core"
+        then "system-wide"
+        else if scope == "home"
+        then "for the user"
+        else throw "Expected scope to be one of [core home], got ${scope}"
+      }"
+      else "Whether to enable this module";
+  in {
+    false = mkEnableOption description';
+    true = mkEnableOption description' // {default = true;};
+  };
+
+  mkCfg = {
+    config,
+    path,
+  }:
+    attrByPath (asList path) {} config;
+
+  mkOpt = {
+    options,
+    path,
+  }:
+    setAttrByPath (asList path) options;
+
+  mkEnableMod = {
+    mod,
+    scope,
+  }:
+    mkEnable {inherit mod scope;};
+
+  mkModuleArgs = {
+    config,
+    top,
+    dom,
+    mod,
+    scope ? "core",
+  }: let
+    path = [top dom mod];
+  in {
+    cfg = mkCfg {inherit config path;};
+    opt = options: mkOpt {inherit options path;};
+    mkEnableMod = mkEnableMod {inherit mod scope;};
+  };
+
+  mkFloatOption = {
+    description,
+    min ? null,
+    max ? null,
+    default ? null,
+  }: let
+    check = value:
+      (
+        if min != null
+        then value >= min
+        else true
+      )
+      && (
+        if max != null
+        then value <= max
+        else true
+      );
+  in
+    mkOption ({
+        type = nullOr (addCheck float check);
+        inherit description;
+      }
+      // optionalAttrs (default != null) {inherit default;});
+
+  mkLatitudeOption = {
+    host,
+    default ? null,
+  }:
+    mkFloatOption {
+      description = "Latitude coordinate, between -90.0 and 90.0";
+      min = -90.0;
+      max = 90.0;
+      default = host.localization.latitude or default;
+    };
+
+  mkLongitudeOption = {
+    host,
+    default ? null,
+  }:
+    mkFloatOption {
+      description = "Longitude coordinate, between -180.0 and 180.0";
+      min = -180.0;
+      max = 180.0;
+      default = host.localization.longitude or default;
+    };
+
+  mkGeoProviderOption = {
+    host,
+    default ? "manual",
+  }: let
+    loc = host.localization or {};
+    provider = loc.provider or null;
+    latitude = loc.latitude or null;
+    longitude = loc.longitude or null;
+  in
+    mkOption {
+      type = types.enum ["manual" "geoclue2"];
+      description = "Location provider. If 'manual', valid latitude and longitude must be provided.";
+      default =
+        if provider != null
+        then provider
+        else if latitude != null && longitude != null
+        then default
+        else "geoclue2";
+    };
+
+  mkTimezoneOption = {
+    host,
+    default ? null,
+  }:
+    mkOption ({
+        type = nullOr str;
+        description = "The system or user timezone.";
+      }
+      // optionalAttrs (host.localization.timezone or default != null) {
+        default = host.localization.timezone or default;
+      });
+
+  mkLocalTimeOption = {host}: let
+    useLocalTime =
+      hasAny
+      ["dual-boot" "dualboot-windows"]
+      (host.functionalities or []);
+  in
+    mkEnableOption ''
+      Keeps the hardware clock in local time instead of UTC.
+      This is particularly important when the system dual-boots with Windows,
+      as Windows defaults to local time for the RTC.
+    ''
+    // {default = useLocalTime;};
+
+  mkLocaleOption = {
+    host,
+    default ? "en_US.UTF-8",
+  }:
+    mkOption {
+      type = str;
+      description = ''
+        Configures the default locale settings. This determines:
+        - Language for program messages and UI text.
+        - Date, time, numeric, and monetary formatting conventions.
+        - Character sorting and collation order.
+
+        Applies to all applications that respect locale environment variables.
+      '';
+      default = host.localization.locale or default;
+    };
+in
+  exports
+
+============================
+
+libraries/strings.nix:
+
+contents:
+{
+  debug,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        _applyStr
+        _normalizeSymbols
+        _splitWords
+        capitalize
+        indent
+        normalize
+        orDefault
+        orEmpty
+        orNull
+        replaceAll
+        toCamel
+        toLower'
+        toPascal
+        toScreamingSnake
+        toSnake
+        toTitle
+        toUpper'
+        trim'
+        trimEnd
+        trimStart
+        wrap
+        ;
+      trim = trim';
+      isEmpty = isEmpty';
+      isNotEmpty = isNotEmpty';
+    };
+    global = {
+      inherit
+        capitalize
+        indent
+        normalize
+        replaceAll
+        toCamel
+        toLower'
+        toPascal
+        toScreamingSnake
+        toSnake
+        toTitle
+        toUpper'
+        trim'
+        trimEnd
+        trimStart
+        wrap
+        ;
+      capitalizeString = capitalize;
+      isEmptyString = isEmpty';
+      isNotEmptyString = isNotEmpty';
+      normalizeString = normalize;
+      orDefaultString = orDefault;
+      orEmptyString = orEmpty;
+      orNullString = orNull;
+      quote = wrap;
+      quoteString = wrap;
+      replaceAllStrings = replaceAll;
+      toCamelCase = toCamel;
+      toLowerCase = toLower';
+      toPascalCase = toPascal;
+      toScreamingSnakeCase = toScreamingSnake;
+      toSnakeCase = toSnake;
+      toTitleCase = toTitle;
+      toUpperCase = toUpper';
+      trimString = trim';
+      trimStringEnd = trimEnd;
+      trimStringStart = trimStart;
+    };
+  };
+
+  inherit (lists) head tail genList asList any;
+  inherit (debug) withContext;
+  inherit (types) isEmpty isNotEmpty isList isAttrs isString typeOf;
+  inherit (strings) concatStrings concatStringsSep hasPrefix hasSuffix optionalString removePrefix removeSuffix replaceStrings splitString stringLength substring toLower toUpper;
+
+  isEmpty' = value: value == "";
+  isNotEmpty' = value: !isEmpty' value;
+
+  orNull = value:
+    assert withContext {
+      name = "strings.orNull";
+      assertion = isEmpty value || isString value;
+      message = "expected a string, got ${typeOf value}";
+      context = "evaluating strings.orNull";
+    };
+      if isEmpty value || !(isString value)
+      then null
+      else value;
+
+  orDefault = default: value:
+    assert withContext {
+      name = "strings.orDefault";
+      assertion = isString default && isString value;
+      message = "expected strings, got default=${typeOf default} value=${typeOf value}";
+      context = "evaluating strings.orDefault";
+    };
+      if isNotEmpty' value
+      then value
+      else default;
+
+  orEmpty = value:
+    assert withContext {
+      name = "strings.orEmpty";
+      assertion = value == null || isString value;
+      message = "expected a string or null, got ${typeOf value}";
+      context = "evaluating strings.orEmpty";
+    };
+      optionalString (isNotEmpty' value) value;
+
+  # Internal: apply a string transform to a string or each item in a list.
+  _applyStr = fn: input:
+    if isList input
+    then map fn input
+    else fn input;
+
+  # Internal: split a string into lowercase words on spaces, underscores, hyphens.
+  _splitWords = text:
+    splitString "-" (
+      replaceStrings [" " "_"] ["-" "-"]
+      (_normalizeSymbols (toLower text))
+    );
+
+  _symbolAliases = {
+    "c++" = "cpp";
+    "c#" = "csharp";
+    ".net" = "dotnet";
+    "objc" = "objectivec";
+  };
+
+  _normalizeSymbols = text:
+    _symbolAliases.${text} or (replaceStrings ["++" "#" "."] ["p" "sharp" "-"] text);
+
+  /**
+  Convert a string or list of strings to lower case.
+  */
+  toLower' = input:
+    assert withContext {
+      name = "strings.toLower'";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toLower'";
+    };
+      _applyStr toLower input;
+
+  /**
+  Convert a string or list of strings to upper case.
+  */
+  toUpper' = input:
+    assert withContext {
+      name = "strings.toUpper'";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toUpper'";
+    };
+      _applyStr toUpper input;
+
+  /**
+  Remove leading occurrences of `chars` from a string or list of strings.
+  Pass null to default to a single space. Strips repeatedly.
+  */
+  trimStart = chars: let
+    char =
+      if chars == null
+      then " "
+      else if !isString chars
+      then throw "trimStart: chars must be a string or null"
+      else chars;
+    asStr = text:
+      if hasPrefix char text
+      then asStr (removePrefix char text)
+      else text;
+  in
+    input:
+      assert withContext {
+        name = "strings.trimStart";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported";
+        context = "evaluating trimStart";
+      };
+        _applyStr asStr input;
+
+  /**
+  Remove trailing occurrences of `chars` from a string or list of strings.
+  Pass null to default to a single space. Strips repeatedly.
+  */
+  trimEnd = chars: let
+    char =
+      if chars == null
+      then " "
+      else if !isString chars
+      then throw "trimEnd: chars must be a string or null"
+      else chars;
+    asStr = text:
+      if hasSuffix char text
+      then asStr (removeSuffix char text)
+      else text;
+  in
+    input:
+      assert withContext {
+        name = "strings.trimEnd";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported";
+        context = "evaluating trimEnd";
+      };
+        _applyStr asStr input;
+
+  /**
+  Remove leading and trailing occurrences of `chars` from a string or list of strings.
+  Pass null to default to a single space.
+  */
+  trim' = chars: input: trimStart chars (trimEnd chars input);
+
+  /**
+  Replace all occurrences of substrings in a string or list of strings.
+  Accepts either a single search/replace pair, or parallel lists.
+  */
+  replaceAll = search: replace: let
+    ss = asList search;
+    rs = asList replace;
+  in
+    input:
+      assert withContext {
+        name = "strings.replaceAll";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported in input";
+        context = "evaluating replaceAll";
+      };
+        _applyStr (replaceStrings ss rs) input;
+
+  /**
+  Normalize a string or list of strings for fuzzy matching.
+  Converts to lower case and replaces spaces/underscores with hyphens.
+  */
+  normalize = input:
+    if isEmpty input
+    then null
+    else
+      assert withContext {
+        name = "strings.normalize";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported";
+        context = "evaluating normalize";
+      };
+        _applyStr (text: replaceStrings [" " "_"] ["-" "-"] (toLower text)) input;
+
+  indent = n: concatStringsSep "" (genList (_: " ") n);
+
+  /**
+  Capitalize the first character of a string or list of strings.
+  */
+  capitalize = input: let
+    asStr = text:
+      if text == ""
+      then ""
+      else toUpper (substring 0 1 text) + substring 1 (stringLength text) text;
+  in
+    assert withContext {
+      name = "strings.capitalize";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating capitalize";
+    };
+      _applyStr asStr input;
+
+  /**
+  Convert a string or list of strings to camelCase.
+  */
+  toCamel = input: let
+    asStr = text: let
+      words = _splitWords text;
+    in
+      head words + concatStringsSep "" (map capitalize (tail words));
+  in
+    assert withContext {
+      name = "strings.toCamel";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toCamel";
+    };
+      if isList input
+      then concatStringsSep "" ([head input] ++ map capitalize (tail input))
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to PascalCase.
+  */
+  toPascal = input: let
+    asStr = text: concatStringsSep "" (map capitalize (_splitWords text));
+  in
+    assert withContext {
+      name = "strings.toPascal";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toPascal";
+    };
+      if isList input
+      then concatStringsSep "" (map capitalize input)
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to snake_case.
+  */
+  toSnake = input: let
+    asStr = text: concatStringsSep "_" (_splitWords text);
+  in
+    assert withContext {
+      name = "strings.toSnake";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toSnake";
+    };
+      if isList input
+      then concatStringsSep "_" input
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to SCREAMING_SNAKE_CASE.
+  */
+  toScreamingSnake = input: let
+    asStr = text: toUpper (concatStringsSep "_" (_splitWords text));
+  in
+    assert withContext {
+      name = "strings.toScreamingSnake";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toScreamingSnake";
+    };
+      if isList input
+      then toUpper (concatStringsSep "_" input)
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to Title Case.
+  */
+  toTitle = input: let
+    asStr = text: concatStringsSep " " (map capitalize (_splitWords text));
+  in
+    assert withContext {
+      name = "strings.toTitle";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toTitle";
+    };
+      if isList input
+      then concatStringsSep " " (map capitalize input)
+      else asStr input;
+
+  /**
+  Wrap string(s) in a token (default backtick).
+  */
+  wrap = value: let
+    args =
+      if isAttrs value
+      then
+        if value ? input
+        then value
+        else if value ? text
+        then value // {input = value.text;}
+        else
+          assert withContext {
+            name = "strings.wrap";
+            assertion = false;
+            message = "expected attrset to have an `input` or `text` key";
+            context = "evaluating wrap input";
+          }; null
+      else if isList value || isString value
+      then {input = value;}
+      else
+        assert withContext {
+          name = "strings.wrap";
+          assertion = false;
+          message = "expected `value` to be a string, list, or attrset";
+          context = "evaluating wrap value";
+        }; null;
+
+    input = assert withContext {
+      name = "strings.wrap";
+      assertion = isNotEmpty args.input;
+      message = "expected `input` to be a non-null value or a non-empty list";
+      context = "evaluating wrap input";
+    };
+      args.input;
+
+    token = let
+      token' = args.token or "`";
+    in
+      assert withContext {
+        name = "strings.wrap";
+        assertion = isString token' && token' != "";
+        message = "expected `token` to be a non-empty string";
+        context = "evaluating wrap token";
+      }; token';
+
+    delimiter = let
+      sep = args.delimiter or (args.sep or (optionalString (isList args.input) " or "));
+    in
+      assert withContext {
+        name = "strings.wrap";
+        assertion = isString sep;
+        message = "expected `delimiter` to be a string";
+        context = "evaluating wrap delimiter";
+      }; sep;
+
+    rendered = map (item: concatStrings [token (toString item) token]) (asList input);
+  in
+    if isList input
+    then concatStringsSep delimiter rendered
+    else head rendered;
+in
+  exports
+
+============================
+
+libraries/types.nix:
+
+contents:
+{
+  debug,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {};
+    global = {inherit isEmpty isNotEmpty isNull isNotNull;};
+  };
+
+  inherit (debug) withContext;
+  inherit (lists) head tail isList optionals reverseList;
+  inherit (strings) concatStrings stringLength stringToCharacters;
+  inherit (types) isAttrs isFunction isString;
+
+  # Minimal local trim so predicates doesn't circularly depend on strings.
+  trim = s: let
+    chars = stringToCharacters s;
+    isSpace = c: c == " " || c == "\t" || c == "\n" || c == "\r";
+    dropWhile = pred: list:
+      optionals (list != []) (
+        if pred (head list)
+        then dropWhile pred (tail list)
+        else list
+      );
+    trimmed = dropWhile isSpace (reverseList (dropWhile isSpace (reverseList chars)));
+  in
+    concatStrings trimmed;
+
+  isNull = value: value == null;
+  isNotNull = value: value != null;
+
+  /**
+  Check if a value is considered "empty" for defaulting purposes.
+
+  # Emptiness Rules
+  - `null`:             always empty
+  - Strings:            empty when `""` or whitespace-only
+  - Lists:              empty when `[]`
+  - Attrsets:           empty when `{}`
+  - Numbers, booleans, paths, functions: **never** empty
+
+  # Type
+  ```nix
+  isEmpty :: a -> Bool
+  ```
+
+  # Examples
+  ```nix
+  isEmpty null        # => true
+  isEmpty ""          # => true
+  isEmpty "  "        # => true
+  isEmpty []          # => true
+  isEmpty {}          # => true
+  isEmpty 0           # => false
+  isEmpty false       # => false
+  isEmpty "hello"     # => false
+  isEmpty [1 2 3]     # => false
+  ```
+  */
+  isEmpty = value:
+    assert withContext {
+      name = "isEmpty";
+      assertion = !isFunction value;
+      message = "functions are not supported";
+      context = "evaluating isEmpty";
+    };
+      if value == null
+      then true
+      else if isString value
+      then value == "" || stringLength (trim value) == 0
+      else if isList value
+      then value == []
+      else if isAttrs value
+      then value == {}
+      else false;
+
+  /**
+  Check if a value is not empty. Convenience negation of `isEmpty`.
+
+  # Type
+  ```nix
+  isNotEmpty :: a -> Bool
+  ```
+
+  # Examples
+  ```nix
+  isNotEmpty "hello"  # => true
+  isNotEmpty 0        # => true
+  isNotEmpty false    # => true
+  isNotEmpty null     # => false
+  isNotEmpty ""       # => false
+
+  # Common use in filters
+  validItems = filter isNotEmpty rawList;
+  ```
+  */
+  isNotEmpty = value: !isEmpty value;
+in
+  exports

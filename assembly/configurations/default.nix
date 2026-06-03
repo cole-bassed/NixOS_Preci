@@ -19,5 +19,6 @@ flake: let
 in
   flake.libraries.mkConfigurations {
     class = "nixos";
-    flake = flake // {modules = flake.modules // {inherit core;};};
+    inherit flake;
+    # flake = flake // {modules = flake.modules // {inherit core;};};
   }
