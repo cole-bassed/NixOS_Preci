@@ -91,7 +91,9 @@
         libraries.${library}.global or (libraries.${library} or {});
     };
   in
-    global // scoped // {inherit global scoped;};
+    global
+    // scoped
+    // {inherit global scoped flake;};
 in
   {
     lib = legacy;

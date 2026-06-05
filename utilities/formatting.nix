@@ -1,7 +1,11 @@
-lib: let
-  path = flake.inputs.self;
-  inherit (lib.treefmt) evalModule;
-  inherit (lib.config) forEachSystem;
+{
+  libraries,
+  base,
+  ...
+}: let
+  inherit (base.flake) self;
+  inherit (libraries.treefmt) evalModule;
+  inherit (libraries.config) forEachSystem;
 
   evalFor = pkgs:
     evalModule pkgs {
@@ -15,6 +19,6 @@ in {
   formatter = forEachSystem (pkgs: (evalFor pkgs).config.build.wrapper);
 
   checks = forEachSystem (pkgs: {
-    formatting = (evalFor pkgs).config.build.check path;
+    formatting = (evalFor pkgs).config.build.check self;
   });
 }

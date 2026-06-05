@@ -91,7 +91,7 @@
   in
     src.libraries.assemble.flake src {
       configurations = false;
-      utilities = false;
+      utilities = true;
       devShells = false;
       templates = false;
     };
