@@ -203,7 +203,8 @@
                               programs.home-manager.enable = true;
                             }
                           ]
-                          ++ (user.modules or []);
+                          ++ (user.modules or [])
+                          ++ (user.imports or []);
                       })
                       (host.users.byStatus.enabled.values or {});
                   };

@@ -2,11 +2,23 @@
   description = "Configuration Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs = {
+      url = "github:NixOS/nixpkgs/nixos-unstable";
+    };
+    nix-darwin = {
+      url = "github:nix-darwin/nix-darwin/master";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
-    hermes-agent.url = "github:NousResearch/hermes-agent";
-    vicinae.url = "github:vicinaehq/vicinae";
-    quickshell.url = "github:outfoxxed/quickshell";
+    hermes-agent = {
+      url = "github:NousResearch/hermes-agent";
+    };
+    vicinae = {
+      url = "github:vicinaehq/vicinae";
+    };
+    quickshell = {
+      url = "github:outfoxxed/quickshell";
+    };
 
     home-manager = {
       url = "github:nix-community/home-manager";
@@ -52,13 +64,13 @@
   outputs = {self, ...} @ inputs: let
     src = import ./. {
       flake = with inputs; {
-        inherit self;
+        inherit inputs self;
 
         libraries = {
           nixpkgs = nixpkgs.lib;
+          darwin = nix-darwin.lib;
           home-manager = home-manager.lib;
           treefmt = treefmt.lib;
-          # darwin = nix-darwin.lib or { };
         };
 
         modules = {

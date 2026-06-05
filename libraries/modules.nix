@@ -110,7 +110,7 @@
     imported = import resolved;
   in
     # resolved;
-    if isFunction imported
+    if isDir && isFunction imported
     then imported args
     else imported;
 
@@ -141,7 +141,9 @@
       in
         if type == "regular"
         then {${rawTag} = module;}
-        else module)
+        else if module ? core || module ? home
+        then module
+        else {${rawTag} = module;})
       entries;
   in
     genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);

@@ -1,5 +1,2 @@
-{lib, ...} @ args:
-lib.importModules (args
-  // {
-    base = ./.;
-  })
+{lix, ...} @ args:
+lix.importModules (args // {base = ./.;})

@@ -1,5 +1,6 @@
 {
   top,
+  lix,
   pkgs,
   lib,
   dom,
@@ -7,7 +8,7 @@
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lix) mkModuleArgs;
 
   mk = scope: {config, ...}: let
     _ = mkModuleArgs {inherit config top dom mod scope;};

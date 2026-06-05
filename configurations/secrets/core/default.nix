@@ -5,7 +5,7 @@ flake: {
   ...
 }: let
   inherit (flake) inputs libraries;
-  inherit (inputs) sops-nix;
+  inherit (inputs) sops;
   inherit (libraries.attrsets) attrValues mapAttrs mapAttrs' nameValuePair;
   inherit (libraries.lists) optionals toList unique;
   inherit (libraries.strings) concatStringsSep;
@@ -157,9 +157,10 @@ flake: {
   secrets = {
     login = user.keys.login.${names.host};
     ssh = ssh.user.secrets;
+    hermes.env = "services/hermes/env";
   };
 in {
-  imports = [sops-nix.nixosModules.sops];
+  imports = [sops.nixosModules.sops];
 
   environment.systemPackages = with pkgs; [
     age
@@ -179,7 +180,10 @@ in {
     age.sshKeyPaths = [ssh.host.paths.key];
 
     secrets =
-      {${secrets.login}.neededForUsers = true;}
+      {
+        ${secrets.login}.neededForUsers = true;
+        ${secrets.hermes.env} = {};
+      }
       // secrets.ssh;
   };
 

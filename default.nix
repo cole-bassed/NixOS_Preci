@@ -1,7 +1,7 @@
 {flake ? {}, ...}: let
   names = {
     src = "dots";
-    top = "_";
+    top = "dots";
     lib = "lix";
   };
 
@@ -58,6 +58,8 @@
 in
   libraries.optionalAttrs (flake != {}) {inherit flake;}
   // {
+    dots = toString paths.src;
+    inputs = flake.inputs or {};
     inherit defaults libraries names paths;
     "${names.lib}" = libraries;
   }

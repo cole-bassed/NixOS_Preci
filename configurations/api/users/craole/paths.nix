@@ -1,14 +1,12 @@
 {
-  attrsets,
-  options,
-  types,
+  lib,
   top,
   config,
   ...
 }: let
-  inherit (attrsets) mapAttrs optionalAttrs;
-  inherit (options) mkOption;
-  inherit (types) attrs;
+  inherit (lib.attrsets) mapAttrs optionalAttrs;
+  inherit (lib.options) mkOption;
+  inherit (lib.types) attrs;
   home = config.home.homeDirectory;
   gitProfiles = config.${top}.applications.git.profiles or {};
 
