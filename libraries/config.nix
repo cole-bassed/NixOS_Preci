@@ -8,7 +8,7 @@
   flake,
   paths,
   defaults,
-  names,
+  # names,
   ...
 }: let
   exports = {
@@ -205,7 +205,7 @@
                             programs.home-manager.enable = true;
                           }
                         ]
-                        # ++ (user.modules or [])
+                        ++ (user.modules or [])
                         # ++ (user.imports or [])
                       );
                     })

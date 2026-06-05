@@ -90,9 +90,9 @@
     };
   in
     src.libraries.assemble.flake src {
-      configurations = true;
-      utilities = true;
-      packages = true;
+      configurations = false;
+      utilities = false;
+      devShells = false;
       templates = false;
     };
 }

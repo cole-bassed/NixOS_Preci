@@ -96,6 +96,7 @@ in
   {
     lib = legacy;
     "${name}" = custom;
+    color = "red";
   }
   # // legacy #? Already spead into custom
   // custom
