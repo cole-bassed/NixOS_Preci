@@ -194,8 +194,7 @@
                       osConfig,
                       ...
                     }: {
-                      imports = (
-                        [
+                      imports = [
                           {
                             home = {
                               inherit (osConfig.system) stateVersion;
@@ -205,9 +204,7 @@
                             programs.home-manager.enable = true;
                           }
                         ]
-                        ++ (user.modules or [])
-                        # ++ (user.imports or [])
-                      );
+                        ++ (user.modules or []);
                     })
                     (host.users.byStatus.enabled.values or {});
                 };

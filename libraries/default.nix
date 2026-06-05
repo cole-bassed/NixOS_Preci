@@ -81,7 +81,11 @@
       ]);
     };
 
-    scoped = mapAttrs (_: library: (library.scoped or {})) libraries;
+    scoped =
+      mapAttrs (
+        name: library: (library.scoped or {}) // (library.global or {})
+      )
+      libraries;
 
     global = scoped.attrsets.mergeUnique {
       owner = library: "${name}.${library}.global";
@@ -100,5 +104,5 @@ in
     "${name}" = custom;
     color = "red";
   }
-  # // legacy #? Already spead into custom
+  // legacy
   // custom
