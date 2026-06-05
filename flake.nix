@@ -89,7 +89,8 @@
       };
     };
   in
-    src.libraries.assemble.flake src {
+    {inherit src;}
+    // src.libraries.assemble.flake src {
       configurations = true;
       utilities = true;
       devShells = false;
