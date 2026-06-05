@@ -1,14 +1,14 @@
 {
-  flake,
-  names,
   defaults,
-  paths,
+  external,
+  flake,
   name ? names.lib,
-  legacy,
+  names,
+  paths,
   ...
 }: let
-  inherit (legacy.attrsets) recursiveUpdate optionalAttrs mapAttrs;
-  inherit (legacy.lists) elem;
+  inherit (external.attrsets) recursiveUpdate optionalAttrs mapAttrs;
+  inherit (external.lists) elem;
 
   scoped =
     mapAttrs (
@@ -26,7 +26,7 @@
 
   mkLib = with scoped;
     includes:
-      recursiveUpdate legacy (
+      recursiveUpdate external (
         {inherit flake names defaults paths;}
         // optionalAttrs (elem "api" includes) {inherit api;}
         // optionalAttrs (elem "attrsets" includes) {inherit attrsets;}
@@ -94,4 +94,4 @@
 in
   global
   // scoped
-  // {inherit global scoped flake;}
+  // {inherit global scoped;}
