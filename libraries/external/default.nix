@@ -3,10 +3,10 @@
   self ? {},
   defaults ? {allowUnfree = true;},
 }: let
-  lib = import ./bootstrap.nix;
+  bootstrap = import ./bootstrap.nix;
   inherit
-    (lib)
-    asAttrIf
+    (bootstrap)
+    asAttrsIf
     asListIf
     attrValues
     collectModules
@@ -17,6 +17,7 @@
     hasOverlays
     isNixpkgsInfrastructure
     isNixpkgsLike
+    isNotEmpty
     mapAttrs
     orEmptyAttr
     preferDefaultModules
@@ -45,12 +46,13 @@
     normalized = filterAttrs (_: value: value != null) inputs'.normalized;
     nixpkgs = import ./nixpkgs.nix inputs'.classified.nixpkgs;
   in
-    nixpkgs
+    bootstrap
+    // nixpkgs
     // classified
     // normalized
-    // {inherit nixpkgs;}
+    // {inherit nixpkgs bootstrap;}
     // (
-      asAttrIf
+      asAttrsIf
       (normalized ? treefmt)
       {treefmt = normalized.treefmt // {inherit self;};}
     );
@@ -72,9 +74,12 @@
       filterAttrs
       (_: value: value != [])
       (
-        mapAttrs (
+        mapAttrs
+        (
           _: input:
-            asListIf (input ? overlays) (preferDefaultModules input.overlays)
+            asListIf
+            (input ? overlays)
+            (preferDefaultModules input.overlays)
         )
         inputs'.classified.overlays
       );
@@ -83,7 +88,7 @@
     evaluated = concatLists (attrValues available);
   };
 
-  packages = defaults.nixpkgs.legacyPackages;
+  packages = inputs'.normalized.nixpkgs.legacyPackages or {};
 in {
   inherit libraries modules overlays packages;
   inputs = inputs';

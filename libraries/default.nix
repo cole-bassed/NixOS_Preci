@@ -7,12 +7,16 @@
   paths,
   ...
 }: let
+  lib = external.libraries;
+  inherit (lib) asAttrsIf isNotEmpty;
   external = import ./external {inherit inputs defaults self;};
-  internal = import ./internal {inherit external names defaults paths name;};
+  internal = import ./internal {inherit external lib names defaults paths name;};
 in
   {
-    lib = external.libraries;
+    inherit lib;
     "${name}" = internal;
   }
-  // external
+  # // (asAttrsIf (isNotEmpty external) {inherit external;})
+  // (asAttrsIf (isNotEmpty external) external)
+  // lib
   // internal

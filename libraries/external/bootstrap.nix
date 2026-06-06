@@ -13,6 +13,7 @@ let
         hasOverlays
         isNixpkgsInfrastructure
         isNixpkgsLike
+        isNotEmpty
         orEmptyAttr
         orEmptyList
         orEmptyString
