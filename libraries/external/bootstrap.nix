@@ -1,5 +1,42 @@
 let
-  inherit (builtins) attrNames attrValues concatLists filter head listToAttrs mapAttrs match isAttrs isFunction isString isList stringLength typeOf;
+  exports =
+    builtins
+    // {
+      inherit
+        asAttrs
+        asAttrsIf
+        asList
+        asListIf
+        collectModules
+        hasLib
+        hasModules
+        hasOverlays
+        isNixpkgsInfrastructure
+        isNixpkgsLike
+        orEmptyAttr
+        orEmptyList
+        orEmptyString
+        trimString
+        filterAttrs
+        ;
+    };
+  inherit
+    (builtins)
+    attrNames
+    attrValues
+    concatLists
+    filter
+    head
+    isAttrs
+    isFunction
+    isList
+    isString
+    listToAttrs
+    mapAttrs
+    match
+    stringLength
+    typeOf
+    ;
 
   /**
   Check if a value is considered "empty" for defaulting purposes.
@@ -42,17 +79,6 @@ let
       else false;
   isNotEmpty = value: !isEmpty value;
 
-  trimString = value: let
-    string =
-      if isString value
-      then value
-      else "";
-    matches = match "[[:space:]]*(.*[^[:space:]])?[[:space:]]*" string;
-  in
-    if matches != null
-    then head matches
-    else "";
-
   orEmptyAttr = value:
     if (isNotEmpty value && (isAttrs value))
     then value
@@ -62,6 +88,20 @@ let
     if (isNotEmpty value && (isList value))
     then value
     else [];
+
+  asAttrs = value: let
+    type = typeOf value;
+  in
+    if isAttrs value
+    then value
+    else if isList value
+    then listToAttrs value
+    else throw "asAttrs:= Unsupported type: ${type}";
+
+  asAttrsIf = predicate: value:
+    if predicate
+    then asAttrs value
+    else {};
 
   asList = value: let
     type = typeOf value;
@@ -81,12 +121,20 @@ let
     then asList value
     else [];
 
+  trimString = value: let
+    string =
+      if isString value
+      then value
+      else "";
+    matches = match "[[:space:]]*(.*[^[:space:]])?[[:space:]]*" string;
+  in
+    if matches != null
+    then head matches
+    else "";
   orEmptyString = value:
     if (isNotEmpty value && (isString value))
     then value
     else "";
-
-  # optionalList = value
 
   /**
   TODO: Add real docs
@@ -140,13 +188,6 @@ let
     && !(hasModules input)
     && !(hasOverlays input);
 
-  findFirst = pred: set: let
-    matches = filterAttrs (_: pred) set;
-  in
-    if matches != {}
-    then head (attrValues matches)
-    else null;
-
   preferDefaultModules = modules:
     if modules ? default
     then [modules.default]
@@ -190,20 +231,4 @@ let
         )
       );
 in
-  builtins
-  // {
-    inherit
-      filterAttrs
-      findFirst
-      hasLib
-      hasModules
-      hasOverlays
-      isNixpkgsInfrastructure
-      isNixpkgsLike
-      orEmptyAttr
-      orEmptyList
-      asListIf
-      orEmptyString
-      trimString
-      ;
-  }
+  exports

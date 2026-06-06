@@ -1,9 +1,26 @@
 {
   inputs ? {},
+  self ? {},
   defaults ? {allowUnfree = true;},
 }: let
-  bootstrap = import ./bootstrap.nix;
-  inherit (bootstrap) asListIf attrValues collectModules concatLists filterAttrs findFirst hasLib hasModules hasOverlays isNixpkgsInfrastructure isNixpkgsLike mapAttrs orEmptyAttr preferDefaultModules;
+  lib = import ./bootstrap.nix;
+  inherit
+    (lib)
+    asAttrIf
+    asListIf
+    attrValues
+    collectModules
+    concatLists
+    filterAttrs
+    hasLib
+    hasModules
+    hasOverlays
+    isNixpkgsInfrastructure
+    isNixpkgsLike
+    mapAttrs
+    orEmptyAttr
+    preferDefaultModules
+    ;
 
   inputs' = let
     attrs = orEmptyAttr inputs;
@@ -15,26 +32,28 @@
       libraries = filterAttrs (_: hasLib) attrs;
       infrastructure = filterAttrs (_: isNixpkgsInfrastructure) attrs;
     };
-
     normalized = {
-      nixpkgs = findFirst isNixpkgsLike attrs;
-      darwin = findFirst (input: input ? darwinModules) attrs;
-      home-manager = findFirst (input: input ? homeManagerModules || input ? homeModules) attrs;
-      treefmt = findFirst (input: input ? formatter && input ? lib) attrs;
+      nixpkgs = filterAttrs (_: isNixpkgsLike) attrs;
+      darwin = filterAttrs (_: input: input ? darwinModules) attrs;
+      home-manager = filterAttrs (_: input: input ? homeManagerModules || input ? homeModules) attrs;
+      treefmt = filterAttrs (_: input: input ? formatter && input ? lib.evalModule) attrs;
     };
   in {inherit classified normalized;};
 
   libraries = let
-    named = {
-      classified = mapAttrs (_: input: input.lib) inputs'.classified.libraries;
-      normalized = filterAttrs (_: value: value != null) inputs'.normalized;
-    };
-    nixpkgs = import ./nixpkgs.nix {lib = nixpkgs.lib or {};};
+    classified = mapAttrs (_: input: input.lib) inputs'.classified.libraries;
+    normalized = filterAttrs (_: value: value != null) inputs'.normalized;
+    nixpkgs = import ./nixpkgs.nix inputs'.classified.nixpkgs;
   in
     nixpkgs
-    // named.classified
-    // named.normalized
-    // {inherit nixpkgs;};
+    // classified
+    // normalized
+    // {inherit nixpkgs;}
+    // (
+      asAttrIf
+      (normalized ? treefmt)
+      {treefmt = normalized.treefmt // {inherit self;};}
+    );
 
   modules = let
     collect = type: collectModules type inputs'.classified.modules;
@@ -66,11 +85,6 @@
 
   packages = defaults.nixpkgs.legacyPackages;
 in {
-  inherit
-    libraries
-    modules
-    overlays
-    packages
-    ;
+  inherit libraries modules overlays packages;
   inputs = inputs';
 }

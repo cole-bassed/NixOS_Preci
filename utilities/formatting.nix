@@ -3,8 +3,7 @@
   base,
   ...
 }: let
-  inherit (base.flake) self;
-  inherit (libraries.treefmt) evalModule;
+  inherit (libraries.treefmt) evalModule self;
   inherit (libraries.config) forEachSystem;
 
   evalFor = pkgs:
