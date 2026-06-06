@@ -2,107 +2,275 @@
   description = "Configuration Flake";
 
   inputs = {
-    nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixos-unstable";
+    #~@ Core/Nix Infrastructure
+    nixCore.url = "nixpkgs/nixos-unstable";
+    nixLegacy.url = "nixpkgs/nixos-25.11";
+    nixDarwin = {
+      repo = "nix-darwin";
+      owner = "LnL7";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
     };
-    nix-darwin = {
-      url = "github:nix-darwin/nix-darwin/master";
-      inputs.nixpkgs.follows = "nixpkgs";
+    nixEdge = {
+      ref = "nyxpkgs-unstable";
+      repo = "nyx";
+      owner = "chaotic-cx";
+      type = "github";
+      inputs = {
+        nixpkgs.follows = "nixCore";
+        home-manager.follows = "nixHM";
+        rust-overlay.follows = "rust";
+      };
     };
-
-    hermes-agent = {
-      url = "github:NousResearch/hermes-agent";
-    };
-    vicinae = {
-      url = "github:vicinaehq/vicinae";
-    };
-    quickshell = {
-      url = "github:outfoxxed/quickshell";
-    };
-
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    sops = {
-      url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    niri = {
-      url = "github:sodiboo/niri-flake";
-      inputs.nixpkgs.follows = "nixpkgs";
+    nixHM = {
+      repo = "home-manager";
+      owner = "nix-community";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
     };
 
-    noctalia = {
-      url = "github:noctalia-dev/noctalia-shell";
-      inputs.nixpkgs.follows = "nixpkgs";
+    #~@
+    compositorNiri = {
+      repo = "niri-flake";
+      owner = "sodiboo";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
     };
 
-    zen-browser = {
+    #~@ Utilities:= formatting, tooling, secrets
+    aiToolkit = {
+      repo = "llm-agents.nix";
+      owner = "numtide";
+      type = "github";
+      # inputs.nixpkgs.follows = "nixCore"; #? See llm-agents documentation
+    };
+    aiHermes = {
+      repo = "hermes-agent";
+      owner = "NousResearch";
+      type = "github";
+    };
+    rust = {
+      owner = "oxalica";
+      repo = "rust-overlay";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    treeFormatter = {
+      repo = "treefmt-nix";
+      owner = "numtide";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    secretsManager = {
+      repo = "sops-nix";
+      owner = "Mic92";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
+    #~@ UI/UX:= shells, launchers, styling
+    shellCaelestia = {
+      repo = "shell";
+      owner = "caelestia-dots";
+      type = "github";
+      inputs.nixpkgs.follows = "nixLegacy";
+    };
+    shellDankMaterial = {
+      # ref = "stable";
+      repo = "DankMaterialShell";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellDankMaterialPlugins = {
+      repo = "dms-plugin-registry";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellNoctalia = {
+      repo = "noctalia-shell";
+      owner = "noctalia-dev";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellQuick = {
+      repo = "quickshell";
+      owner = "outfoxxed";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    styleManager = {
+      url = "github:nix-community/stylix";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
+    #~@ Applications
+    zenBrowser = {
       url = "github:0xc000022070/zen-browser-flake";
       inputs = {
-        nixpkgs.follows = "nixpkgs";
-        home-manager.follows = "home-manager";
+        nixpkgs.follows = "nixCore";
+        home-manager.follows = "nixHM";
       };
     };
-
-    stylix = {
-      url = "github:nix-community/stylix";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-      };
-    };
-
-    treefmt = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+    vicinae = {
+      repo = "vicinae";
+      owner = "vicinaehq";
+      type = "github";
     };
   };
 
   outputs = {self, ...} @ inputs: let
-    src = import ./. {
-      flake = with inputs; {
-        inherit inputs self;
+    defaults = {
+      allowUnfree = true;
+      nixpkgs = inputs.nixCore;
+    };
 
-        libraries = {
-          nixpkgs = nixpkgs.lib;
-          darwin = nix-darwin.lib;
-          home-manager = home-manager.lib;
-          treefmt = treefmt.lib;
-        };
+    lib = libraries.nixpkgs // libraries;
+    inherit (lib.custom) collectModules filterInputs preferDefaultModules;
+    inherit (lib.attrsets) attrValues mapAttrs filterAttrs;
+    inherit (lib.lists) concatLists elem optionals;
+    inherit (builtins) isAttrs isFunction isList isPath;
 
-        modules = {
-          core = [
-            hermes-agent.nixosModules.default
-            home-manager.nixosModules.home-manager
-            niri.nixosModules.niri
-            noctalia.nixosModules.default
-            sops.nixosModules.default
-            stylix.nixosModules.stylix
-          ];
+    libraries = with inputs; {
+      nixpkgs = defaults.nixpkgs.lib;
+      darwin = nixDarwin.lib;
+      home-manager = nixHM.lib;
+      treefmt = treeFormatter.lib;
+      custom = rec {
+        getAttrsDeep = level: let
+          fn = depth: value:
+            if depth <= 0
+            then "..."
+            else if isFunction value
+            then "<function>"
+            else if isPath value
+            then "<path>"
+            else if isList value
+            then map (fn (depth - 1)) value
+            else if isAttrs value
+            then mapAttrs (_: fn (depth - 1)) value
+            else value;
+        in
+          fn level;
 
-          home = [
-            niri.homeModules.config
-            niri.homeModules.niri
-            niri.homeModules.stylix
-            noctalia.homeModules.default
-            sops.homeModules.default
-            stylix.homeManagerModules.stylix
-            vicinae.homeManagerModules.default
-            zen-browser.homeModules.default
-          ];
-        };
+        mkIncludes = excludes: set:
+          filterAttrs (n: _: !(elem n excludes)) set;
 
-        packages = {
-          nixpkgs = nixpkgs.legacyPackages;
-        };
+        filterInputs = extraExcludes: let
+          excludes =
+            [
+              #~@ Core infrastructure
+              "self"
+              "nixCore"
+              "nixLegacy"
+              "nixDarwin"
+              "nixEdge"
+            ]
+            ++ extraExcludes;
+          includes = mkIncludes excludes inputs;
+        in {inherit excludes includes;};
+
+        preferDefaultModules = modules:
+          if modules ? default
+          then [modules.default]
+          else attrValues modules;
+
+        collectModules = type: includes: let
+          moduleAttr =
+            {
+              nixos = "nixosModules";
+              darwin = "darwinModules";
+              home = "homeModules";
+            }.${
+              type
+            };
+        in
+          if type == "home"
+          then
+            concatLists (
+              attrValues (
+                mapAttrs (
+                  _: input: let
+                    hasHome = input ? homeModules;
+                    mods =
+                      if hasHome
+                      then input.homeModules
+                      else input.homeManagerModules or {};
+                  in
+                    preferDefaultModules mods
+                )
+                includes
+              )
+            )
+          else
+            concatLists (
+              attrValues (
+                mapAttrs (
+                  _: input:
+                    optionals
+                    (input ? ${moduleAttr})
+                    (preferDefaultModules input.${moduleAttr})
+                )
+                includes
+              )
+            );
+      };
+    };
+
+    modules = let
+      inputs' = filterInputs [
+        #~@ Core infrastructure
+        "rust"
+        "treeFormatter"
+
+        #~@ Conditional
+        # "aiToolkit"
+      ];
+      collect = group: collectModules group inputs'.includes;
+
+      config = {
+        nixpkgs.config = {inherit (defaults) allowUnfree;};
+      };
+
+      mkCore = type: let
+        nixos = collect "nixos" ++ [config];
+        darwin = collect "darwin" ++ [config];
+      in
+        if type == "nixos"
+        then nixos
+        else if type == "darwin"
+        then darwin
+        else throw "modules::mkCore := Unknown module type '${type}'";
+      home = collect "home";
+    in
+      inputs' // {inherit mkCore home;};
+
+    overlays = let
+      inputs' = filterInputs ["nixHM"];
+      available = filterAttrs (_: v: v != []) (
+        mapAttrs (
+          _: input:
+            optionals
+            (input ? overlays)
+            (preferDefaultModules input.overlays)
+        )
+        inputs'.includes
+      );
+      evaluated = concatLists (attrValues available);
+    in
+      inputs' // {inherit available evaluated;};
+
+    packages = defaults.nixpkgs.legacyPackages;
+
+    args = import ./. {
+      flake = {
+        inherit defaults inputs lib libraries modules overlays packages self;
       };
     };
   in
-    {inherit src;}
-    // src.libraries.assemble.flake src {
+    {inherit args;}
+    // args.libraries.assemble.flake args {
       configurations = true;
       utilities = true;
       devShells = false;

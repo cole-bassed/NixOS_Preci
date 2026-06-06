@@ -34,7 +34,7 @@
   inherit (api) hosts;
   inherit (attrsets) attrNames attrValues filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs orEmpty recursiveUpdate;
   inherit (debug) withContext;
-  inherit (lists) elem groupBy unique;
+  inherit (lists) elem groupBy optionals unique;
   inherit (modules) mkCdAliases mkEnvVars;
   inherit (types) isAttrs isBool isFunction isNotEmpty isNull typeOf;
 
@@ -110,7 +110,7 @@
       if isFunction arg
       then {fn = arg;}
       else arg;
-    packages = opts.packages or flake.packages.nixpkgs;
+    packages = opts.packages or flake.packages;
     extra = opts.extra or [];
   in
     genAttrs
@@ -171,14 +171,18 @@
           in {
             inherit class specialArgs;
             modules =
-              (flake.modules.core or [])
+              (
+                optionals
+                (flake.modules ? mkCore)
+                (flake.modules.mkCore class)
+              )
               ++ (extraArgs.modules.core or [])
               ++ (host.modules or [])
               ++ (host.imports or [])
               ++ [
                 {
                   home-manager = {
-                    backupFileExtension = "BaC";
+                    backupFileExtension = "backup";
                     useGlobalPkgs = true;
                     useUserPackages = true;
                     sharedModules =
