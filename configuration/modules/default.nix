@@ -16,7 +16,7 @@
 # groupHome = groups: concatMap (group: group.home-manager.sharedModules or []) groups;
 {libraries, ...} @ base:
 libraries.assemble.configurations base {
-  modules = ./modules/base;
+  # modules = ./modules/base;
   # modules.core = [
   #   ({host, ...}: {
   #     system.stateVersion = host.stateVersion or null;
