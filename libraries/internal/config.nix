@@ -35,8 +35,8 @@
   inherit (debug) withContext;
   inherit (lists) elem groupBy optionals unique;
   inherit (modules) mkCdAliases mkEnvVars;
-  inherit (types) isAttrs isBool isFunction isNotEmpty isNull typeOf;
-
+  inherit (types) isAttrs isBool isFunction isNotEmpty typeOf;
+  hosts = api.hosts or {};
   # ── systems ────────────────────────────────────────────────────────────────
 
   systems = {
@@ -160,7 +160,7 @@
     configurations = base: args: let
       extraArgs = base // args;
       inherit (extraArgs.names) top;
-      inherit (api) hosts;
+      # inherit (api) hosts;
 
       resolved =
         mapAttrs (
