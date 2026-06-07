@@ -1,18 +1,16 @@
 {
   defaults,
-  lib,
-  # external,
-  name ? names.lib,
+  external,
+  name,
   names,
   paths,
   ...
 }: let
-  inherit (lib) getAttrs inheritAttr recursiveUpdate mapAttrs;
+  inherit (external) getAttrs inheritAttr recursiveUpdate mapAttrs;
 
   scoped =
-    mapAttrs (
-      _: library: (library.scoped or {}) // (library.global or {})
-    )
+    mapAttrs
+    (_: library: (library.scoped or {}) // (library.global or {}))
     libraries;
 
   global = scoped.attrsets.mergeUnique {
@@ -24,11 +22,9 @@
   };
 
   mkLib = includes:
-    recursiveUpdate lib (
-      {
-        inherit names defaults paths;
-      }
-      // inheritAttr "flake" lib
+    recursiveUpdate external (
+      {inherit names defaults paths;}
+      // inheritAttr "flake" external
       // getAttrs includes scoped
     );
 

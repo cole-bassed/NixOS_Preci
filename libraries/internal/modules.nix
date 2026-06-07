@@ -1,5 +1,6 @@
 {
   attrsets,
+  bootstrap,
   defaults,
   filesystem,
   lists,
@@ -9,6 +10,7 @@
 }: let
   exports = {
     scoped = {
+      inherit (bootstrap) mkDots;
       inherit
         collectNamedSpecs
         collectSpecs

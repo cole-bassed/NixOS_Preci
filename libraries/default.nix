@@ -12,14 +12,11 @@
   root ? paths.src,
 }: let
   external = import ./external {inherit bootstrap inputs defaults names paths root;};
-  lib = external;
-  internal = import ./internal {inherit external lib names defaults paths name;};
+  internal = import ./internal {inherit external names defaults paths name;};
 in
   {
-    inherit lib;
+    lib = external;
     "${name}" = internal;
   }
-  // bootstrap
-  // lib
-  // lib.inheritAttr "flake" external
+  // external
   // internal

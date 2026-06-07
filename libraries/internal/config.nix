@@ -1,5 +1,6 @@
 {
   api,
+  bootstrap,
   debug,
   attrsets,
   lists,
@@ -15,6 +16,7 @@
       inherit
         assemble
         perSystem
+        mkDots
         supportedSystems
         systemBuilder
         systems
@@ -32,6 +34,7 @@
   };
 
   inherit (attrsets) attrNames attrValues filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs orEmpty recursiveUpdate;
+  inherit (bootstrap) mkDots;
   inherit (debug) withContext;
   inherit (lists) elem groupBy optionals unique;
   inherit (modules) mkCdAliases mkEnvVars;
@@ -169,7 +172,10 @@
             host = recursiveUpdate defaultHost spec;
             class = host.class or defaultHost.class;
             specialArgs =
-              {inherit top host;}
+              {
+                inherit top host;
+                dots = mkDots host;
+              }
               // (removeAttrs extraArgs ["lib" "modules" "packages"])
               // {paths = recursiveUpdate paths host.paths;};
           in {
@@ -180,19 +186,23 @@
                 (flake.modules ? mkCore)
                 (flake.modules.mkCore class)
               )
-              ++ (extraArgs.modules.core or [])
+              ++ (spec.imports or [])
               ++ (host.modules or [])
               ++ (host.imports or [])
+              ++ (extraArgs.modules.core or [])
               ++ [
                 {
                   home-manager = {
                     backupFileExtension = "backup";
                     useGlobalPkgs = true;
                     useUserPackages = true;
-                    sharedModules =
-                      (flake.modules.home or [])
-                      ++ (extraArgs.modules.home or []);
-                    extraSpecialArgs = specialArgs;
+                    sharedModules = extraArgs.modules.home or [];
+
+                    extraSpecialArgs =
+                      specialArgs
+                      // {
+                        flakeModules = flake.modules.home;
+                      };
                     users =
                       mapAttrs
                       (_: user: {
@@ -211,13 +221,66 @@
                               programs.home-manager.enable = true;
                             }
                           ]
-                          ++ (user.modules or [])
-                          ++ (user.imports or []);
+                          ++ [];
                       })
                       (host.users.byStatus.enabled.values or {});
                   };
                 }
               ];
+
+            # modules =
+            #   (
+            #     optionals
+            #     (flake.modules ? mkCore)
+            #     (flake.modules.mkCore class)
+            #   )
+            #   ++ (extraArgs.modules.core or [])
+            #   ++ (host.modules or [])
+            #   ++ (host.imports or [])
+            #   ++ [spec]
+            #   ++ [
+            #     {
+            #       home-manager = {
+            #         backupFileExtension = "backup";
+            #         useGlobalPkgs = true;
+            #         useUserPackages = true;
+            #         sharedModules = extraArgs.modules.home or [];
+
+            #         extraSpecialArgs =
+            #           specialArgs
+            #           // {
+            #             flakeModules = flake.modules.home;
+            #           };
+            #         # sharedModules =
+            #         #   (flake.modules.home or [])
+            #         #   ++ (extraArgs.modules.home or []);
+            #         # extraSpecialArgs = specialArgs;
+            #         users =
+            #           mapAttrs
+            #           (_: user: {
+            #             config,
+            #             osConfig,
+            #             ...
+            #           }: {
+            #             imports =
+            #               [
+            #                 {
+            #                   home = {
+            #                     inherit (osConfig.system) stateVersion;
+            #                     sessionVariables = mkEnvVars "" (config.${top}.paths or {});
+            #                     shellAliases = mkCdAliases (config.${top}.paths or {});
+            #                   };
+            #                   programs.home-manager.enable = true;
+            #                 }
+            #               ]
+            #               # ++ (user.modules or [])
+            #               # ++ (user.imports or [])
+            #               ++ [];
+            #           })
+            #           (host.users.byStatus.enabled.values or {});
+            #       };
+            #     }
+            #   ];
           }
         )
         hosts;
