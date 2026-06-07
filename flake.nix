@@ -125,20 +125,13 @@
     defaults = {
       allowUnfree = true;
       nixpkgs = inputs.nixCore;
-      # infrastructureInputs = [
-      #   "self"
-      #   "nixCore"
-      #   "nixLegacy"
-      #   "nixDarwin"
-      #   "nixEdge"
-      # ];
     };
 
     args = import ./. {flake = {inherit defaults inputs root;};};
   in
     {inherit args;}
     // args.libraries.assemble.flake args {
-      configurations = false;
+      configurations = true;
       utilities = true;
       devShells = false;
       templates = false;
