@@ -1,16 +1,17 @@
 {
+  bootstrap ? import ./bootstrap.nix,
+  defaults ? {allowUnfree = true;},
   inputs ? {},
-  root ? ../.,
+  name ? names.lib,
   names ? {
     src = "dots";
     lib = "lix";
     top = "_";
   },
-  defaults ? {allowUnfree = true;},
-  name ? names.lib,
-  paths,
+  paths ? {src = ../.;},
+  root ? paths.src,
 }: let
-  external = import ./external {inherit inputs defaults names paths root;};
+  external = import ./external {inherit bootstrap inputs defaults names paths root;};
   lib = external;
   internal = import ./internal {inherit external lib names defaults paths name;};
 in
@@ -18,6 +19,7 @@ in
     inherit lib;
     "${name}" = internal;
   }
+  // bootstrap
   // lib
   // lib.inheritAttr "flake" external
   // internal

@@ -50,10 +50,20 @@
   inherit (strings) hasSuffix toUpper;
   inherit (types) isAttrs isString isFunction;
   inherit (entrypoints.nix) candidates;
+  pathExcludes =
+    defaults.excludes.paths or [
+      "archive"
+      "backup"
+      "review"
+      "temp"
+
+      "default.nix"
+      "flake.nix"
+    ];
 
   readDirAttrs = {
     base,
-    excludes ? defaults.excludes,
+    excludes ? pathExcludes,
     predicate ? null,
     includeFiles ? false,
   }:
@@ -119,7 +129,7 @@
     args,
     extraArgs ? {},
     base,
-    excludes ? defaults.excludes,
+    excludes ? pathExcludes,
     tags ? defaults.tags,
     includeFiles ? false,
     rawTag ? "core",
@@ -152,7 +162,7 @@
     args ? {},
     extraArgs ? {},
     base,
-    excludes ? defaults.excludes,
+    excludes ? pathExcludes,
     tags ? defaults.tags, # Passed from the parent loader (e.g., [ "core" ] or [ "home" ])
     rekey ? false,
   }: let
@@ -290,7 +300,7 @@
   # profiles: per-user, keyed by directory name
   importAll = args @ {
     base,
-    excludes ? defaults.excludes,
+    excludes ? pathExcludes,
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? false,
@@ -320,7 +330,7 @@
   # convenience: importModules is importAll with kind = "modules"
   importModules = args @ {
     base,
-    excludes ? defaults.excludes,
+    excludes ? pathExcludes,
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? false,
@@ -328,19 +338,22 @@
   }:
     importAll (args
       // {
+        inherit base excludes tags extraArgs includeFiles;
         kind = "modules";
-        inherit includeFiles;
       });
 
-  # convenience: importProfiles is importAll with kind = "profiles"
   importProfiles = args @ {
     base,
-    excludes ? defaults.excludes,
+    excludes ? pathExcludes,
     tags ? defaults.tags,
     extraArgs ? {},
     ...
   }:
-    importAll (args // {kind = "profiles";});
+    importAll (args
+      // {
+        kind = "profiles";
+        inherit base excludes tags extraArgs;
+      });
 
   # flatten paths attrset into env vars
   # { pictures = { base = "/home/craole/Pictures"; }; }

@@ -21,16 +21,20 @@
     utilities = ./utilities;
     secrets = ./configuration/secrets;
     libraries = ./libraries;
+    bootstrap = ./libraries/bootstrap.nix;
   };
 
-  defaults =
-    {
-      # ── Hybrid Host Resolution Loop ────────────────────────────────────────
+  bootstrap = import paths.bootstrap;
+  inherit (bootstrap) getEnv recursiveUpdate;
+
+  defaults = let
+    base = {
+      # ── Hybrid Host Resolution Loop ──────────────────────────────────────
       # Order of priority:
       # 1. Explicitly passed flake argument
       # 2. Impure local environment discovery ($HOSTNAME or $NAME fallbacks)
       # 3. Safe baseline fallback configuration
-      host = with builtins; let
+      host = let
         envHost = getEnv "HOSTNAME";
         envName = getEnv "NAME";
       in
@@ -41,24 +45,27 @@
         else if envName != ""
         then envName
         else "ExampleHost";
-      # ───────────────────────────────────────────────────────────────────────
+      # ─────────────────────────────────────────────────────────────────────
 
-      excludes.paths = [
-        "archive"
-        "backup"
-        "review"
-        "temp"
+      excludes = {
+        paths = [
+          "archive"
+          "backup"
+          "review"
+          "temp"
 
-        "default.nix"
-        "flake.nix"
-      ];
+          "default.nix"
+          "flake.nix"
+        ];
+      };
 
       tags = ["core" "home"];
-    }
-    // (flake.defaults or {});
+    };
+  in
+    recursiveUpdate base (flake.defaults or {});
 
   libraries = import paths.libraries {
-    inherit defaults paths names;
+    inherit bootstrap defaults paths names;
     inherit (flake) inputs root;
   };
   inherit (libraries) api;

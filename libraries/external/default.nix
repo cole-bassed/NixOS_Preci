@@ -1,11 +1,11 @@
 {
+  bootstrap,
   defaults,
   inputs,
   names,
   paths,
   root,
 }: let
-  bootstrap = import ./bootstrap.nix;
   inherit
     (bootstrap)
     asAttrsIf
@@ -113,11 +113,9 @@
       }
     );
 
-  # Wrap the final modules output to drop names defined in your defaults testing toggles
   modules = let
     excludes = defaults.excludes.modules or [];
 
-    # Filter the raw classified modules map list before mkCore/home process them
     filteredModules =
       filterAttrs
       (name: _: !(elem name excludes))

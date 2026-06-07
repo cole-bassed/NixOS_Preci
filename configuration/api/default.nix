@@ -2,7 +2,6 @@
   attrsets,
   lists,
   modules,
-  defaults,
   ...
 }: let
   exports = {
@@ -14,7 +13,6 @@
   inherit (lists) elemAt filter length;
   # inherit (modules) getUsers;
   inherit (modules) collectNamedSpecs getUsers;
-  inherit (defaults) excludes;
 
   # ---------------------------------------------------------------------------
   # TODO: Allow flat files (e.g., example.nix) alongside directories.
@@ -25,7 +23,7 @@
   # ---------------------------------------------------------------------------
   collectSpecs = tags: base:
     collectNamedSpecs {
-      inherit base excludes tags;
+      inherit base tags;
       rekey = true;
       args = {inherit attrsets;};
     };

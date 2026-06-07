@@ -26,6 +26,7 @@ let
         orEmptyString
         pickFirst
         preferDefaultModules
+        recursiveUpdate
         trimString
         ;
     };
@@ -49,6 +50,22 @@ let
     stringLength
     typeOf
     ;
+
+  recursiveUpdate = lhs: rhs:
+    if isAttrs lhs && isAttrs rhs
+    then
+      listToAttrs (
+        map (key: {
+          name = key;
+          value =
+            if lhs ? ${key} && rhs ? ${key}
+            then recursiveUpdate lhs.${key} rhs.${key}
+            else if rhs ? ${key}
+            then rhs.${key}
+            else lhs.${key};
+        }) (attrNames (lhs // rhs))
+      )
+    else rhs;
 
   mkDots = paths: host: {
     dots = {
