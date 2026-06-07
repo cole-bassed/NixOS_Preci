@@ -10,40 +10,28 @@
     global = {inherit hosts users;};
   };
 
-  inherit (attrsets) attrNames filterAttrs mapAttrs;
+  inherit (attrsets) attrNames mapAttrs;
   inherit (lists) elemAt filter length;
   # inherit (modules) getUsers;
   inherit (modules) collectNamedSpecs getUsers;
   inherit (defaults) excludes;
 
-  # collectSpecs = base:
-  #   collectNamedSpecs {
-  #     inherit excludes;
-  #     args = {
-  #       inherit attrsets;
-  #       # inherit lix;
-  #       # inherit (lix) defaults lib;
-  #     };
-  #     inherit base;
-  #     rekey = true;
-  #   };
-  collectSpecs = base: let
-    # Clean and filter the spec output data
-    rawSpecs = collectNamedSpecs {
-      inherit excludes;
-      args = {
-        inherit attrsets;
-      };
-      inherit base;
+  # ---------------------------------------------------------------------------
+  # TODO: Allow flat files (e.g., example.nix) alongside directories.
+  # Currently, readDirAttrs/importModule drops flat files or expects a directory.
+  # FIX NEEDED: Modify `readDirAttrs` or wrap this block to check if an entry is
+  # a "regular" file ending in ".nix". If it is a file, import it directly
+  # via (base + "/${name}"); if it is a "directory", use the current logic.
+  # ---------------------------------------------------------------------------
+  collectSpecs = tags: base:
+    collectNamedSpecs {
+      inherit base excludes tags;
       rekey = true;
     };
-  in
-    # Filter out empty structures, metadata files, or default tags
-    filterAttrs (k: v: v ? name && k != "default") rawSpecs;
 
   specs = {
-    hosts = collectSpecs ./hosts;
-    users = collectSpecs ./users;
+    hosts = collectSpecs "core" ./hosts;
+    users = collectSpecs "home" ./users;
   };
 
   # ── user resolution ────────────────────────────────────────────────────────

@@ -70,8 +70,7 @@
       if inputs'.normalized.nixpkgs != null
       then import ./nixpkgs.nix inputs'.normalized.nixpkgs
       else {};
-  in (
-    bootstrap
+  in bootstrap
     // nixpkgs
     // classified
     // normalized
@@ -95,8 +94,7 @@
             flake = inputs'.normalized.treefmt;
           };
       }
-    )
-  );
+    );
 
   modules = let
     collect = type: collectModules type inputs'.classified.modules;
@@ -112,9 +110,7 @@
   overlays = let
     all = filterAttrs (_: value: value != {}) (mapAttrs (
         _: input:
-          if input ? overlays
-          then input.overlays
-          else {}
+          input.overlays or {}
       )
       inputs'.classified.overlays);
   in {

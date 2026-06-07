@@ -45,7 +45,7 @@
   };
 
   inherit (attrsets) attrNames attrValues filterAttrs foldlAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
-  inherit (filesystem) baseNameOf pathExists readDir entrypoint entrypoints;
+  inherit (filesystem) pathExists readDir entrypoint entrypoints;
   inherit (lists) asList any concatMap elem findFirst length;
   inherit (strings) hasSuffix toUpper;
   inherit (types) isAttrs isString isFunction;
@@ -148,29 +148,36 @@
   in
     genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);
 
-  # collect { <name> = { core = [...]; home = [...]; }; } keyed by subdir name
-  # used by profiles so we know which home belongs to which user
   collectNamedSpecs = {
-    args,
+    args ? {},
     extraArgs ? {},
     base,
     excludes ? defaults.excludes,
-    tags ? defaults.tags,
-    rekey ? false, # when true, rekey by spec.name instead of dir name
+    tags ? defaults.tags, # Passed from the parent loader (e.g., [ "core" ] or [ "home" ])
+    rekey ? false,
   }: let
     entries = readDirAttrs {inherit base excludes;};
     raw =
       mapAttrs
-      (name: _:
-        importModule {
+      (name: _: let
+        # Evaluate the underlying nix module configuration file
+        importedModule = importModule {
           inherit base name;
           args =
             args
             // {
               dom = baseNameOf (toString base);
               mod = name;
+              inherit tags;
             }
             // extraArgs;
+        };
+      in
+        importedModule
+        // {
+          tags =
+            (importedModule.tags or [])
+            ++ asList tags;
         })
       entries;
   in
