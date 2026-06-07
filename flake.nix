@@ -29,7 +29,7 @@
       inputs.nixpkgs.follows = "nixCore";
     };
 
-    #~@
+    #~@ Display/Window Managers
     compositorNiri = {
       repo = "niri-flake";
       owner = "sodiboo";
@@ -69,12 +69,15 @@
     };
 
     #~@ UI/UX:= shells, launchers, styling
-    shellCaelestia = {
-      repo = "shell";
-      owner = "caelestia-dots";
-      type = "github";
-      inputs.nixpkgs.follows = "nixLegacy";
-    };
+    # shellCaelestia = {
+    #   repo = "shell";
+    #   owner = "caelestia-dots";
+    #   type = "github";
+    #   inputs = {
+    #     nixpkgs.follows = "nixCore";
+    #     quickshell.follows = "shellQuick";
+    #   };
+    # };
     shellDankMaterial = {
       # ref = "stable";
       repo = "DankMaterialShell";

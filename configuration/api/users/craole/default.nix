@@ -1,5 +1,3 @@
-# api/users/craole/default.nix
-# Pure user spec — no role, no primary, no autoLogin (those are host concerns).
 {attrsets, ...}: let
   inherit (attrsets) mapOrderedAttrs;
 
@@ -15,8 +13,8 @@
   };
 in {
   imports = [
-    ./applications.nix
-    ./paths.nix
+    # ./applications.nix
+    # ./paths.nix
   ];
 
   inherit applications;
