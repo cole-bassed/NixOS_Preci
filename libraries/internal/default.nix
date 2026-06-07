@@ -6,7 +6,13 @@
   paths,
   ...
 }: let
-  inherit (external) getAttrs inheritAttr recursiveUpdate mapAttrs;
+  inherit
+    (external)
+    getAttrs
+    inheritAttr
+    mapAttrs
+    recursiveUpdate
+    ;
 
   scoped =
     mapAttrs
@@ -21,28 +27,30 @@
       libraries.${library}.global or (libraries.${library} or {});
   };
 
+  merged = recursiveUpdate external (
+    global
+    // {
+      lib = external;
+
+      "${name}" = recursiveUpdate external (
+        global
+        // scoped
+        // {
+          inherit global scoped;
+        }
+      );
+    }
+  );
+
   mkLib = includes:
-    recursiveUpdate external (
-      {inherit names defaults paths;}
+    recursiveUpdate merged (
+      {
+        inherit names defaults paths;
+        libraries = merged;
+      }
       // inheritAttr "flake" external
       // getAttrs includes scoped
     );
-
-  # mkLib = with scoped;
-  #   includes:
-  #     recursiveUpdate lib (
-  #       {inherit flake names defaults paths;}
-  #       // optionalAttrs (elem "api" includes) {inherit api;}
-  #       // optionalAttrs (elem "attrsets" includes) {inherit attrsets;}
-  #       // optionalAttrs (elem "config" includes) {inherit config;}
-  #       // optionalAttrs (elem "debug" includes) {inherit debug;}
-  #       // optionalAttrs (elem "filesystem" includes) {inherit filesystem;}
-  #       // optionalAttrs (elem "lists" includes) {inherit lists;}
-  #       // optionalAttrs (elem "modules" includes) {inherit modules;}
-  #       // optionalAttrs (elem "options" includes) {inherit options;}
-  #       // optionalAttrs (elem "strings" includes) {inherit strings;}
-  #       // optionalAttrs (elem "types" includes) {inherit types;}
-  #     );
 
   libraries = {
     api = import paths.api (mkLib [
@@ -50,11 +58,13 @@
       "modules"
       "lists"
     ]);
+
     attrsets = import ./attrsets.nix (mkLib [
       "debug"
       "lists"
       "types"
     ]);
+
     config = import ./config.nix (mkLib [
       "api"
       "debug"
@@ -63,39 +73,44 @@
       "lists"
       "types"
     ]);
+
     debug = import ./debug.nix (mkLib [
       "lists"
       "types"
     ]);
+
     filesystem = import ./filesystem.nix (mkLib [
       "debug"
       "lists"
     ]);
+
     lists = import ./lists.nix (mkLib [
       "debug"
       "types"
     ]);
+
     modules = import ./modules.nix (mkLib [
       "debug"
       "filesystem"
       "lists"
       "types"
     ]);
+
     options = import ./options.nix (mkLib [
       "debug"
       "lists"
       "types"
     ]);
+
     strings = import ./strings.nix (mkLib [
       "debug"
       "lists"
       "types"
     ]);
+
     types = import ./types.nix (mkLib [
       "debug"
     ]);
   };
 in
-  global
-  // scoped
-  // {inherit global scoped;}
+  merged

@@ -3,6 +3,7 @@
   bootstrap,
   debug,
   attrsets,
+  libraries,
   lists,
   modules,
   types,
@@ -173,7 +174,7 @@
             class = host.class or defaultHost.class;
             specialArgs =
               {
-                inherit top host;
+                inherit top host libraries;
                 dots = mkDots host;
               }
               // (removeAttrs extraArgs ["lib" "modules" "packages"])
@@ -189,15 +190,15 @@
               ++ (spec.imports or [])
               ++ (host.modules or [])
               ++ (host.imports or [])
-              ++ (extraArgs.modules.core or [])
-              ++ (base.modules.core or [])
-              ++ (args.modules.core or [])
+              # ++ (extraArgs.modules.core or [])
+              # ++ (base.modules.core or [])
+              # ++ (args.modules.core or [])
               ++ [
-                (import ../../configuration/modules/base/localization.nix)
-                ({host, ...}: {
-                  system.stateVersion = host.stateVersion or "22.11";
-                  # config.system.stateVersion = config.system.nixos.release;
-                })
+                (import ../../configuration/modules/localization.nix)
+                #   ({host, ...}: {
+                #     system.stateVersion = host.stateVersion or "22.11";
+                #     # config.system.stateVersion = config.system.nixos.release;
+                #   })
               ]
               ++ [
                 # {

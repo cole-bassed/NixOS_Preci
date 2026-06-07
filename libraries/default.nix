@@ -13,10 +13,15 @@
 }: let
   external = import ./external {inherit bootstrap inputs defaults names paths root;};
   internal = import ./internal {inherit external names defaults paths name;};
+
+  lib = external;
+  lix = internal;
 in
-  {
-    lib = external;
-    "${name}" = internal;
+  (lib.recursiveUpdate external internal)
+  // {
+    inherit lib;
+    "${name}" = lix;
   }
-  // external
-  // internal
+# // external
+# // internal
+
