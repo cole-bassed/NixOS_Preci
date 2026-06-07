@@ -36,7 +36,8 @@
     classified = {
       nixpkgs = filterAttrs (_: isNixpkgsLike) raw;
       nix-darwin = filterAttrs (_: isNixDarwinLike) raw;
-      home-manager = filterAttrs (_: isHomeManagerLike) raw;
+      home-manager = filterAttrs (name: input: isHomeManagerLike input || name == "nixHM") raw;
+
       modules =
         filterAttrs
         (
@@ -44,10 +45,13 @@
             hasModules input
             && !(isNixpkgsLike input)
             && name != "self"
+            && name != "nixHM" # Safeguard structural lookup exclusion
             && name != names.src
             && name != names.top
         )
         raw;
+
+      # home-manager = filterAttrs (_: isHomeManagerLike) raw;
 
       # modules =
       #   filterAttrs
@@ -112,6 +116,53 @@
       }
     );
 
+  modules = let
+    excludes = defaults.excludes.modules or [];
+
+    filteredModules =
+      filterAttrs
+      (name: _: !(elem name excludes))
+      inputs'.classified.modules;
+
+    collect = type: collectModules type filteredModules;
+
+    hmModuleKey = type:
+      if type == "nixos"
+      then "nixosModules"
+      else if type == "darwin"
+      then "darwinModules"
+      else null;
+
+    # ── GENERIC LIST DEDUPLICATOR ──────────────────────────────────────────
+    # Uses standard recursive filtering if lib isn't directly inherited here
+    dedup = list:
+      if list == []
+      then []
+      else [(builtins.head list)] ++ dedup (builtins.filter (x: x != builtins.head list) (builtins.tail list));
+  in {
+    inherit excludes;
+
+    mkCore = type: let
+      hmKey = hmModuleKey type;
+      hmInput = inputs'.normalized.home-manager;
+
+      # 1. Build the raw combined list containing auto-discovered + explicit items
+      rawModulesList =
+        if type == "nixos" || type == "darwin"
+        then
+          collect type
+          ++ asListIf
+          (hmKey != null && hmInput != null && hmInput ? ${hmKey}.home-manager)
+          hmInput.${hmKey}.home-manager
+          ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+        else throw "modules::mkCore:= unknown type '${type}'";
+    in
+      # 2. Force the final list to be strictly unique before returning it
+      dedup rawModulesList;
+
+    home = dedup (collect "home");
+  };
+
   # modules = let
   #   collect = type: collectModules type inputs'.classified.modules;
 
@@ -138,92 +189,6 @@
 
   #   home = collect "home";
   # };
-
-  # modules = let
-  #   # Safe lookup for your configurable external tester excludes
-  #   excludes = defaults.excludes.modules or [];
-
-  #   # Filter your auto-discovered inputs before mkCore processes them
-  #   filteredModules =
-  #     filterAttrs
-  #     (name: _: !(elem name excludes))
-  #     inputs'.classified.modules;
-
-  #   collect = type: collectModules type filteredModules;
-
-  #   # Dynamically compute home-manager's internal target module keys
-  #   hmModuleKey = type:
-  #     if type == "nixos"
-  #     then "nixosModules"
-  #     else if type == "darwin"
-  #     then "darwinModules"
-  #     else null;
-  # in {
-  #   inherit excludes;
-
-  #   mkCore = type: let
-  #     hmKey = hmModuleKey type;
-  #     hmInput = inputs'.normalized.home-manager;
-  #   in
-  #     if type == "nixos" || type == "darwin"
-  #     then
-  #       collect type
-  #       # ── RE-INJECT HOME-MANAGER NATIVE LAYER NATIVELY ─────────────────────
-  #       ++ asListIf
-  #       (hmKey != null && hmInput != null && hmInput ? ${hmKey}.home-manager)
-  #       hmInput.${hmKey}.home-manager
-  #       # ─────────────────────────────────────────────────────────────────────
-  #       ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
-  #     else throw "modules::mkCore:= unknown type '${type}'";
-
-  #   home = collect "home";
-  # };
-
-  modules = let
-    # Clear out lists safely from defaults
-    excludes = defaults.excludes.modules or [];
-
-    # ── STEP 1: MODULES EXCLUDED FROM THE SYSTEM LAYER ONLY ──────────────────
-    # Stop shellCaelestia from feeding its system files into mkCore "nixos"
-    systemFilteredModules =
-      filterAttrs
-      (name: _: !(elem name excludes) && name != "shellCaelestia")
-      inputs'.classified.modules;
-
-    # ── STEP 2: MODULES AVAILABLE TO THE USER HOME LAYER ─────────────────────
-    # Leave shellCaelestia untouched here so its homeModules are fully collected!
-    homeFilteredModules =
-      filterAttrs
-      (name: _: !(elem name excludes))
-      inputs'.classified.modules;
-
-    collectSystem = type: collectModules type systemFilteredModules;
-    collectHome = type: collectModules type homeFilteredModules;
-
-    hmModuleKey = type:
-      if type == "nixos"
-      then "nixosModules"
-      else if type == "darwin"
-      then "darwinModules"
-      else null;
-  in {
-    inherit excludes;
-
-    mkCore = type: let
-      hmKey = hmModuleKey type;
-      hmInput = inputs'.normalized.home-manager;
-    in
-      if type == "nixos" || type == "darwin"
-      then
-        collectSystem type # Pulls vendor system modules without caelestia's common.nix
-        ++ asListIf
-        (hmKey != null && hmInput != null && hmInput ? ${hmKey}.home-manager)
-        hmInput.${hmKey}.home-manager
-        ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
-      else throw "modules::mkCore:= unknown type '${type}'";
-
-    home = collectHome "home"; # Grabs caelestia's homeModules perfectly!
-  };
 
   overlays = let
     excludes = defaults.excludes.overlays or [];

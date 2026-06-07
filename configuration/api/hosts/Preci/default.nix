@@ -1,5 +1,6 @@
 {
   imports = [./hardware-configuration.nix];
+  disabledModules = [];
 
   # ---------------------------------------------------------
   # SYSTEM IDENTITY
