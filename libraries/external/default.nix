@@ -9,6 +9,7 @@
   inherit
     (bootstrap)
     asAttrsIf
+    asListIf
     attrValues
     collectModules
     concatLists
@@ -97,41 +98,27 @@
       }
     );
 
-  # modules = let
-  #   collect = type: collectModules type inputs'.classified.modules;
-  # in {
-  #   mkCore = type:
-  #     if type == "nixos" || type == "darwin"
-  #     then collect type ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
-  #     else throw "modules::mkCore:= unknown type '${type}'";
-
-  #   home = collect "home";
-  # };
   modules = let
     collect = type: collectModules type inputs'.classified.modules;
-  in {
-    mkCore = type:
+
+    # Map our system types to home-manager's respective internal module keys
+    hmModuleKey = type:
       if type == "nixos"
-      then
-        collect type
-        # ── INJECT HOME-MANAGER NATIVE MODULES DIRECTLY ──────────────────────
-        ++ (
-          if inputs'.normalized.home-manager ? nixosModules.home-manager
-          then [inputs'.normalized.home-manager.nixosModules.home-manager]
-          else []
-        )
-        # ─────────────────────────────────────────────────────────────────────
-        ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+      then "nixosModules"
       else if type == "darwin"
+      then "darwinModules"
+      else null;
+  in {
+    mkCore = type: let
+      hmKey = hmModuleKey type;
+      hmInput = inputs'.normalized.home-manager;
+    in
+      if type == "nixos" || type == "darwin"
       then
         collect type
-        # ── INJECT HOME-MANAGER NATIVE DARWIN MODULES DIRECTLY ───────────────
-        ++ (
-          if inputs'.normalized.home-manager ? darwinModules.home-manager
-          then [inputs'.normalized.home-manager.darwinModules.home-manager]
-          else []
-        )
-        # ─────────────────────────────────────────────────────────────────────
+        ++ asListIf
+        (hmKey != null && hmInput != null && hmInput ? ${hmKey}.home-manager)
+        hmInput.${hmKey}.home-manager
         ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
       else throw "modules::mkCore:= unknown type '${type}'";
 

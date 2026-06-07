@@ -28,12 +28,13 @@
   # USER ACCOUNTS
   # ---------------------------------------------------------
   users = {
-    username = {
+    craole = {
+      # Change this from 'username' to 'craole'
       role = "administrator";
       primary = true;
       autoLogin = true;
     };
-    # guest = { role = "user"; enabled = false; };
+    guest = {enabled = true;};
   };
 
   # ---------------------------------------------------------
