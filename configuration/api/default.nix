@@ -10,23 +10,36 @@
     global = {inherit hosts users;};
   };
 
-  inherit (attrsets) attrNames mapAttrs;
+  inherit (attrsets) attrNames filterAttrs mapAttrs;
   inherit (lists) elemAt filter length;
   # inherit (modules) getUsers;
   inherit (modules) collectNamedSpecs getUsers;
   inherit (defaults) excludes;
 
-  collectSpecs = base:
-    collectNamedSpecs {
+  # collectSpecs = base:
+  #   collectNamedSpecs {
+  #     inherit excludes;
+  #     args = {
+  #       inherit attrsets;
+  #       # inherit lix;
+  #       # inherit (lix) defaults lib;
+  #     };
+  #     inherit base;
+  #     rekey = true;
+  #   };
+  collectSpecs = base: let
+    # Clean and filter the spec output data
+    rawSpecs = collectNamedSpecs {
       inherit excludes;
       args = {
         inherit attrsets;
-        # inherit lix;
-        # inherit (lix) defaults lib;
       };
       inherit base;
       rekey = true;
     };
+  in
+    # Filter out empty structures, metadata files, or default tags
+    filterAttrs (k: v: v ? name && k != "default") rawSpecs;
 
   specs = {
     hosts = collectSpecs ./hosts;

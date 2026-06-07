@@ -20,7 +20,9 @@
 
   defaults =
     {
-      host = "ExampleHost";
+      # host = "example";
+      # host = "ExampleHost";
+      host = "Preci";
       excludes = [
         "archive"
         "backup"
