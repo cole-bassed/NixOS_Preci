@@ -70,7 +70,8 @@
       if inputs'.normalized.nixpkgs != null
       then import ./nixpkgs.nix inputs'.normalized.nixpkgs
       else {};
-  in bootstrap
+  in
+    bootstrap
     // nixpkgs
     // classified
     // normalized
@@ -96,12 +97,42 @@
       }
     );
 
+  # modules = let
+  #   collect = type: collectModules type inputs'.classified.modules;
+  # in {
+  #   mkCore = type:
+  #     if type == "nixos" || type == "darwin"
+  #     then collect type ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+  #     else throw "modules::mkCore:= unknown type '${type}'";
+
+  #   home = collect "home";
+  # };
   modules = let
     collect = type: collectModules type inputs'.classified.modules;
   in {
     mkCore = type:
-      if type == "nixos" || type == "darwin"
-      then collect type ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+      if type == "nixos"
+      then
+        collect type
+        # ── INJECT HOME-MANAGER NATIVE MODULES DIRECTLY ──────────────────────
+        ++ (
+          if inputs'.normalized.home-manager ? nixosModules.home-manager
+          then [inputs'.normalized.home-manager.nixosModules.home-manager]
+          else []
+        )
+        # ─────────────────────────────────────────────────────────────────────
+        ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+      else if type == "darwin"
+      then
+        collect type
+        # ── INJECT HOME-MANAGER NATIVE DARWIN MODULES DIRECTLY ───────────────
+        ++ (
+          if inputs'.normalized.home-manager ? darwinModules.home-manager
+          then [inputs'.normalized.home-manager.darwinModules.home-manager]
+          else []
+        )
+        # ─────────────────────────────────────────────────────────────────────
+        ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
       else throw "modules::mkCore:= unknown type '${type}'";
 
     home = collect "home";
