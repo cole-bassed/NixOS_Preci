@@ -7,8 +7,7 @@
   paths,
   ...
 }: let
-  inherit (lib.attrsets) recursiveUpdate optionalAttrs mapAttrs;
-  inherit (lib.lists) elem;
+  inherit (lib.attrsets) getAttrs recursiveUpdate mapAttrs;
 
   scoped =
     mapAttrs (
@@ -24,21 +23,30 @@
       libraries.${library}.global or (libraries.${library} or {});
   };
 
-  mkLib = with scoped;
-    includes:
-      recursiveUpdate lib (
-        {inherit flake names defaults paths;}
-        // optionalAttrs (elem "api" includes) {inherit api;}
-        // optionalAttrs (elem "attrsets" includes) {inherit attrsets;}
-        // optionalAttrs (elem "config" includes) {inherit config;}
-        // optionalAttrs (elem "debug" includes) {inherit debug;}
-        // optionalAttrs (elem "filesystem" includes) {inherit filesystem;}
-        // optionalAttrs (elem "lists" includes) {inherit lists;}
-        // optionalAttrs (elem "modules" includes) {inherit modules;}
-        // optionalAttrs (elem "options" includes) {inherit options;}
-        // optionalAttrs (elem "strings" includes) {inherit strings;}
-        // optionalAttrs (elem "types" includes) {inherit types;}
-      );
+  mkLib = includes:
+    recursiveUpdate lib (
+      {
+        inherit names defaults paths;
+        flake = lib.flakes;
+      }
+      // getAttrs includes scoped
+    );
+
+  # mkLib = with scoped;
+  #   includes:
+  #     recursiveUpdate lib (
+  #       {inherit flake names defaults paths;}
+  #       // optionalAttrs (elem "api" includes) {inherit api;}
+  #       // optionalAttrs (elem "attrsets" includes) {inherit attrsets;}
+  #       // optionalAttrs (elem "config" includes) {inherit config;}
+  #       // optionalAttrs (elem "debug" includes) {inherit debug;}
+  #       // optionalAttrs (elem "filesystem" includes) {inherit filesystem;}
+  #       // optionalAttrs (elem "lists" includes) {inherit lists;}
+  #       // optionalAttrs (elem "modules" includes) {inherit modules;}
+  #       // optionalAttrs (elem "options" includes) {inherit options;}
+  #       // optionalAttrs (elem "strings" includes) {inherit strings;}
+  #       // optionalAttrs (elem "types" includes) {inherit types;}
+  #     );
 
   libraries = {
     api = import paths.api (mkLib [

@@ -95,8 +95,15 @@ let
   in
     if isAttrs value
     then value
+    else if isString value
+    then {${value} = true;}
     else if isList value
-    then listToAttrs value
+    then
+      listToAttrs (map (name: {
+          inherit name;
+          value = true;
+        })
+        value)
     else throw "asAttrs:= Unsupported type: ${type}";
 
   asAttrsIf = predicate: value:
