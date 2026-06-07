@@ -12,6 +12,7 @@ let
         hasLib
         hasModules
         hasOverlays
+        inspectAttrs
         inheritAttr
         isNotEmpty
         isFlakeLike
@@ -50,6 +51,24 @@ let
     stringLength
     typeOf
     ;
+
+  inspectAttrs = level: let
+    fn = depth: value: let
+      type = typeOf value;
+    in
+      if depth <= 0
+      then "..."
+      else if isFunction value
+      then "<function>"
+      else if isList value
+      then map (fn (depth - 1)) value
+      else if isAttrs value
+      then mapAttrs (_: fn (depth - 1)) value
+      else if type == "path"
+      then "<path>"
+      else value;
+  in
+    fn level;
 
   recursiveUpdate = lhs: rhs:
     if isAttrs lhs && isAttrs rhs
