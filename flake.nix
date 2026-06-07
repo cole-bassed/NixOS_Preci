@@ -133,7 +133,7 @@
     // args.libraries.assemble.flake args {
       configurations = true;
       utilities = true;
-      devShells = false;
-      templates = false;
+      devShells = true;
+      templates = true;
     };
 }

@@ -1,7 +1,9 @@
 {
-  inputs ? {},
-  root ? ../../.,
-  defaults ? {allowUnfree = true;},
+  defaults,
+  inputs,
+  names,
+  paths,
+  root,
 }: let
   bootstrap = import ./bootstrap.nix;
   inherit
@@ -68,7 +70,7 @@
       if inputs'.normalized.nixpkgs != null
       then import ./nixpkgs.nix inputs'.normalized.nixpkgs
       else {};
-  in
+  in (
     bootstrap
     // nixpkgs
     // classified
@@ -93,7 +95,8 @@
             flake = inputs'.normalized.treefmt;
           };
       }
-    );
+    )
+  );
 
   modules = let
     collect = type: collectModules type inputs'.classified.modules;
@@ -109,7 +112,9 @@
   overlays = let
     all = filterAttrs (_: value: value != {}) (mapAttrs (
         _: input:
-          input.overlays or {}
+          if input ? overlays
+          then input.overlays
+          else {}
       )
       inputs'.classified.overlays);
   in {
@@ -129,14 +134,17 @@
 in
   asAttrsIf (isFlakeLike inputs') {
     flake = {
-      inputs = inputs';
       inherit modules overlays packages libraries;
-      treefmt = asAttrsIf (inputs'.normalized.treefmt != null) (
-        inputs'.normalized.treefmt.lib // {inherit root;}
-      );
-      nixpkgs = inputs'.normalized.nixpkgs;
-      darwin = inputs'.normalized.nix-darwin;
-      home-manager = inputs'.normalized.home-manager;
+      name = names.src;
+      path = paths.src;
+      inputs = inputs';
+
+      # treefmt = asAttrsIf (inputs'.normalized.treefmt != null) (
+      #   inputs'.normalized.treefmt.lib // {inherit root;}
+      # );
+      # nixpkgs = inputs'.normalized.nixpkgs;
+      # darwin = inputs'.normalized.nix-darwin;
+      # home-manager = inputs'.normalized.home-manager;
     };
   }
   // libraries

@@ -7,14 +7,14 @@
 
   paths = {
     src = ./.;
-    api = ./api;
+    api = ./configuration/api;
     dbg = ./debug;
     documentation = ./documentation;
-    configurations = ./modules;
+    configurations = ./configuration/modules;
     templates = ./templates;
-    devShells = ./packages;
+    devShells = ./utilities/shells;
     utilities = ./utilities;
-    secrets = ./secrets;
+    secrets = ./configuration/secrets;
     libraries = ./libraries;
   };
 

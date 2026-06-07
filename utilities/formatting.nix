@@ -1,9 +1,5 @@
-{
-  libraries,
-  base,
-  ...
-}: let
-  inherit (libraries.treefmt) evalModule self;
+{libraries, ...}: let
+  inherit (libraries.treefmt) evalModule root;
   inherit (libraries.config) forEachSystem;
 
   evalFor = pkgs:
@@ -18,6 +14,6 @@ in {
   formatter = forEachSystem (pkgs: (evalFor pkgs).config.build.wrapper);
 
   checks = forEachSystem (pkgs: {
-    formatting = (evalFor pkgs).config.build.check self;
+    formatting = (evalFor pkgs).config.build.check root;
   });
 }

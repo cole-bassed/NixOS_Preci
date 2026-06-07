@@ -1,12 +1,16 @@
 {
   inputs ? {},
   root ? ../.,
-  defaults ? {},
+  names ? {
+    src = "dots";
+    lib = "lix";
+    top = "_";
+  },
+  defaults ? {allowUnfree = true;},
   name ? names.lib,
-  names,
   paths,
 }: let
-  external = import ./external {inherit inputs defaults root;};
+  external = import ./external {inherit inputs defaults names paths root;};
   lib = external;
   internal = import ./internal {inherit external lib names defaults paths name;};
 in
