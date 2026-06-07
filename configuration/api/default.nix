@@ -27,6 +27,7 @@
     collectNamedSpecs {
       inherit base excludes tags;
       rekey = true;
+      args = {inherit attrsets;};
     };
 
   specs = {
