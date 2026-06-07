@@ -139,19 +139,67 @@
   #   home = collect "home";
   # };
 
+  # modules = let
+  #   # Safe lookup for your configurable external tester excludes
+  #   excludes = defaults.excludes.modules or [];
+
+  #   # Filter your auto-discovered inputs before mkCore processes them
+  #   filteredModules =
+  #     filterAttrs
+  #     (name: _: !(elem name excludes))
+  #     inputs'.classified.modules;
+
+  #   collect = type: collectModules type filteredModules;
+
+  #   # Dynamically compute home-manager's internal target module keys
+  #   hmModuleKey = type:
+  #     if type == "nixos"
+  #     then "nixosModules"
+  #     else if type == "darwin"
+  #     then "darwinModules"
+  #     else null;
+  # in {
+  #   inherit excludes;
+
+  #   mkCore = type: let
+  #     hmKey = hmModuleKey type;
+  #     hmInput = inputs'.normalized.home-manager;
+  #   in
+  #     if type == "nixos" || type == "darwin"
+  #     then
+  #       collect type
+  #       # ── RE-INJECT HOME-MANAGER NATIVE LAYER NATIVELY ─────────────────────
+  #       ++ asListIf
+  #       (hmKey != null && hmInput != null && hmInput ? ${hmKey}.home-manager)
+  #       hmInput.${hmKey}.home-manager
+  #       # ─────────────────────────────────────────────────────────────────────
+  #       ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+  #     else throw "modules::mkCore:= unknown type '${type}'";
+
+  #   home = collect "home";
+  # };
+
   modules = let
-    # Safe lookup for your configurable external tester excludes
+    # Clear out lists safely from defaults
     excludes = defaults.excludes.modules or [];
 
-    # Filter your auto-discovered inputs before mkCore processes them
-    filteredModules =
+    # ── STEP 1: MODULES EXCLUDED FROM THE SYSTEM LAYER ONLY ──────────────────
+    # Stop shellCaelestia from feeding its system files into mkCore "nixos"
+    systemFilteredModules =
+      filterAttrs
+      (name: _: !(elem name excludes) && name != "shellCaelestia")
+      inputs'.classified.modules;
+
+    # ── STEP 2: MODULES AVAILABLE TO THE USER HOME LAYER ─────────────────────
+    # Leave shellCaelestia untouched here so its homeModules are fully collected!
+    homeFilteredModules =
       filterAttrs
       (name: _: !(elem name excludes))
       inputs'.classified.modules;
 
-    collect = type: collectModules type filteredModules;
+    collectSystem = type: collectModules type systemFilteredModules;
+    collectHome = type: collectModules type homeFilteredModules;
 
-    # Dynamically compute home-manager's internal target module keys
     hmModuleKey = type:
       if type == "nixos"
       then "nixosModules"
@@ -167,16 +215,14 @@
     in
       if type == "nixos" || type == "darwin"
       then
-        collect type
-        # ── RE-INJECT HOME-MANAGER NATIVE LAYER NATIVELY ─────────────────────
+        collectSystem type # Pulls vendor system modules without caelestia's common.nix
         ++ asListIf
         (hmKey != null && hmInput != null && hmInput ? ${hmKey}.home-manager)
         hmInput.${hmKey}.home-manager
-        # ─────────────────────────────────────────────────────────────────────
         ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
       else throw "modules::mkCore:= unknown type '${type}'";
 
-    home = collect "home";
+    home = collectHome "home"; # Grabs caelestia's homeModules perfectly!
   };
 
   overlays = let
