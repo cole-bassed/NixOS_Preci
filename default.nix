@@ -27,16 +27,19 @@
     {
       # ── Hybrid Host Resolution Loop ────────────────────────────────────────
       # Order of priority:
-      # 1. Explicitly passed flake argument (e.g., via deployment wrappers)
-      # 2. Impure local environment discovery ($HOSTNAME)
+      # 1. Explicitly passed flake argument
+      # 2. Impure local environment discovery ($HOSTNAME or $NAME fallbacks)
       # 3. Safe baseline fallback configuration
-      host = let
-        envHost = builtins.getEnv "HOSTNAME";
+      host = with builtins; let
+        envHost = getEnv "HOSTNAME";
+        envName = getEnv "NAME";
       in
         if flake ? currentHost && flake.currentHost != ""
         then flake.currentHost
         else if envHost != ""
         then envHost
+        else if envName != ""
+        then envName
         else "ExampleHost";
       # ───────────────────────────────────────────────────────────────────────
 
