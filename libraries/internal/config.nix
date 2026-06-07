@@ -5,7 +5,7 @@
   lists,
   modules,
   types,
-  flakes,
+  flake,
   paths,
   defaults,
   ...
@@ -31,7 +31,6 @@
     };
   };
 
-  inherit (api) hosts;
   inherit (attrsets) attrNames attrValues filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs orEmpty recursiveUpdate;
   inherit (debug) withContext;
   inherit (lists) elem groupBy optionals unique;
@@ -82,8 +81,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then flakes ? libraries.nixpkgs.nixosSystem
-        else flakes ? libraries.nix-darwin.darwinSystem;
+        then flake ? libraries.nixpkgs.nixosSystem
+        else flake ? libraries.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -91,8 +90,8 @@
       context = "validating system builder presence in flake inputs";
     };
       if class == "nixos"
-      then flakes.libraries.nixpkgs.nixosSystem
-      else flakes.libraries.darwin.darwinSystem;
+      then flake.libraries.nixpkgs.nixosSystem
+      else flake.libraries.darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -110,7 +109,7 @@
       if isFunction arg
       then {fn = arg;}
       else arg;
-    packages = opts.packages or flakes.packages.default;
+    packages = opts.packages or flake.packages.default;
     extra = opts.extra or [];
   in
     genAttrs
@@ -153,11 +152,15 @@
             import resolved.paths.${name} (base // {args = normalise args;})
         )
         enabled
+      )
+      // optionalAttrs (mods.configurations or false != false) (
+        assemble.configurations base {}
       );
 
     configurations = base: args: let
       extraArgs = base // args;
       inherit (extraArgs.names) top;
+      inherit (api) hosts;
 
       resolved =
         mapAttrs (
@@ -173,8 +176,8 @@
             modules =
               (
                 optionals
-                (flakes.modules ? mkCore)
-                (flakes.modules.mkCore class)
+                (flake.modules ? mkCore)
+                (flake.modules.mkCore class)
               )
               ++ (extraArgs.modules.core or [])
               ++ (host.modules or [])
@@ -186,7 +189,7 @@
                     useGlobalPkgs = true;
                     useUserPackages = true;
                     sharedModules =
-                      (flakes.modules.home or [])
+                      (flake.modules.home or [])
                       ++ (extraArgs.modules.home or []);
                     extraSpecialArgs = specialArgs;
                     users =
