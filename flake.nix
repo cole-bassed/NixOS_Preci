@@ -120,26 +120,25 @@
     };
   };
 
-  outputs = {self, ...} @ inputs: let
+  outputs = inputs: let
+    root = ./.;
     defaults = {
       allowUnfree = true;
       nixpkgs = inputs.nixCore;
-      infrastructureInputs = [
-        "self"
-        "nixCore"
-        "nixLegacy"
-        "nixDarwin"
-        "nixEdge"
-      ];
+      # infrastructureInputs = [
+      #   "self"
+      #   "nixCore"
+      #   "nixLegacy"
+      #   "nixDarwin"
+      #   "nixEdge"
+      # ];
     };
 
-    args = import ./. {
-      flake = {inherit defaults inputs self;};
-    };
+    args = import ./. {flake = {inherit defaults inputs root;};};
   in
     {inherit args;}
     // args.libraries.assemble.flake args {
-      configurations = true;
+      configurations = false;
       utilities = true;
       devShells = false;
       templates = false;

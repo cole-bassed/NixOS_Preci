@@ -7,11 +7,11 @@
   paths,
   ...
 }: let
-  inherit (lib.attrsets) getAttrs recursiveUpdate mapAttrs;
+  inherit (lib) getAttrs inheritAttr recursiveUpdate mapAttrs;
 
   scoped =
     mapAttrs (
-      name: library: (library.scoped or {}) // (library.global or {})
+      _: library: (library.scoped or {}) // (library.global or {})
     )
     libraries;
 
@@ -27,8 +27,8 @@
     recursiveUpdate lib (
       {
         inherit names defaults paths;
-        flake = lib.flakes;
       }
+      // inheritAttr "flake" lib
       // getAttrs includes scoped
     );
 

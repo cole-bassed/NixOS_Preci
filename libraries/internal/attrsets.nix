@@ -97,6 +97,7 @@
     fn = depth: value:
       if depth <= 0
       then "..."
+      # else if builtins.isFunction value
       else if isFunction' value
       then "<function>"
       else if isPath value

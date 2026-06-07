@@ -1,15 +1,13 @@
 {
   inputs ? {},
-  self ? {},
+  root ? ../.,
   defaults ? {},
   name ? names.lib,
   names,
   paths,
-  ...
 }: let
-  external = import ./external {inherit inputs defaults self;};
-  lib = external.libraries;
-  inherit (lib) optionalAttrs isNotEmpty;
+  external = import ./external {inherit inputs defaults root;};
+  lib = external;
   internal = import ./internal {inherit external lib names defaults paths name;};
 in
   {
@@ -17,5 +15,5 @@ in
     "${name}" = internal;
   }
   // lib
-  // optionalAttrs (isNotEmpty external) {lib.flakes = lib.flakes // external;}
+  // lib.inheritAttr "flake" external
   // internal

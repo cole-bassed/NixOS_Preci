@@ -23,14 +23,16 @@
   inherit (lists) head tail isList optionals reverseList;
   inherit (strings) concatStrings stringLength stringToCharacters;
   inherit (types) isAttrs isString;
-  inherit (builtins) isFunction tryEval;
+  # inherit (builtins) isFunction tryEval;
 
-  isFunction' = value:
-    isFunction value
-    || (
-      value ? __functor
-      && (tryEval (isFunction (value.__functor value))).value
-    );
+  isFunction' = builtins.isFunction;
+  #: TODO: Not working, still throwing the functor error
+  # isFunction' = value:
+  #   isFunction value
+  #   || (
+  #     value ? __functor
+  #     && (tryEval (isFunction (value.__functor value))).value
+  #   );
 
   # Minimal local trim so predicates doesn't circularly depend on strings.
   trim = s: let
@@ -80,7 +82,7 @@
   isEmpty = value:
     assert withContext {
       name = "isEmpty";
-      assertion = !isFunction value;
+      assertion = !isFunction' value;
       message = "functions are not supported";
       context = "evaluating isEmpty";
     };

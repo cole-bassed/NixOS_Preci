@@ -5,7 +5,7 @@
   lists,
   modules,
   types,
-  flake,
+  flakes,
   paths,
   defaults,
   ...
@@ -82,8 +82,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then flake ? libraries.nixpkgs.nixosSystem
-        else flake ? libraries.nix-darwin.darwinSystem;
+        then flakes ? libraries.nixpkgs.nixosSystem
+        else flakes ? libraries.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -91,8 +91,8 @@
       context = "validating system builder presence in flake inputs";
     };
       if class == "nixos"
-      then flake.libraries.nixpkgs.nixosSystem
-      else flake.libraries.darwin.darwinSystem;
+      then flakes.libraries.nixpkgs.nixosSystem
+      else flakes.libraries.darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@
       if isFunction arg
       then {fn = arg;}
       else arg;
-    packages = opts.packages or flake.packages;
+    packages = opts.packages or flakes.packages;
     extra = opts.extra or [];
   in
     genAttrs
@@ -173,8 +173,8 @@
             modules =
               (
                 optionals
-                (flake.modules ? mkCore)
-                (flake.modules.mkCore class)
+                (flakes.modules ? mkCore)
+                (flakes.modules.mkCore class)
               )
               ++ (extraArgs.modules.core or [])
               ++ (host.modules or [])
@@ -186,7 +186,7 @@
                     useGlobalPkgs = true;
                     useUserPackages = true;
                     sharedModules =
-                      (flake.modules.home or [])
+                      (flakes.modules.home or [])
                       ++ (extraArgs.modules.home or []);
                     extraSpecialArgs = specialArgs;
                     users =

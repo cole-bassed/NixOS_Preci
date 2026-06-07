@@ -55,13 +55,14 @@
     // (flake.defaults or {});
 
   libraries = import paths.libraries {
-    inherit defaults flake paths names;
+    inherit defaults paths names;
+    inherit (flake) inputs root;
   };
 in
-  libraries.optionalAttrs (flake != {}) {inherit flake;}
+  libraries.orEmptyAttrs libraries.flake
   // {
     dots = toString paths.src;
-    inputs = flake.inputs or {};
+    # inputs = flake.inputs or {};
     inherit defaults libraries names paths;
     "${names.lib}" = libraries;
   }
