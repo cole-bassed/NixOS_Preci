@@ -86,23 +86,25 @@
     then import ./nixpkgs.nix inputs'.normalized.nixpkgs
     else {};
 
-  libraries = {
-    raw = bootstrap // nixpkgs // {inherit bootstrap nixpkgs;};
-
+  libraries = let
     classified =
-      mapAttrs
-      (_: input: input.lib)
-      inputs'.classified.libraries;
+      (
+        mapAttrs
+        (_: input: input.lib)
+        inputs'.classified.libraries
+      )
+      // {inherit bootstrap nixpkgs;};
 
     normalized =
-      mapAttrs
-      (_: input: input.lib)
-      (filterAttrs (_: value: value != null && value ? lib) inputs'.normalized);
-
-    merged = with libraries;
-      raw
-      // classified
-      // normalized
+      (
+        mapAttrs
+        (_: input: input.lib)
+        (
+          filterAttrs
+          (_: value: value != null && value ? lib)
+          inputs'.normalized
+        )
+      )
       // asAttrsIf (inputs'.normalized.treefmt != null) {
         treefmt =
           inputs'.normalized.treefmt.lib
@@ -111,7 +113,14 @@
             flake = inputs'.normalized.treefmt;
           };
       };
-  };
+
+    merged = classified // normalized;
+    default =
+      bootstrap
+      // nixpkgs
+      // classified
+      // normalized;
+  in {inherit classified normalized merged default;};
 
   modules = let
     excludes = defaults.excludes.modules or [];
@@ -222,7 +231,7 @@
       ;
   };
 in
-  libraries.merged
+  libraries
   // asAttrsIf (isFlakeLike inputs') {
     inherit flake;
   }

@@ -31,8 +31,11 @@
     inherit names defaults paths;
   };
 
-  merged = recursiveUpdate external (
+  all = external.classified;
+
+  default = recursiveUpdate external (
     global
+    // scoped
     // {
       lib = external;
 
@@ -48,7 +51,7 @@
 
   mkLib = includes:
     recursiveUpdate base (
-      {libraries = merged;}
+      {libraries = all;}
       // inheritAttr "flake" external
       // getAttrs includes scoped
     );
@@ -114,4 +117,4 @@
     ]);
   };
 in
-  merged
+  default
