@@ -9,6 +9,7 @@ let
         asListIf
         collectModules
         filterAttrs
+        getPackages
         hasLib
         hasModules
         hasOverlays
@@ -960,15 +961,14 @@ let
   */
   collectModules = type: modules: let
     # Bring in standard unique list filter to discard duplicate file targets
-    unique =
-      builtins.createSymbols or (items: let
-        # Fallback unique filter logic if lib isn't inherited here yet
-        dedup = list:
-          if list == []
-          then []
-          else [(builtins.head list)] ++ dedup (builtins.filter (x: x != builtins.head list) (builtins.tail list));
-      in
-        dedup items);
+    unique = createSymbols or (items: let
+      # Fallback unique filter logic if lib isn't inherited here yet
+      dedup = list:
+        if list == []
+        then []
+        else [(builtins.head list)] ++ dedup (builtins.filter (x: x != builtins.head list) (builtins.tail list));
+    in
+      dedup items);
 
     moduleAttr =
       if type == "nixos"
@@ -1057,5 +1057,11 @@ let
     if attrs == {}
     then null
     else head (attrValues attrs);
+
+  getPackages = input: let
+    x = orEmptyAttrs input;
+  in
+    orEmptyAttrs x.legacyPackages
+    // orEmptyAttrs x.packages;
 in
   exports

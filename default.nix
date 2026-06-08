@@ -21,7 +21,7 @@
     utilities = ./utilities;
     secrets = ./configuration/secrets;
     libraries = ./libraries;
-    bootstrap = ./libraries/bootstrap.nix;
+    bootstrap = ./libraries/bootstrap;
   };
 
   bootstrap = import paths.bootstrap;

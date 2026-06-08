@@ -27,6 +27,10 @@
       libraries.${library}.global or (libraries.${library} or {});
   };
 
+  base = recursiveUpdate external {
+    inherit names defaults paths;
+  };
+
   merged = recursiveUpdate external (
     global
     // {
@@ -43,11 +47,8 @@
   );
 
   mkLib = includes:
-    recursiveUpdate merged (
-      {
-        inherit names defaults paths;
-        libraries = merged;
-      }
+    recursiveUpdate base (
+      {libraries = merged;}
       // inheritAttr "flake" external
       // getAttrs includes scoped
     );
