@@ -44,10 +44,11 @@ let
   /**
   Coerce a value into an attrset.
 
-  Supported inputs:
+  ```nix
   - Attrsets are returned unchanged
   - Strings become `{ ${value} = true; }`
   - Lists become an attrset of boolean flags keyed by list entries
+  ```
 
   # Type
 

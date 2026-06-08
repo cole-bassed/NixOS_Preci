@@ -18,11 +18,16 @@ let
     (name: name != "default.nix" && match ".*\\.nix" name != null)
     (attrNames (readDir ./.));
 
+  normalize = library:
+    (library.scoped or {})
+    // (library.global or {})
+    // library;
+
   scoped = listToAttrs (
     map
     (name: {
       name = removeNix name;
-      value = import ./${name};
+      value = normalize (import ./${name});
     })
     libraries
   );

@@ -22,7 +22,7 @@ let
     mapAttrs
     ;
 
-  inherit ((import ./lists.nix).scoped) unique;
+  inherit ((import ./lists.nix).scoped) asIf unique;
 
   /**
   Prefer a module set's `default` entry when present.
@@ -99,7 +99,7 @@ let
             mapAttrs
             (
               _: input:
-                lists.scoped.asIf
+                asIf
                 (hasAttr moduleAttr input)
                 (preferDefault (getAttr moduleAttr input))
             )

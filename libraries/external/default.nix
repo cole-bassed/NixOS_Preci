@@ -27,6 +27,7 @@
     isNotEmpty
     isTreefmtLike
     mapAttrs
+    preferDefaultModules
     orEmptyAttrs
     pickFirst
     ;
@@ -144,20 +145,19 @@
         (key != null && input != null && input ? ${key}.home-manager)
         input.${key}.home-manager;
     };
+    mkCore = type:
+      if type == "nixos" || type == "darwin"
+      then
+        classified.${type}
+        ++ normalized.home-manager type
+        ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+      else throw "external.modules.mkCore: unknown type '${type}'";
   in {
     inherit raw classified normalized excludes;
 
-    merged = {
-      mkCore = type:
-        if type == "nixos" || type == "darwin"
-        then
-          classified.${type}
-          ++ normalized.home-manager type
-          ++ [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
-        else throw "external.modules.mkCore: unknown type '${type}'";
-
-      home = classified.home;
-    };
+    home = classified.home;
+    nixos = mkCore "nixos";
+    darwin = mkCore "darwin";
   };
 
   overlays = let
@@ -177,10 +177,11 @@
   in {
     inherit raw classified normalized excludes;
 
-    merged = {
-      all = classified;
-      default = concatLists (map attrValues (attrValues classified));
-    };
+    all = classified // normalized;
+
+    default =
+      concatLists
+      (map preferDefaultModules (attrValues classified));
   };
 
   packages = let
@@ -201,11 +202,8 @@
   in {
     inherit raw classified normalized;
 
-    merged = {
-      inherit classified normalized;
-      all = classified // normalized;
-      default = normalized.nixpkgs or {};
-    };
+    all = classified // normalized;
+    default = orEmptyAttrs normalized.nixpkgs;
   };
 
   flake = {
