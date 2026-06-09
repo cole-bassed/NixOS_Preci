@@ -21,7 +21,9 @@ let
     concatLists
     concatStringsSep
     head
+    substring
     isString
+    isAttrs
     lessThan
     match
     readDir
@@ -32,12 +34,22 @@ let
     ;
 
   /**
-  Read a file, or recursively concatenate all regular files in a directory.
+  Read a file, or recursively collect and label all regular files in a directory.
 
-  When given a path to a regular file, returns its contents as a string.
-  When given a path to a directory, collects all regular files beneath it
-  recursively — sorted lexicographically at each level — and joins them
-  with a single newline between each file's content.
+  When given a path to a regular file, returns its contents preceded by a
+  visible path header using the path as provided.
+
+  When given a path to a directory, walks it recursively — sorted
+  lexicographically at each level — and returns each regular file's content
+  preceded by a visible path header using the file's path relative to the
+  given directory.
+
+  Path headers use this format:
+
+  ```nix
+  #========================================
+  #> PATH: relative/or/provided/path.nix
+  #========================================
 
   Symlinks and unknown filesystem entries are silently skipped.
 
@@ -56,13 +68,43 @@ let
   # Examples
   ```nix
   cat ./config.nix
-  # => "{ foo = 1; }\n"
+  ```
+  # => "#========================================\n#> PATH: ./config.nix\n#========================================\n\n{ foo = 1; }\n"
 
   cat ./parts
-  # => "<contents of parts/a.nix>\n<contents of parts/b.nix>\n<contents of parts/sub/c.nix>"
-  ```
+  # => "#========================================\n#> PATH: a.nix\n#========================================\n\n<content>\n\n#========================================\n#> PATH: sub/c.nix\n#========================================\n\n<content>"
   */
-  cat = path: let
+  cat = input: let
+    args =
+      if isAttrs input
+      then input
+      else {
+        root = input;
+        path = input;
+      };
+
+    inherit (args) root path;
+
+    rootStr = toString root;
+
+    pathHeader = pathString: ''
+      #========================================
+      #> PATH: ${pathString}
+      #========================================
+    '';
+
+    relPath = child: let
+      childStr = toString child;
+      start = stringLength rootStr + 1;
+      len = stringLength childStr - start;
+    in
+      substring start len childStr;
+
+    fileBlock = pathString: child: ''
+      ${pathHeader pathString}
+      ${readFile child}
+    '';
+
     collectFiles = dir: let
       entries = readDir dir;
       names = sort lessThan (attrNames entries);
@@ -72,7 +114,7 @@ let
             child = dir + "/${name}";
           in
             if entries.${name} == "regular"
-            then [(readFile child)]
+            then [(fileBlock (relPath child) child)]
             else if entries.${name} == "directory"
             then collectFiles child
             else []
@@ -80,8 +122,8 @@ let
         names);
   in
     if readFileType path == "directory"
-    then concatStringsSep "\n" (collectFiles path)
-    else readFile path;
+    then concatStringsSep "\n\n" (collectFiles path)
+    else fileBlock (relPath path) path;
 
   /**
   Trim leading and trailing whitespace from a string.
