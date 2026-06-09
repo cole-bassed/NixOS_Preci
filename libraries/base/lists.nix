@@ -8,6 +8,7 @@ let
         unique
         ;
       concat = builtins.concatLists;
+      isIn = builtins.elem;
     };
 
     global = {

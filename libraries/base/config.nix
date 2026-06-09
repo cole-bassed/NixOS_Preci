@@ -12,6 +12,8 @@ let
     };
   };
 
+  inherit ((import ./attrsets.nix).scoped) update;
+
   /**
   Build the basic `dots` path configuration for a host.
 
@@ -40,13 +42,19 @@ let
   # => { dots = { store = "..."; local = /home/me/dots; }; }
   ```
   */
-  mkDots = paths: host: {
-    dots = {
-      store = toString paths.src;
-      local =
-        host.paths.src
-        or (throw "config.mkDots:= host must define 'paths.src'");
-    };
+  mkDots = args @ {
+    flake ? {},
+    paths ? {},
+    host ? {},
+  }: {
+    ${flake.name or args.name or "dots"} =
+      update (update (removeAttrs ["path"] flake) {
+        paths = update paths {
+          store = toString (flake.path or (paths.src or (args.src or ../../.)));
+          local = host.paths.src or (paths.host.src or (args.host.src or "Undefined Local Path"));
+        };
+      })
+      args;
   };
 in
   exports

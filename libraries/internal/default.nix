@@ -1,37 +1,54 @@
 {
-  bootstrap ? import ../bootstrap,
+  bootstrap ? import ../base,
   external ? import ../external {},
-  defaults ? {
-    host = "ExampleHost";
-    excludes = {
-      paths = [
-        "archive"
-        "backup"
-        "review"
-        "temp"
-
-        "default.nix"
-        "flake.nix"
-      ];
-    };
-    tags = ["core" "home"];
-  },
-  name ? names.lib,
-  names ? {
-    src = "dots";
-    top = "dots";
-    lib = "lix";
-  },
-  paths ? {
-    src = ../../.;
-    api = ../../configuration/api;
-  },
+  defaults ? {},
+  names ? {},
+  paths ? {},
   ...
 }: let
-  inherit (bootstrap) getAttrs inheritAttr mapAttrs recursiveUpdate;
+  inherit (bootstrap.attrsets) gets orEmpty' maps update;
+  name = args.names.lib;
+  args = {
+    inherit bootstrap;
+    defaults =
+      update {
+        host = "ExampleHost";
+        excludes = {
+          paths = [
+            "archive"
+            "backup"
+            "review"
+            "temp"
+
+            "default.nix"
+            "flake.nix"
+          ];
+        };
+
+        tags = ["core" "home"];
+      }
+      defaults;
+
+    paths =
+      update {
+        src = ../.;
+        api = ../configuration/api;
+      }
+      paths;
+
+    names =
+      update {
+        src = "dots";
+        lib = "lix";
+        top = "_";
+      }
+      names;
+
+    flake = external.flake or {};
+  };
 
   scoped =
-    mapAttrs
+    maps
     (_: library: (library.scoped or {}) // (library.global or {}))
     libraries;
 
@@ -43,19 +60,20 @@
       libraries.${library}.global or (libraries.${library} or {});
   };
 
-  base = recursiveUpdate external {
-    inherit names defaults paths;
-  };
+  base =
+    update
+    (update bootstrap external)
+    {inherit defaults names paths;};
 
   all = external.classified;
 
-  default = recursiveUpdate external (
+  default = update base (
     global
     // scoped
     // {
-      lib = external;
+      lib = base;
 
-      "${name}" = recursiveUpdate external (
+      "${name}" = update external (
         global
         // scoped
         // {
@@ -66,10 +84,10 @@
   );
 
   mkLib = includes:
-    recursiveUpdate base (
+    update base (
       {libraries = all;}
-      // inheritAttr "flake" external
-      // getAttrs includes scoped
+      // orEmpty' "flake" external
+      // gets includes scoped
     );
 
   libraries = {

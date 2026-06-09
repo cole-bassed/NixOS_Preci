@@ -1,23 +1,12 @@
 {
-  bootstrap ? import ../bootstrap,
+  bootstrap ? import ../base,
   flake ? {},
 }: let
-  inherit (bootstrap.config) collect preferDefault getPackages;
-  inherit (bootstrap.lists) asListIf concat elem;
-  inherit (bootstrap.attrsets) asIf filter firstOf isAttrs maps orEmpty update valuesOf;
-  inherit
-    (bootstrap.types)
-    hasLib
-    hasModules
-    hasOverlays
-    isFlakeLike
-    isHomeManagerLike
-    isNixDarwinLike
-    isNixpkgsInfrastructure
-    isNixpkgsLike
-    isNotEmpty
-    isTreefmtLike
-    ;
+  inherit (bootstrap) attrsets config lists types;
+  inherit (config) collect preferDefault getPackages;
+  inherit (lists) asListIf concat isIn;
+  inherit (attrsets) asIf filter firstOf isAttrs maps orEmpty update valuesOf;
+  inherit (types) hasLib hasModules hasOverlays isFlakeLike isHomeManagerLike isNixDarwinLike isNixpkgsInfrastructure isNixpkgsLike isNotEmpty isTreefmtLike;
 
   defaults = update {allowUnfree = true;} (flake.defaults or {});
   name = flake.name or "dots";
@@ -26,7 +15,7 @@
   inputs = let
     raw =
       filter
-      (input: _: !(elem input ["self" name]))
+      (input: _: !(isIn input ["self" name]))
       (flake.inputs or {});
 
     classified = {
@@ -97,15 +86,8 @@
           inputs.normalized
         )
       )
-      // {
-        inherit bootstrap;
-        nixpkgs = import ./nixpkgs.nix inputs.normalized.nixpkgs;
-      }
-      // (
-        asIf
-        (treefmt?lib)
-        {treefmt = treefmt.lib // {inherit path;};}
-      );
+      // {nixpkgs = import ./nixpkgs.nix inputs.normalized.nixpkgs;}
+      // asIf (treefmt?lib) {treefmt = treefmt.lib // {inherit path;};};
 
     merged =
       normalized.nixpkgs
@@ -118,7 +100,7 @@
 
     raw =
       filter
-      (input: _: !(elem input excludes))
+      (input: _: !(isIn input excludes))
       inputs.classified.modules;
 
     classified = let
@@ -164,7 +146,7 @@
 
     raw =
       filter
-      (input: _: !(elem input excludes))
+      (input: _: !(isIn input excludes))
       inputs.classified.overlays;
 
     classified =
@@ -202,27 +184,20 @@
     merged = classified // normalized;
     default = orEmpty normalized.nixpkgs;
   };
+
+  exports = {
+    inherit
+      defaults
+      inputs
+      libraries
+      modules
+      name
+      overlays
+      packages
+      path
+      ;
+  };
 in
   libraries.merged
-  // asIf (isFlakeLike inputs) {
-    ${name} = {
-      inherit
-        defaults
-        inputs
-        libraries
-        modules
-        name
-        overlays
-        packages
-        path
-        ;
-
-      # inherit
-      #   (inputs.normalized)
-      #   treefmt
-      #   nixpkgs
-      #   nix-darwin
-      #   home-manager
-      #   ;
-    };
-  }
+  // {${name} = exports;}
+  // asIf (isFlakeLike inputs) {flake = exports;}

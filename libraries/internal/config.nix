@@ -1,6 +1,6 @@
 {
   api,
-  bootstrap,
+  config,
   debug,
   attrsets,
   libraries,
@@ -35,10 +35,10 @@
   };
 
   inherit (attrsets) attrNames attrValues filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs orEmpty recursiveUpdate;
-  inherit (bootstrap) mkDots;
+  inherit (config) mkDots;
   inherit (debug) withContext;
   inherit (lists) elem groupBy optionals unique;
-  inherit (modules) mkCdAliases mkEnvVars;
+  # inherit (modules) mkCdAliases mkEnvVars;
   inherit (types) isAttrs isBool isFunction isNotEmpty typeOf;
   inherit (api) hosts;
   defaultHost = api.hosts.${defaults.host};

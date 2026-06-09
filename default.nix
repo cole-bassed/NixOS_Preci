@@ -328,11 +328,9 @@ from discovery and loads important entrypoints directly.
   in
     update base (orEmpty flake.defaults);
 
-  libraries =
-    import paths.libraries {
-      inherit bootstrap defaults paths names;
-    }
-    // flake;
+  libraries = import paths.libraries {
+    inherit bootstrap defaults flake names paths;
+  };
   inherit (libraries) api;
 in
   orEmpty libraries.flake

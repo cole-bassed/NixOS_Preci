@@ -2,7 +2,6 @@
   description = "Configuration Flake";
 
   outputs = inputs: let
-    root = ./.;
     defaults = {
       allowUnfree = true;
       nixpkgs = inputs.nixCore;
@@ -19,7 +18,7 @@
       };
     };
 
-    args = import ./. {flake = {inherit defaults inputs root;};};
+    args = import ./. {flake = {inherit defaults inputs;};};
   in
     {inherit args;}
     // args.libraries.assemble.flake args {

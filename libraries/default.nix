@@ -2,25 +2,64 @@
   bootstrap ? import ./base,
   defaults ? {},
   flake ? {},
-  name ? names.lib,
-  names ? {
-    src = "dots";
-    lib = "lix";
-    top = "_";
-  },
+  names ? {},
   paths ? {src = ../.;},
 }: let
   inherit (bootstrap.attrsets) update;
-  external = import ./external {
+
+  args = {
     inherit bootstrap;
+    defaults =
+      update {
+        host = "ExampleHost";
+        excludes = {
+          paths = [
+            "archive"
+            "backup"
+            "review"
+            "temp"
+
+            "default.nix"
+            "flake.nix"
+          ];
+        };
+
+        tags = ["core" "home"];
+      }
+      defaults;
+
+    paths =
+      update {
+        src = ../.;
+        api = ../configuration/api;
+      }
+      paths;
+
+    names =
+      update {
+        src = "dots";
+        lib = "lix";
+        top = "_";
+      }
+      names;
+
     flake =
       update {
-        name = names.src;
-        path = paths.src;
+        name = args.names.src;
+        path = args.paths.src;
       }
       flake;
+
+    external = import ./external {
+      inherit (args) bootstrap flake;
+    };
+
+    internal = import ./internal {
+      inherit (args) bootstrap defaults external names paths;
+    };
   };
-  internal = import ./internal {inherit bootstrap external names defaults paths name;};
-in
-  {inherit bootstrap external internal;}
-  // update external internal
+in (
+  with args;
+    update (update bootstrap external) internal
+    // {inherit bootstrap external internal;}
+)
