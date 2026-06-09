@@ -330,6 +330,9 @@
     else throw "Expected kind to be one of [modules profiles], got ${kind}";
 
   # convenience: importModules is importAll with kind = "modules"
+  # TODO: Update libraries/internal loaders to parse regular files (.nix).
+  # Currently, file nodes are skipped by readDirAttrs or dropped by
+  # importModule because it searches for a nested default.nix.
   importModules = args @ {
     base,
     excludes ? pathExcludes,

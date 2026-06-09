@@ -29,7 +29,7 @@ utility.
 ├── debug
 ├── documentation
 ├── libraries
-│   ├── bootstrap
+│   ├── base
 │   ├── external
 │   └── internal
 ├── templates
@@ -271,11 +271,6 @@ This is why the root entrypoint keeps `default.nix` and `flake.nix` excluded
 from discovery and loads important entrypoints directly.
 */
 {flake ? {}, ...}: let
-  # -----------------------------------------------------------------------
-  # TODO: Update libraries/internal loaders to parse regular files (.nix).
-  # Currently, file nodes are skipped by readDirAttrs or dropped by
-  # importModule because it searches for a nested default.nix.
-  # -----------------------------------------------------------------------
   names = {
     src = "dots";
     top = "dots";
@@ -293,7 +288,7 @@ from discovery and loads important entrypoints directly.
     utilities = ./utilities;
     secrets = ./configuration/secrets;
     libraries = ./libraries;
-    bootstrap = ./libraries/bootstrap;
+    bootstrap = ./libraries/base;
   };
 
   bootstrap = import paths.bootstrap;

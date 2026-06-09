@@ -1,5 +1,5 @@
 {
-  bootstrap ? import ./bootstrap,
+  bootstrap ? import ./base,
   defaults ? {},
   flake ? {},
   name ? names.lib,
