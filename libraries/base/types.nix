@@ -14,6 +14,7 @@ let
         isNixpkgsLike
         isTreefmtLike
         ;
+      inherit isAttrs isFunction isList isString;
     };
 
     global = {
@@ -33,15 +34,7 @@ let
     };
   };
 
-  inherit
-    (builtins)
-    isAttrs
-    isFunction
-    isList
-    isString
-    stringLength
-    ;
-
+  inherit (builtins) isAttrs isFunction isList isString stringLength;
   inherit ((import ./strings.nix).scoped) trim;
 
   /**

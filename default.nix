@@ -17,55 +17,12 @@
       utilities = ./utilities;
       secrets = ./configuration/secrets;
       libraries = ./libraries;
-      bootstrap = ./libraries/base;
     };
     local.src = "/etc/nixos";
   };
 
-  bootstrap = import paths.bootstrap;
-  inherit (bootstrap.attrsets) is inspect orEmpty update;
-  inherit (bootstrap.config) getEnv mkDots;
-
-  defaults = let
-    base = {
-      host = let
-        env = {
-          host = getEnv "HOSTNAME";
-          name = getEnv "NAME";
-        };
-      in
-        if is flake && (flake.currentHost or "") != ""
-        then flake.currentHost
-        else if env.host != ""
-        then env.host
-        else if env.name != ""
-        then env.name
-        else "ExampleHost";
-
-      excludes = {
-        paths = [
-          "archive"
-          "backup"
-          "review"
-          "temp"
-
-          "default.nix"
-          "flake.nix"
-        ];
-      };
-
-      tags = ["core" "home"];
-    };
-  in
-    update base (orEmpty flake.defaults);
-
-  libraries = import paths.libraries {
-    inherit bootstrap defaults flake names paths;
-  };
+  libraries =
+    import paths.store.libraries
+    {inherit flake names paths;};
 in
-  orEmpty libraries.flake
-  // mkDots
-  // {
-    inherit (libraries) api;
-    inherit defaults inspect libraries names paths;
-  }
+  libraries

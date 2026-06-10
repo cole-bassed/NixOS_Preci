@@ -18,15 +18,19 @@
       };
     };
 
-    args = import ./. {flake = {inherit defaults inputs;};};
-  in
-    {inherit args;}
-    // args.libraries.assemble.flake args {
-      configurations = true;
-      utilities = true;
-      devShells = true;
-      templates = true;
-    };
+    src = import ./. {flake = {inherit defaults inputs;};};
+  in (
+    {
+      # ${src.names.src} = src;
+      inherit src;
+    }
+    # // src.libraries.assemble.flake src {
+    #   configurations = false;
+    #   utilities = true;
+    #   devShells = true;
+    #   templates = true;
+    # }
+  );
 
   inputs = {
     #~@ Core/Nix Infrastructure

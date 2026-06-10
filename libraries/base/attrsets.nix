@@ -13,11 +13,11 @@ let
         has
         inspect
         is
+        merge
         maps
         namesOf
         orEmpty
         orEmpty'
-        update
         valuesOf
         ;
       select = filter;
@@ -35,7 +35,7 @@ let
       inheritAttr = orEmpty';
       inspectAttrs = inspect;
       orEmptyAttrs = orEmpty;
-      recursiveUpdate = update;
+      recursiveUpdate = merge;
     };
   };
 
@@ -417,12 +417,12 @@ let
   # Type
 
   ```nix
-  update :: AttrSet -> AttrSet -> AttrSet
+  merge :: AttrSet -> AttrSet -> AttrSet
   ```
 
   # Dependencies
 
-  - attrsets.update
+  - attrsets.merge
 
   # Arguments
 
@@ -435,11 +435,11 @@ let
   # Examples
 
   ```nix
-  update { a.b = 1; } { a.c = 2; }
+  merge { a.b = 1; } { a.c = 2; }
   # => { a = { b = 1; c = 2; }; }
   ```
   */
-  update = lhs: rhs:
+  merge = lhs: rhs:
     if is lhs && is rhs
     then
       fromList (
@@ -448,7 +448,7 @@ let
           name = key;
           value =
             if lhs ? ${key} && rhs ? ${key}
-            then update lhs.${key} rhs.${key}
+            then merge lhs.${key} rhs.${key}
             else if rhs ? ${key}
             then rhs.${key}
             else lhs.${key};

@@ -1,17 +1,16 @@
 {
   bootstrap ? import ./base,
   defaults ? {},
-  inputs ? {},
+  flake ? {},
   names ? {},
-  paths ? {src = ../.;},
+  paths ? {},
 }: let
-  inherit (bootstrap.attrsets) update;
+  inherit (bootstrap.attrsets) merge;
 
   args = {
-    inherit bootstrap inputs;
+    inherit bootstrap flake;
     defaults =
-      update {
-        host = "ExampleHost";
+      merge {
         excludes = {
           paths = [
             "archive"
@@ -23,19 +22,22 @@
             "flake.nix"
           ];
         };
+
         tags = ["core" "home"];
       }
       defaults;
 
     paths =
-      update {
-        src = ../.;
-        api = ../configuration/api;
+      merge {
+        store = {
+          src = ../.;
+          api = ../configuration/api;
+        };
       }
       paths;
 
     names =
-      update {
+      merge {
         src = "dots";
         lib = "lix";
         top = "_";
@@ -44,11 +46,13 @@
   };
 
   external = import ./external {
-    inherit (args) bootstrap defaults inputs names paths;
+    inherit (args) bootstrap defaults flake names paths;
   };
-
-  internal = import ./internal {inherit bootstrap external;};
-in (
-  update external (update bootstrap internal)
-  // {inherit bootstrap external internal;}
-)
+  # internal = import ./internal {inherit bootstrap external;};
+  internal = {};
+  merged = merge external (merge bootstrap internal);
+in {
+  lib = external.${names.src}.libraries.merged;
+  ${names.src} = (external.${names.src} or {}) // (internal.${names.src} or {});
+  ${names.lib} = removeAttrs merged ["${names.lib}"];
+}
