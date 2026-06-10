@@ -20,16 +20,13 @@
 
     src = import ./. {flake = {inherit defaults inputs;};};
   in (
-    {
-      # ${src.names.src} = src;
-      inherit src;
+    {${src.names.src} = src;}
+    // src.libraries.assemble.flake src {
+      configurations = false;
+      utilities = true;
+      devShells = true;
+      templates = true;
     }
-    # // src.libraries.assemble.flake src {
-    #   configurations = false;
-    #   utilities = true;
-    #   devShells = true;
-    #   templates = true;
-    # }
   );
 
   inputs = {
