@@ -7,20 +7,24 @@
   paths ? {store.src = ../../.;},
   path ? null,
 }: let
-  inherit (bootstrap.types) optionalAttrs;
+  inherit (bootstrap.attrsets) asAttrsIf;
+  inherit (bootstrap.types) isFlakeLike;
 
   args = {
     inherit bootstrap defaults;
-    names =
-      names // optionalAttrs (name != null) {src = name;};
+    names = names // asAttrsIf (name != null) {src = name;};
 
     paths = let
       raw = paths.store or paths;
-      merged = raw // optionalAttrs (path != null) {src = path;};
+      merged = raw // asAttrsIf (path != null) {src = path;};
     in {store = merged;};
 
+    path = args.paths.store.src;
+    name = args.names.src;
+
     inputs = import ./inputs.nix {
-      inherit bootstrap defaults inputs names;
+      inherit bootstrap defaults inputs;
+      inherit (args) names;
     };
   };
 
@@ -28,7 +32,17 @@
   modules = import ./modules.nix args;
   overlays = import ./overlays.nix args;
   packages = import ./packages.nix args;
-in {
-  inherit (args) defaults inputs names paths;
-  inherit libraries modules overlays packages;
-}
+
+  flake = {
+    inherit (args) inputs;
+    inherit libraries modules overlays packages;
+  };
+in
+  libraries.merged
+  // {
+    inherit (args) defaults names paths;
+  }
+  // asAttrsIf (isFlakeLike args.inputs) {
+    inherit flake;
+    ${args.names.src} = flake;
+  }

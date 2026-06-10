@@ -1,10 +1,6 @@
 {
   bootstrap ? import ../base,
   external ? import ../external {},
-  defaults ? {},
-  names ? {},
-  paths ? {},
-  ...
 }: let
   inherit (bootstrap.attrsets) gets orEmpty' maps update;
   name = args.names.lib;

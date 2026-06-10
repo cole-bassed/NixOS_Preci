@@ -5,18 +5,21 @@
     lib = "lix";
   };
 
-  paths.store = {
-    src = ./.;
-    api = ./configuration/api;
-    dbg = ./debug;
-    documentation = ./documentation;
-    configurations = ./configuration/modules;
-    templates = ./templates;
-    devShells = ./utilities/shells;
-    utilities = ./utilities;
-    secrets = ./configuration/secrets;
-    libraries = ./libraries;
-    bootstrap = ./libraries/base;
+  paths = {
+    store = {
+      src = ./.;
+      api = ./configuration/api;
+      dbg = ./debug;
+      documentation = ./documentation;
+      configurations = ./configuration/modules;
+      templates = ./templates;
+      devShells = ./utilities/shells;
+      utilities = ./utilities;
+      secrets = ./configuration/secrets;
+      libraries = ./libraries;
+      bootstrap = ./libraries/base;
+    };
+    local.src = "/etc/nixos";
   };
 
   bootstrap = import paths.bootstrap;

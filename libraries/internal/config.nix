@@ -2,7 +2,6 @@
   api,
   debug,
   attrsets,
-  libraries,
   lists,
   types,
   external,
@@ -70,40 +69,37 @@
   ```
   */
   mkSrc = {
-    flake ? external.flake or {},
-    host ? api.hosts.${defaults.host},
-    ...
-  } @ args: {
-    ${external.name or (args.name or names.src)} = {
-      # recursiveUpdate (recursiveUpdate (removeAttrs ["path"] flake) {
+    host,
+    args ? {},
+  }: {
+    ${external.flake.names.src or names.src} = recursiveUpdate args {
       paths = {
-        local = recursiveUpdate (paths.local or {}) host.paths;
+        local = let
+          src =
+            if host ? paths.src
+            then host.paths.src
+            else if host ? paths.dots
+            then host.paths.dots
+            else if host ? paths.home
+            then host.paths.home
+            else if host ? dots
+            then host.dots
+            else if host ? home
+            then host.home
+            else paths.local.src;
+        in
+          recursiveUpdate
+          paths.local
+          (recursiveUpdate {inherit src;} (host.paths or {}));
         store =
           recursiveUpdate
           (
             paths.store or {
-              src = flake.path or paths.src;
+              src = external.flake.paths.src or paths.src;
             }
           ) (args.paths or {});
       };
     };
-    #   paths = recursiveUpdate (recursiveUpdate (paths.local or {}) host.paths) {
-    #     src = {
-    #       store = toString (
-    #         flake.path or (
-    #           args.src or (
-    #             paths.src or ../../.
-    #           )
-    #         )
-    #       );
-    #       local =
-    #         host.paths.src or (
-    #           args.host.src or "Undefined Local Path"
-    #         );
-    #     };
-    #   };
-    # })
-    # args;
   };
 
   # ── systems ────────────────────────────────────────────────────────────────
@@ -150,8 +146,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then external ? libraries.nixpkgs.nixosSystem
-        else external ? libraries.nix-darwin.darwinSystem;
+        then external ? libraries.normalized.nixpkgs.nixosSystem
+        else external ? libraries.normalized.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -159,8 +155,8 @@
       context = "validating system builder presence in flake inputs";
     };
       if class == "nixos"
-      then external.libraries.nixpkgs.nixosSystem
-      else external.libraries.darwin.darwinSystem;
+      then external.libraries.normalized.nixpkgs.nixosSystem
+      else external.libraries.normalized.darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -238,7 +234,7 @@
             specialArgs =
               {
                 inherit top host libraries;
-                dots = mkDots host;
+                src = mkSrc {inherit host args;};
               }
               // (removeAttrs extraArgs ["lib" "modules" "packages"])
               // {paths = recursiveUpdate paths host.paths;};

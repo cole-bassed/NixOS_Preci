@@ -2,7 +2,7 @@
   bootstrap,
   defaults,
   inputs,
-  names,
+  name,
   ...
 }: let
   inherit (bootstrap) attrsets lists types;
@@ -12,7 +12,7 @@
 
   raw =
     filter
-    (input: _: !(isIn input ["self" names.src]))
+    (input: _: !(isIn input ["self" name]))
     inputs;
 
   classified = {

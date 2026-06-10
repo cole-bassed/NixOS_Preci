@@ -1,7 +1,7 @@
 {
   bootstrap,
   inputs,
-  paths,
+  path,
   ...
 }: let
   inherit (bootstrap) attrsets;
@@ -83,7 +83,7 @@
         };
     }
     // asIf (treefmt ? lib) {
-      treefmt = treefmt.lib // {projectRoot = paths.store.src;};
+      treefmt = treefmt.lib // {projectRoot = path;};
     };
 
   merged =
