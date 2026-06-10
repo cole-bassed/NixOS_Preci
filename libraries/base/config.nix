@@ -50,8 +50,17 @@ let
     ${flake.name or args.name or "dots"} =
       update (update (removeAttrs ["path"] flake) {
         paths = update paths {
-          store = toString (flake.path or (paths.src or (args.src or ../../.)));
-          local = host.paths.src or (paths.host.src or (args.host.src or "Undefined Local Path"));
+          store = toString (flake.path or (
+            paths.src or (
+              args.src or ../../.
+            )
+          ));
+          local =
+            host.paths.src or (
+              paths.host.src or (
+                args.host.src or "Undefined Local Path"
+              )
+            );
         };
       })
       args;

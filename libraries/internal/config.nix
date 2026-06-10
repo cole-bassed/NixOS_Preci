@@ -1,14 +1,13 @@
 {
   api,
-  config,
   debug,
   attrsets,
   libraries,
   lists,
-  modules,
   types,
-  flake,
+  external,
   paths,
+  names,
   defaults,
   ...
 }: let
@@ -17,7 +16,7 @@
       inherit
         assemble
         perSystem
-        mkDots
+        mkSrc
         supportedSystems
         systemBuilder
         systems
@@ -34,14 +33,78 @@
     };
   };
 
-  inherit (attrsets) attrNames attrValues filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs orEmpty recursiveUpdate;
-  inherit (config) mkDots;
+  inherit (attrsets) attrNames attrValues attrByPath filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs orEmpty recursiveUpdate;
   inherit (debug) withContext;
-  inherit (lists) elem groupBy optionals unique;
+  inherit (lists) elem groupBy unique;
   # inherit (modules) mkCdAliases mkEnvVars;
   inherit (types) isAttrs isBool isFunction isNotEmpty typeOf;
   inherit (api) hosts;
   defaultHost = api.hosts.${defaults.host};
+
+  /**
+  Build the basic `dots` path configuration for a host.
+
+  # Type
+
+  ```nix
+  mkDots :: AttrSet -> AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+
+  None
+
+  # Arguments
+
+  paths
+  : Project paths. Must include `src`.
+
+  host
+  : Host config. Must include `paths.src`.
+
+  # Examples
+
+  ```nix
+  mkDots { src = ./.; } { paths.src = /home/me/dots; }
+  # => { dots = { store = "..."; local = /home/me/dots; }; }
+  ```
+  */
+  mkSrc = {
+    flake ? external.flake or {},
+    host ? api.hosts.${defaults.host},
+    ...
+  } @ args: {
+    ${external.name or (args.name or names.src)} = {
+      # recursiveUpdate (recursiveUpdate (removeAttrs ["path"] flake) {
+      paths = {
+        local = recursiveUpdate (paths.local or {}) host.paths;
+        store =
+          recursiveUpdate
+          (
+            paths.store or {
+              src = flake.path or paths.src;
+            }
+          ) (args.paths or {});
+      };
+    };
+    #   paths = recursiveUpdate (recursiveUpdate (paths.local or {}) host.paths) {
+    #     src = {
+    #       store = toString (
+    #         flake.path or (
+    #           args.src or (
+    #             paths.src or ../../.
+    #           )
+    #         )
+    #       );
+    #       local =
+    #         host.paths.src or (
+    #           args.host.src or "Undefined Local Path"
+    #         );
+    #     };
+    #   };
+    # })
+    # args;
+  };
 
   # ── systems ────────────────────────────────────────────────────────────────
 
@@ -87,8 +150,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then flake ? libraries.nixpkgs.nixosSystem
-        else flake ? libraries.nix-darwin.darwinSystem;
+        then external ? libraries.nixpkgs.nixosSystem
+        else external ? libraries.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -96,8 +159,8 @@
       context = "validating system builder presence in flake inputs";
     };
       if class == "nixos"
-      then flake.libraries.nixpkgs.nixosSystem
-      else flake.libraries.darwin.darwinSystem;
+      then external.libraries.nixpkgs.nixosSystem
+      else external.libraries.darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -115,7 +178,7 @@
       if isFunction arg
       then {fn = arg;}
       else arg;
-    packages = opts.packages or flake.packages.default;
+    packages = opts.packages or external.packages.default;
     extra = opts.extra or [];
   in
     genAttrs
@@ -182,11 +245,7 @@
           in {
             inherit class specialArgs;
             modules =
-              (
-                optionals
-                (flake.modules ? mkCore)
-                (flake.modules.mkCore class)
-              )
+              attrByPath ["modules" "classified" class] [] external
               ++ (spec.imports or [])
               ++ (host.modules or [])
               ++ (host.imports or [])
@@ -201,41 +260,43 @@
                 #   })
               ]
               ++ [
-                # {
-                #   home-manager = {
-                #     backupFileExtension = "backup";
-                #     useGlobalPkgs = true;
-                #     useUserPackages = true;
-                #     sharedModules = extraArgs.modules.home or [];
+                {
+                  home-manager = {
+                    backupFileExtension = "backup";
+                    useGlobalPkgs = true;
+                    useUserPackages = true;
+                    sharedModules =
+                      attrByPath ["modules" "classified" "home"] [] external
+                      ++ extraArgs.modules.home or [];
 
-                #     extraSpecialArgs =
-                #       specialArgs
-                #       // {
-                #         flakeModules = flake.modules.home;
-                #       };
-                #     users =
-                #       mapAttrs
-                #       (_: user: {
-                #         config,
-                #         osConfig,
-                #         ...
-                #       }: {
-                #         imports =
-                #           [
-                #             {
-                #               home = {
-                #                 inherit (osConfig.system) stateVersion;
-                #                 sessionVariables = mkEnvVars "" (config.${top}.paths or {});
-                #                 shellAliases = mkCdAliases (config.${top}.paths or {});
-                #               };
-                #               programs.home-manager.enable = true;
-                #             }
-                #           ]
-                #           ++ [];
-                #       })
-                #       (host.users.byStatus.enabled.values or {});
-                #   };
-                # }
+                    #     extraSpecialArgs =
+                    #       specialArgs
+                    #       // {
+                    #         flakeModules = flake.modules.home;
+                    #       };
+                    #     users =
+                    #       mapAttrs
+                    #       (_: user: {
+                    #         config,
+                    #         osConfig,
+                    #         ...
+                    #       }: {
+                    #         imports =
+                    #           [
+                    #             {
+                    #               home = {
+                    #                 inherit (osConfig.system) stateVersion;
+                    #                 sessionVariables = mkEnvVars "" (config.${top}.paths or {});
+                    #                 shellAliases = mkCdAliases (config.${top}.paths or {});
+                    #               };
+                    #               programs.home-manager.enable = true;
+                    #             }
+                    #           ]
+                    #           ++ [];
+                    #       })
+                    #       (host.users.byStatus.enabled.values or {});
+                  };
+                }
               ];
 
             # modules =

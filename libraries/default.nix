@@ -1,7 +1,7 @@
 {
   bootstrap ? import ./base,
   defaults ? {},
-  flake ? {},
+  inputs ? {},
   names ? {},
   paths ? {src = ../.;},
 }: let
@@ -43,15 +43,15 @@
       }
       names;
 
-    flake =
-      update {
-        name = args.names.src;
-        path = args.paths.src;
-      }
-      flake;
+    # flake =
+    #   update {
+    #     name = args.names.src;
+    #     path = args.paths.src;
+    #   }
+    #   flake;
 
     external = import ./external {
-      inherit (args) bootstrap flake;
+      inherit (args) bootstrap defaults inputs names paths;
     };
 
     internal = import ./internal {

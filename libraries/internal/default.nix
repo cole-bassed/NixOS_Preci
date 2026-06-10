@@ -43,8 +43,6 @@
         top = "_";
       }
       names;
-
-    flake = external.flake or {};
   };
 
   scoped =

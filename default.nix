@@ -5,7 +5,7 @@
     lib = "lix";
   };
 
-  paths = {
+  paths.store = {
     src = ./.;
     api = ./configuration/api;
     dbg = ./debug;
@@ -59,11 +59,10 @@
   libraries = import paths.libraries {
     inherit bootstrap defaults flake names paths;
   };
-  inherit (libraries) api;
 in
   orEmpty libraries.flake
-  // mkDots paths api.hosts.${defaults.host}
+  // mkDots
   // {
-    inherit api defaults inspect libraries names paths;
-    "${names.lib}" = libraries;
+    inherit (libraries) api;
+    inherit defaults inspect libraries names paths;
   }
