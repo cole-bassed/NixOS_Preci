@@ -4,7 +4,8 @@
   attrsets,
   lists,
   types,
-  external,
+  flake,
+  libraries,
   paths,
   names,
   defaults,
@@ -69,10 +70,10 @@
   ```
   */
   mkSrc = {
-    host,
+    host ? defaultHost,
     args ? {},
   }: {
-    ${external.flake.names.src or names.src} = recursiveUpdate args {
+    ${flake.names.src or names.src} = recursiveUpdate args {
       paths = {
         local = let
           src =
@@ -95,7 +96,7 @@
           recursiveUpdate
           (
             paths.store or {
-              src = external.flake.paths.src or paths.src;
+              src = flake.paths.src or paths.src;
             }
           ) (args.paths or {});
       };
@@ -146,8 +147,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then external ? libraries.normalized.nixpkgs.nixosSystem
-        else external ? libraries.normalized.nix-darwin.darwinSystem;
+        then libraries ? normalized.nixpkgs.nixosSystem
+        else libraries ? normalized.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -155,8 +156,8 @@
       context = "validating system builder presence in flake inputs";
     };
       if class == "nixos"
-      then external.libraries.normalized.nixpkgs.nixosSystem
-      else external.libraries.normalized.darwin.darwinSystem;
+      then libraries ? normalized.nixpkgs.nixosSystem
+      else libraries ? normalized.darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -174,7 +175,7 @@
       if isFunction arg
       then {fn = arg;}
       else arg;
-    packages = opts.packages or external.packages.default;
+    packages = opts.packages or flake.packages.default;
     extra = opts.extra or [];
   in
     genAttrs
@@ -196,7 +197,7 @@
           then optionalAttrs value {}
           else optionalAttrs (isNotEmpty value) (removeAttrs value ["enable"]);
 
-      resolved.paths = base.paths or paths;
+      resolved.paths = base.paths.store or paths.store;
 
       enabled =
         filterAttrs (
@@ -218,7 +219,7 @@
         )
         enabled
       )
-      // optionalAttrs (mods.configurations or false != false) (
+      // optionalAttrs ((mods.configurations or false) != false) (
         assemble.configurations base {}
       );
 
@@ -241,7 +242,7 @@
           in {
             inherit class specialArgs;
             modules =
-              attrByPath ["modules" "classified" class] [] external
+              attrByPath ["modules" "classified" class] [] flake
               ++ (spec.imports or [])
               ++ (host.modules or [])
               ++ (host.imports or [])
@@ -262,7 +263,7 @@
                     useGlobalPkgs = true;
                     useUserPackages = true;
                     sharedModules =
-                      attrByPath ["modules" "classified" "home"] [] external
+                      attrByPath ["modules" "classified" "home"] [] flake
                       ++ extraArgs.modules.home or [];
 
                     #     extraSpecialArgs =

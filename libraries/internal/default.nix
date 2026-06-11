@@ -2,7 +2,7 @@
   bootstrap ? import ../base,
   external ? import ../external {},
 }: let
-  inherit (bootstrap.attrsets) gets orEmpty' maps merge;
+  inherit (bootstrap.attrsets) gets maps merge;
   flake = external.flake or {};
   name = args.names.lib;
   args = {
@@ -28,8 +28,11 @@
 
     paths =
       merge {
-        src = ../../.;
-        api = ../configuration/api;
+        store = {
+          src = ../../.;
+          api = ../../configuration/api;
+        };
+        local.src = "/etc/nixos";
       }
       (flake.paths or {});
 
@@ -58,19 +61,15 @@
   base =
     merge
     (merge external bootstrap)
-    {inherit (args) defaults names paths;};
+    {
+      inherit (args) defaults names paths;
+      inherit flake libraries;
+    };
 
-  mkLib = includes:
-    merge base (
-      {
-        # libraries = base;
-        inherit flake;
-      }
-      // gets includes scoped
-    );
+  mkLib = includes: merge base (gets includes scoped);
 
   libraries = {
-    api = import args.paths.api (mkLib [
+    api = import args.paths.store.api (mkLib [
       "attrsets"
       "modules"
       "lists"

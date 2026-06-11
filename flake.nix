@@ -20,16 +20,17 @@
 
     src = import ./. {flake = {inherit defaults inputs;};};
   in
-    src;
-  # (
-  # {${src.names.src} = src;}
-  # // src.libraries.assemble.flake src {
-  #   configurations = false;
-  #   utilities = true;
-  #   devShells = true;
-  #   templates = true;
-  # }
-  # );
+    # src;
+    (
+      # {${src.names.src} = src;}
+      src
+      // src.lix.assemble.flake src {
+        configurations = false;
+        # utilities = false;
+        # devShells = false;
+        # templates = false;
+      }
+    );
 
   inputs = {
     #~@ Core/Nix Infrastructure

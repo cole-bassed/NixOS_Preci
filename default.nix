@@ -21,9 +21,25 @@
     local.src = "/etc/nixos";
   };
 
+  defaults.host = let
+    inherit (builtins) isAttrs getEnv;
+    env = {
+      host = getEnv "HOSTNAME";
+      name = getEnv "NAME";
+    };
+  in
+    if isAttrs flake && (flake.currentHost or "") != ""
+    then flake.currentHost
+    else if env.host != ""
+    then env.host
+    else if env.name != ""
+    then env.name
+    else "ExampleHost";
+
   libraries =
     import paths.store.libraries
-    {inherit flake names paths;};
+    {inherit defaults flake names paths;};
 in
   libraries
-# libraries.${names.src}
+# libraries.mkSrc {}
+# libaries.mkSrc {host=libraries.api.hosts.${libraries.defaults.host}}
