@@ -144,21 +144,9 @@
       message = ''expected one of ["nixos" "darwin"], got ${class}'';
       context = "parsing system builder from class";
     };
-    assert withContext {
-      name = "config.systemBuilder";
-      assertion =
-        if class == "nixos"
-        then external ? modules.normalized.nixpkgs.nixosSystem
-        else external ? modules.normalized.nix-darwin.darwinSystem;
-      message = ''
-        The required compiler for class "${class}" was not found in your flake inputs.
-        Make sure you have passed the correct downstream lib/builder mapping.
-      '';
-      context = "validating system builder presence in flake inputs";
-    };
       if class == "nixos"
-      then external.modules.normalized.nixpkgs.nixosSystem
-      else external.modules.normalized.darwin.darwinSystem;
+      then external.nixpkgs.nixosSystem
+      else external.nix-darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -248,9 +236,9 @@
           in {
             inherit class specialArgs;
             modules =
-              attrByPath ["modules" "classified" class] [] flake
+              (flake.modules.mkCore class)
               ++ (spec.imports or [])
-              ++ (host.modules or [])
+              # ++ (host.modules or [])
               ++ (host.imports or [])
               ++ (extraArgs.modules.core or [])
               ++ [

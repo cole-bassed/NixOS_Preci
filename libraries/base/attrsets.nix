@@ -23,6 +23,7 @@ let
       select = filter;
       getFirst = firstOf;
       orEmptyNamed = orEmpty';
+      inherit (builtins) isAttrs;
     };
 
     global = {
