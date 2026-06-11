@@ -205,12 +205,15 @@
       mergeAttrsList (
         mapAttrsToList (
           name: args:
-            import resolved.paths.${name} (base // {args = normalise args;})
+            import resolved.paths.${name}
+            (base // {args = normalise args;})
         )
         enabled
       )
-      // optionalAttrs ((mods.configurations or false) != false) (
-        assemble.configurations base {}
+      // (
+        optionalAttrs
+        ((mods.configurations or false) != false)
+        (assemble.configurations base {})
       );
 
     configurations = base: args: let
@@ -228,7 +231,7 @@
               overrides = extraArgs;
             };
             specialArgs =
-              {inherit top host src;}
+              {inherit top host src base args;}
               // (removeAttrs src ["lib" "modules" "packages"]);
           in {
             inherit class specialArgs;

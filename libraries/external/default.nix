@@ -46,14 +46,15 @@
       tags = ["core" "home"];
     } (merge defaults (flake.defaults or {}));
 
-    names = names // asAttrsIf (name != null) {src = name;};
+    names.src =
+      if name != null
+      then name
+      else (names.src or "dots");
 
-    paths = let
-      local = paths.local or {src = "/etc/nixos";};
-      store =
-        (paths.store or {src = ../../.;})
-        // asAttrsIf (path != null) {src = path;};
-    in {inherit store local;};
+    paths.store.src =
+      if path != null
+      then path
+      else (paths.store.src or ../../.);
 
     path = args.paths.store.src;
     name = args.names.src;
