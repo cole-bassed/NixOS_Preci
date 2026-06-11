@@ -40,6 +40,4 @@
     import paths.store.libraries
     {inherit defaults flake names paths;};
 in
-  libraries
-# libraries.mkSrc {}
-# libaries.mkSrc {host=libraries.api.hosts.${libraries.defaults.host}}
+  libraries.mkSrc {inherit libraries;}

@@ -3,9 +3,9 @@
   debug,
   attrsets,
   lists,
+  external,
   types,
   flake,
-  libraries,
   paths,
   names,
   defaults,
@@ -24,7 +24,7 @@
         ;
     };
     global = {
-      inherit assemble;
+      inherit assemble mkSrc;
       assembleConfigurations = assemble.configurations;
       assembleFlake = assemble.flake;
       buildSystems = systems;
@@ -71,37 +71,48 @@
   */
   mkSrc = {
     host ? defaultHost,
-    args ? {},
-  }: {
-    ${flake.names.src or names.src} = recursiveUpdate args {
-      paths = {
-        local = let
-          src =
-            if host ? paths.src
-            then host.paths.src
-            else if host ? paths.dots
-            then host.paths.dots
-            else if host ? paths.home
-            then host.paths.home
-            else if host ? dots
-            then host.dots
-            else if host ? home
-            then host.home
-            else paths.local.src;
-        in
-          recursiveUpdate
-          paths.local
-          (recursiveUpdate {inherit src;} (host.paths or {}));
-        store =
-          recursiveUpdate
-          (
+    libraries ? {},
+    overrides ? {},
+  }: let
+    args =
+      external.${names.src}
+      // {
+        name = flake.names.src or names.src;
+        inherit names defaults host external;
+        paths = {
+          local = let
+            src =
+              if host ? paths.src
+              then host.paths.src
+              else if host ? paths.dots
+              then host.paths.dots
+              else if host ? paths.home
+              then host.paths.home
+              else if host ? dots
+              then host.dots
+              else if host ? home
+              then host.home
+              else paths.local.src;
+          in
+            recursiveUpdate paths.local (
+              recursiveUpdate {inherit src;} (host.paths or {})
+            );
+          store = recursiveUpdate (
             paths.store or {
               src = flake.paths.src or paths.src;
             }
-          ) (args.paths or {});
+          ) (overrides.paths or {});
+        };
       };
-    };
-  };
+
+    libs = {${names.lib} = overrides.libraries or libraries;};
+    src = recursiveUpdate args overrides // libs;
+  in
+    {
+      inherit src;
+      ${args.name} = src;
+    }
+    // libs;
 
   # ── systems ────────────────────────────────────────────────────────────────
 
@@ -147,8 +158,8 @@
       name = "config.systemBuilder";
       assertion =
         if class == "nixos"
-        then libraries ? normalized.nixpkgs.nixosSystem
-        else libraries ? normalized.nix-darwin.darwinSystem;
+        then external ? normalized.nixpkgs.nixosSystem
+        else external ? normalized.nix-darwin.darwinSystem;
       message = ''
         The required compiler for class "${class}" was not found in your flake inputs.
         Make sure you have passed the correct downstream lib/builder mapping.
@@ -156,8 +167,8 @@
       context = "validating system builder presence in flake inputs";
     };
       if class == "nixos"
-      then libraries ? normalized.nixpkgs.nixosSystem
-      else libraries ? normalized.darwin.darwinSystem;
+      then external ? normalized.nixpkgs.nixosSystem
+      else external ? normalized.darwin.darwinSystem;
 
   # ── supported systems ──────────────────────────────────────────────────────
 
@@ -232,13 +243,16 @@
           _: spec: let
             host = recursiveUpdate defaultHost spec;
             class = host.class or defaultHost.class;
-            specialArgs =
+            src = mkSrc {
+              inherit host;
+              overrides = extraArgs;
+            };
+            specialArgs = (
               {
-                inherit top host libraries;
-                src = mkSrc {inherit host args;};
+                inherit top host src;
               }
-              // (removeAttrs extraArgs ["lib" "modules" "packages"])
-              // {paths = recursiveUpdate paths host.paths;};
+              // (removeAttrs src ["lib" "modules" "packages"])
+            );
           in {
             inherit class specialArgs;
             modules =

@@ -90,4 +90,8 @@
     normalized.nixpkgs
     // classified
     // normalized;
-in {inherit classified normalized merged;}
+in {
+  inherit classified normalized merged;
+  scoped = normalized;
+  global = merged;
+}

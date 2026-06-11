@@ -1,6 +1,6 @@
-{libraries, ...}: let
-  inherit (libraries.treefmt) evalModule root;
-  inherit (libraries.config) forEachSystem;
+{lix, ...}: let
+  inherit (lix.treefmt) evalModule projectRoot;
+  inherit (lix.config) forEachSystem;
 
   evalFor = pkgs:
     evalModule pkgs {
@@ -14,6 +14,6 @@ in {
   formatter = forEachSystem (pkgs: (evalFor pkgs).config.build.wrapper);
 
   checks = forEachSystem (pkgs: {
-    formatting = (evalFor pkgs).config.build.check root;
+    formatting = (evalFor pkgs).config.build.check projectRoot;
   });
 }

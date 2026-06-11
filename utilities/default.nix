@@ -1,1 +1,1 @@
-{libraries, ...} @ base: (import ./formatting.nix {inherit libraries base;})
+{...} @ base: (import ./formatting.nix {inherit base;})

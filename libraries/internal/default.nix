@@ -1,48 +1,45 @@
 {
   bootstrap ? import ../base,
   external ? import ../external {},
+  paths,
+  defaults,
+  names,
 }: let
   inherit (bootstrap.attrsets) gets maps merge;
   flake = external.flake or {};
   name = args.names.lib;
   args = {
     inherit bootstrap;
-    defaults =
-      merge {
-        host = "ExampleHost";
-        excludes = {
-          paths = [
-            "archive"
-            "backup"
-            "review"
-            "temp"
+    defaults = merge (merge defaults {
+      host = "ExampleHost";
+      excludes = {
+        paths = [
+          "archive"
+          "backup"
+          "review"
+          "temp"
 
-            "default.nix"
-            "flake.nix"
-          ];
-        };
+          "default.nix"
+          "flake.nix"
+        ];
+      };
 
-        tags = ["core" "home"];
-      }
-      (flake.defaults or {});
+      tags = ["core" "home"];
+    }) (flake.defaults or {});
 
-    paths =
-      merge {
-        store = {
-          src = ../../.;
-          api = ../../configuration/api;
-        };
-        local.src = "/etc/nixos";
-      }
-      (flake.paths or {});
+    paths = merge paths (merge {
+      store = {
+        src = ../../.;
+        api = ../../configuration/api;
+      };
+      local.src = "/etc/nixos";
+    } (flake.paths or {}));
 
-    names =
-      merge {
-        src = "dots";
-        lib = "lix";
-        top = "_";
-      }
-      (flake.names or {});
+    names = merge names (merge {
+      src = "dots";
+      lib = "lix";
+      top = "_";
+    } (flake.names or {}));
   };
 
   scoped =
@@ -63,7 +60,7 @@
     (merge external bootstrap)
     {
       inherit (args) defaults names paths;
-      inherit flake libraries;
+      inherit flake libraries external;
     };
 
   mkLib = includes: merge base (gets includes scoped);

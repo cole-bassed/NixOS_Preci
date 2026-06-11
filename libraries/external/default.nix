@@ -85,7 +85,7 @@ in
     if (isFlakeLike resolved.inputs)
     then {
       inherit (src) flake;
-      ${args.name} = src.flake;
+      ${args.names.src} = src.flake;
     }
-    else {${args.name} = src.common;}
+    else {${args.names.src} = src.common;}
   )

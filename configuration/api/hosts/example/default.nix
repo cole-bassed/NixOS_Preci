@@ -1,4 +1,6 @@
-{
+let
+  admin = "craole";
+in {
   nixpkgs.hostPlatform = "x86_64-linux";
 
   # ---------------------------------------------------------
@@ -10,7 +12,7 @@
   class = "nixos";
   system = "x86_64-linux"; # Alternatives: aarch64-linux, x86_64-darwin
   stateVersion = "26.05";
-  paths.src = "/home/username/.dots";
+  paths.src = "/home/${admin}/.dots";
 
   # ---------------------------------------------------------
   # LOCALIZATION
@@ -28,8 +30,7 @@
   # USER ACCOUNTS
   # ---------------------------------------------------------
   users = {
-    craole = {
-      # Change this from 'username' to 'craole'
+    ${admin} = {
       role = "administrator";
       primary = true;
       autoLogin = true;

@@ -11,7 +11,15 @@
     inherit bootstrap defaults flake names paths;
   };
 
-  internal = import ./internal {inherit bootstrap external;};
+  internal = import ./internal {
+    inherit
+      bootstrap
+      defaults
+      external
+      names
+      paths
+      ;
+  };
 
   merged = merge external (merge bootstrap internal);
   # libraries =
