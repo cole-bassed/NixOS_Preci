@@ -98,7 +98,8 @@
     libs = {${names.lib} = overrides.libraries or libraries;};
     src = recursiveUpdate args overrides // libs;
   in
-    {
+    src
+    // {
       inherit src;
       ${args.name} = src;
     }
@@ -150,17 +151,12 @@
 
   # ── supported systems ──────────────────────────────────────────────────────
 
-  # supportedSystems = {extra ? []}:
-  #   unique (
-  #     extra
-  #     ++ map (host: host.system or host.platform or defaultHost.system)
-  #     (attrValues hosts)
-  #   );
-  supportedSystems = {extra ? []}: let
-    raw = extra ++ map (host: host.system or host.platform or defaultHost.system) (attrValues hosts);
-    _ = builtins.trace "supportedSystems raw: ${builtins.toJSON raw}" null;
-  in
-    unique raw;
+  supportedSystems = {extra ? []}:
+    unique (
+      extra
+      ++ map (host: host.system or host.platform or defaultHost.system)
+      (attrValues hosts)
+    );
 
   # ── perSystem ──────────────────────────────────────────────────────────────
 
@@ -218,8 +214,9 @@
       );
 
     configurations = base: args: let
-      extraArgs = base // args;
-      inherit (extraArgs.names) top;
+      extraArgs = recursiveUpdate base args;
+
+      top = extraArgs.names.top or (extraArgs.src.names.top or (names.top or "dots"));
 
       resolved =
         mapAttrs (
