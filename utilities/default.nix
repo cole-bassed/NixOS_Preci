@@ -1,1 +1,1 @@
-{lix, ...} @ base: (import ./formatting.nix {inherit lix base;})
+{lix, ...} @ base: (import ./formatting.nix {inherit lix;})
