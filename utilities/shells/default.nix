@@ -1,10 +1,9 @@
-flake: let
-  inherit (flake.libraries) forEachSystem;
+{lix, ...}: let
+  inherit (lix.config) forEachSystem;
 in {
-  packages = forEachSystem (pkgs: {});
   devShells = forEachSystem (pkgs: {
     default = pkgs.mkShell {
-      inherit (flake) name;
+      name = "dots";
       packages = with pkgs; [git sops];
     };
   });

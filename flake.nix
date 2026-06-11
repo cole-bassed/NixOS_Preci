@@ -23,7 +23,7 @@
     src.lix.assemble.flake src {
       configurations = false;
       utilities = true;
-      devShells = false;
+      devShells = true;
       templates = false;
     };
 
