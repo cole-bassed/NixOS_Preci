@@ -24,7 +24,7 @@
       configurations = false;
       utilities = true;
       devShells = true;
-      templates = false;
+      templates = true;
     };
 
   inputs = {

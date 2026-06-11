@@ -1,9 +1,8 @@
-flake: {
-  # Exposes flake templates via outputs.templates.${name}
+_: {
   templates = {
-    # basic-module = {
-    #   path = ./basic-module;
-    #   description = "Structural blueprint for a new core module";
-    # };
+    host = {
+      path = ./host;
+      description = "Scaffold for a new host configuration";
+    };
   };
 }
