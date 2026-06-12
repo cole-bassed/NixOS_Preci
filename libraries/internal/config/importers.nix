@@ -1,5 +1,4 @@
 {
-  debug,
   attrsets,
   defaults,
   filesystem,
@@ -33,7 +32,6 @@
     };
   };
 
-  inherit (debug) withContext;
   inherit (attrsets) filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
   inherit (lists) asList any concatMap elem findFirst;
