@@ -9,6 +9,7 @@ let
         ;
       concat = builtins.concatLists;
       isIn = builtins.elem;
+      inherit (builtins) foldl';
     };
 
     global = {

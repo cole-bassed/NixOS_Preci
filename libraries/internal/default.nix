@@ -5,7 +5,9 @@
   defaults,
   names,
 }: let
-  inherit (bootstrap.attrsets) gets maps merge;
+  inherit (bootstrap.attrsets) gets maps merge valuesOf;
+  inherit (bootstrap.lists) foldl';
+
   flake = external.flake or {};
   name = args.names.lib;
   args = {
@@ -61,7 +63,24 @@
     {
       inherit (args) defaults names paths;
       inherit flake libraries external;
+      inherit mkLibNested;
     };
+
+  mkLibNested = {
+    dependencies,
+    modules,
+  }: let
+    evaluated = valuesOf (maps (name: path:
+      import path (mkLib (dependencies.${name} or [])))
+    modules);
+
+    merge' = key: foldl' (acc: x: acc // (x.${key} or {})) {} evaluated;
+  in
+    {
+      scoped = merge' "scoped";
+      global = merge' "global";
+    }
+    // merge' "scoped";
 
   mkLib = includes: merge base (gets includes scoped);
 
@@ -78,14 +97,7 @@
       "types"
     ]);
 
-    # config = import ./config (mkLib [
-    #   "api"
-    #   "debug"
-    #   "modules"
-    #   "filesystem"
-    #   "lists"
-    #   "types"
-    # ]);
+    config = import ./config {inherit mkLibNested;};
 
     debug = import ./debug.nix (mkLib [
       "lists"
@@ -101,13 +113,6 @@
       "debug"
       "types"
     ]);
-
-    # modules = import ./modules.nix (mkLib [
-    #   "debug"
-    #   "filesystem"
-    #   "lists"
-    #   "types"
-    # ]);
 
     options = import ./options.nix (mkLib [
       "debug"
