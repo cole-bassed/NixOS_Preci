@@ -1,11 +1,12 @@
-{
-  lix,
-  top,
-  host,
-  ...
-} @ args:
-lix.importModules (args
-  // {
-    base = ./.;
-    includeFiles = true;
-  })
+{lix, ...} @ base: let
+  inherit (lix.modules) importModules;
+in
+  importModules (base
+    // {
+      base = ./.;
+      excludes = [
+        "ai"
+        "applications"
+        "interface"
+      ];
+    })

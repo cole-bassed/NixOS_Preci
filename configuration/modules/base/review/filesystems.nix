@@ -1,10 +1,9 @@
 {
   lix,
   top,
-  host,
+  pkgs,
   dom,
   mod,
-  pkgs,
   ...
 }: let
   inherit (lix.modules) mkIf;
