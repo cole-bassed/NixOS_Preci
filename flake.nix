@@ -19,16 +19,14 @@
     };
 
     src = import ./. {flake = {inherit defaults inputs;};};
-  in (
-    {inherit src;}
+  in {inherit src;}
     // src.lix.assemble.flake
     src {
       configurations = true;
       utilities = true;
       devShells = true;
       templates = true;
-    }
-  );
+    };
 
   inputs = {
     #~@ Core/Nix Infrastructure

@@ -5,6 +5,7 @@
   # ---------------------------------------------------------
   # SYSTEM IDENTITY
   # ---------------------------------------------------------
+  name = "Preci";
   id = "cfd69003";
   description = "Dell Precision M2800";
   type = "laptop";
@@ -16,15 +17,14 @@
   # ---------------------------------------------------------
   # LOCALIZATION
   # ---------------------------------------------------------
-  # name = "Preci";
-  # localization = {
-  #   latitude = 18.015;
-  #   longitude = -77.49;
-  #   city = "Mandeville, Jamaica";
-  #   locator = "geoclue2";
-  #   timezone = "America/Jamaica";
-  #   locale = "en_US.UTF-8";
-  # };
+  localization = {
+    latitude = 18.015;
+    longitude = -77.49;
+    city = "Mandeville, Jamaica";
+    locator = "geoclue2";
+    timezone = "America/Jamaica";
+    locale = "en_US.UTF-8";
+  };
 
   # ---------------------------------------------------------
   # USER ACCOUNTS

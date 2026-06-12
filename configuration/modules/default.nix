@@ -1,8 +1,12 @@
-{lix, ...} @ base: let
-  inherit (lix.config) assemble;
+{
+  lix,
+  top,
+  host,
+  ...
+} @ base: let
   inherit (lix.modules) importModules;
-
-  collected = importModules (base
+in
+  importModules (base
     // {
       base = ./.;
       excludes = [
@@ -13,11 +17,4 @@
         "default.nix"
         "flake.nix"
       ];
-    });
-in
-  assemble.configurations base {
-    modules = {
-      core = collected.imports;
-      home = collected.home-manager.sharedModules;
-    };
-  }
+    })

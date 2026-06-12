@@ -121,8 +121,7 @@
       else base + "/${name}";
     imported = import resolved;
   in
-    # resolved;
-    if isDir && isFunction imported
+    if isFunction imported
     then imported args
     else imported;
 
@@ -139,23 +138,26 @@
     entries = readDirAttrs {inherit base excludes includeFiles;};
     specs =
       mapAttrsToList
-      (name: type: let
-        module = importModule {
-          inherit base name;
-          args =
-            args
-            // {
-              dom = baseNameOf (toString base);
-              mod = name;
-            }
-            // extraArgs;
-        };
-      in
-        if type == "regular"
-        then {${rawTag} = module;}
-        else if module ? core || module ? home
-        then module
-        else {${rawTag} = module;})
+      (
+        name: type: let
+          module = importModule {
+            inherit base name;
+            args =
+              args
+              // {
+                dom = baseNameOf (toString base);
+                mod =
+                  if type == "regular"
+                  then strings.removeSuffix ".nix" name
+                  else name;
+              }
+              // extraArgs;
+          };
+        in
+          if module ? core || module ? home
+          then module
+          else {${rawTag} = module;}
+      )
       entries;
   in
     genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);

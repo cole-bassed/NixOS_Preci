@@ -198,6 +198,63 @@
               message = "'${name}' is not a known path in resolved.paths";
               context = "resolving path for '${name}' in assemble";
             };
+              name
+              != "configurations"
+              && (value.enable or value) != false
+        )
+        mods;
+    in
+      mergeAttrsList (
+        mapAttrsToList (
+          name: args:
+            import resolved.paths.${name}
+            (base // {args = normalise args;})
+        )
+        enabled
+      )
+      // (
+        optionalAttrs
+        ((mods.configurations or false) != false)
+        (let
+          collected =
+            import resolved.paths.configurations
+            (base
+              // {
+                top = base.names.top or (names.top or "dots");
+                args = normalise (mods.configurations);
+              });
+        in
+          assemble.configurations base {
+            modules = {
+              core = collected.imports or [];
+              home = collected."home-manager".sharedModules or [];
+            };
+          })
+      );
+
+    flaker = base: mods: let
+      normalise = value:
+        assert withContext {
+          name = "config.assemble.flake";
+          assertion = isBool value || isAttrs value;
+          message = "expected a bool or attrset, got ${typeOf value}";
+          context = "normalising path spec in assemble";
+        };
+          if isBool value
+          then optionalAttrs value {}
+          else optionalAttrs (isNotEmpty value) (removeAttrs value ["enable"]);
+
+      resolved.paths = base.paths.store or paths.store;
+
+      enabled =
+        filterAttrs (
+          name: value:
+            assert withContext {
+              name = "config.assemble.flake";
+              assertion = resolved.paths ? ${name};
+              message = "'${name}' is not a known path in resolved.paths";
+              context = "resolving path for '${name}' in assemble";
+            };
               (value.enable or value) != false
         )
         mods;

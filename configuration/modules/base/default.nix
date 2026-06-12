@@ -1,2 +1,11 @@
-{lix, ...} @ args:
-lix.importModules (args // {base = ./.;})
+{
+  lix,
+  top,
+  host,
+  ...
+} @ args:
+lix.importModules (args
+  // {
+    base = ./.;
+    includeFiles = true;
+  })
