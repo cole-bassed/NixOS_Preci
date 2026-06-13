@@ -9,15 +9,13 @@
 }: let
   exports = {
     scoped = {
-      inherit
-        collectNamedSpecs
-        collectSpecs
-        importAll
-        importModule
-        importModules
-        readDirAttrs
-        resolveEntrypoint
-        ;
+      modules = importModules;
+      module = importModule;
+      all = importAll;
+      collect = collectSpecs;
+      collectNamed = collectNamedSpecs;
+      importAttrs = readDirAttrs;
+      resolve = resolveEntrypoint;
     };
     global = {
       inherit

@@ -227,7 +227,7 @@ let
     fromList (
       map (name: {
         inherit name;
-        value = attrs.${name};
+        value = attrs.${name} or {};
       })
       names
     );

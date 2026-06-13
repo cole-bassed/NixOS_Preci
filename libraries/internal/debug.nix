@@ -141,7 +141,7 @@
     context,
     name,
   }:
-    assert debug.withContext {
+    assert assertWithContext {
       inherit name context;
       assertion =
         if type == "bool"

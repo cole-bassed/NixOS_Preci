@@ -3,6 +3,7 @@ mkLibNested {
   dependencies = {
     assembly = [
       "api"
+      "debug"
       "attrsets"
       "modules"
       "lists"
@@ -19,7 +20,7 @@ mkLibNested {
       "types"
     ];
 
-    importers = [
+    ingestion = [
       "attrsets"
       "filesystem"
       "lists"
@@ -48,7 +49,7 @@ mkLibNested {
   modules = {
     assembly = ./assembly.nix;
     environment = ./environment.nix;
-    importers = ./importers.nix;
+    injestion = ./injestion.nix;
     system = ./system.nix;
     users = ./users.nix;
   };

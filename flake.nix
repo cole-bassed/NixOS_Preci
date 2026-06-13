@@ -19,8 +19,9 @@
     };
 
     src = import ./. {flake = {inherit defaults inputs;};};
-  in {inherit src;}
-    // src.lix.assemble.flake
+  in
+    {inherit src;}
+    // src.lix.config.flake
     src {
       configurations = true;
       utilities = true;

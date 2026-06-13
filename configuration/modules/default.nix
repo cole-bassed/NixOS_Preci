@@ -1,10 +1,5 @@
-{
-  lix,
-  top,
-  host,
-  ...
-} @ base: let
-  inherit (lix.modules) importModules;
+{lix, ...} @ base: let
+  inherit (lix.config) importModules;
 in
   importModules (base
     // {
