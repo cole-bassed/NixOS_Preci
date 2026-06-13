@@ -49,7 +49,7 @@ mkLibNested {
   modules = {
     assembly = ./assembly.nix;
     environment = ./environment.nix;
-    injestion = ./injestion.nix;
+    ingestion = ./ingestion.nix;
     system = ./system.nix;
     users = ./users.nix;
   };
