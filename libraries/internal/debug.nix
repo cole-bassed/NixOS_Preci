@@ -13,11 +13,16 @@
         assertMsgFunc
         assertWithContext
         warnWithContext
+        expect
         ;
       withContext = assertWithContext;
     };
     global = {
-      inherit assertWithContext warnWithContext;
+      inherit
+        assertWithContext
+        expect
+        warnWithContext
+        ;
     };
   };
 
