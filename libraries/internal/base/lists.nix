@@ -1,16 +1,19 @@
 let
   exports = {
-    scoped = {
-      inherit
-        as
-        asIf
-        orEmpty
-        unique
-        ;
-      concat = builtins.concatLists;
-      isIn = builtins.elem;
-      inherit (builtins) foldl';
-    };
+    scoped =
+      {
+        inherit
+          as
+          asIf
+          orEmpty
+          unique
+          ;
+        concat = builtins.concatLists;
+        isIn = builtins.elem;
+        inherit (builtins) foldl';
+        select = filter;
+      }
+      // exports.global;
 
     global = {
       asList = as;

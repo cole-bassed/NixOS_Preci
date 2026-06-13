@@ -36,7 +36,7 @@
   inherit (strings) hasSuffix removeSuffix;
   inherit (types) isFunction;
 
-  candidates = entrypoints.nix or ["default.nix"];
+  candidates = entrypoints.nix.candidates or ["default.nix"];
 
   pathExcludes =
     defaults.excludes.paths or [

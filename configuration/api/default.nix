@@ -1,7 +1,7 @@
 {
   attrsets,
   lists,
-  modules,
+  config,
   ...
 }: let
   exports = {
@@ -12,7 +12,7 @@
   inherit (attrsets) attrNames mapAttrs;
   inherit (lists) elemAt filter length;
   # inherit (modules) getUsers;
-  inherit (modules) collectNamedSpecs getUsers;
+  inherit (config) collectNamed getUsers;
 
   # ---------------------------------------------------------------------------
   # TODO: Allow flat files (e.g., example.nix) alongside directories.
@@ -22,7 +22,7 @@
   # via (base + "/${name}"); if it is a "directory", use the current logic.
   # ---------------------------------------------------------------------------
   collectSpecs = tags: base:
-    collectNamedSpecs {
+    collectNamed {
       inherit base tags;
       rekey = true;
       args = {inherit attrsets;};

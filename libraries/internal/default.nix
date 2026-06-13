@@ -87,7 +87,7 @@
   libraries = {
     api = import args.paths.store.api (mkLib [
       "attrsets"
-      "modules"
+      "config"
       "lists"
     ]);
 
@@ -130,8 +130,8 @@
       "debug"
     ]);
   };
-
-  merged = merge base (
+in
+  merge base (
     global
     // scoped
     // {
@@ -143,6 +143,4 @@
         // {inherit global scoped;}
       );
     }
-  );
-in
-  merged
+  )

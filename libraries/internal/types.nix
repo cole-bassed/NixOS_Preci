@@ -24,7 +24,7 @@
   inherit (lists) head tail isList optionals reverseList;
   inherit (strings) concatStrings stringLength stringToCharacters;
   inherit (types) isAttrs isBool isString;
-  inherit (builtins) isFunction tryEval;
+  inherit (builtins) isFunction;
 
   /**
   Determine if a module, feature, or configuration target is enabled.

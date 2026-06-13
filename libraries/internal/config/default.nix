@@ -10,6 +10,7 @@ mkLibNested {
       "strings"
       "system"
       "environment"
+      "types"
     ];
 
     environment = [

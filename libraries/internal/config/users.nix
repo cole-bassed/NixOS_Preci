@@ -16,11 +16,18 @@
         mkCoreUsers
         mkSudoRules
         ;
+      all = getAll;
+      admins = getAdmins;
+      nonService = getNonService;
+      login = getNonService;
     };
     global = {
-      inherit getAll mkHomeUser mkHomeUsers mkSudoRules;
+      inherit mkHomeUser mkHomeUsers mkSudoRules;
       collectHostImports = collectImports;
       mkHostUsers = mkCoreUsers;
+      getUsers = getAll;
+      getAdminUsers = getAdmins;
+      getNonServiceUsers = getNonService;
     };
   };
 

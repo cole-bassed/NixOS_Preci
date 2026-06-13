@@ -7,10 +7,11 @@ let
         orEmpty
         trim
         ;
+      split = splitString;
     };
 
     global = {
-      inherit cat;
+      inherit cat splitString;
       trimString = trim;
       orEmptyString = orEmpty;
       joinStrings = concat;
@@ -24,6 +25,7 @@ let
     concatStringsSep
     filter
     head
+    split
     substring
     isString
     isAttrs
@@ -261,5 +263,25 @@ let
     if isString value && stringLength (trim value) > 0
     then value
     else "";
+
+  /**
+  Splits a string by a literal string separator.
+  Safe for bootstrap as it only relies on basic builtins.
+  */
+  splitString = sep: str: let
+    # Basic regex escaping for common delimiters like '.' or '-'
+    # If your paths only use dots, escaping the dot is the main priority.
+    escapedSep =
+      if sep == "."
+      then "\\."
+      else if sep == "*"
+      then "\\*"
+      else if sep == "+"
+      then "\\+"
+      else sep;
+
+    rawSplit = split escapedSep str;
+  in
+    filter isString rawSplit;
 in
   exports

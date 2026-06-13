@@ -4,7 +4,6 @@ let
       inherit
         as
         asIf
-        filter
         firstOf
         fromList
         get
@@ -13,14 +12,17 @@ let
         has
         inspect
         is
-        merge
         maps
+        merge
         namesOf
         orEmpty
         orEmpty'
+        removePath
+        removePaths
+        select
         valuesOf
         ;
-      select = filter;
+      filter = select;
       getFirst = firstOf;
       orEmptyNamed = orEmpty';
       inherit (builtins) isAttrs;
@@ -29,7 +31,7 @@ let
     global = {
       asAttrs = as;
       asAttrsIf = asIf;
-      filterAttrs = filter;
+      filterAttrs = select;
       findFirstAttr = firstOf;
       getAttrs = gets;
       getAttrsSafe = gets;
@@ -37,11 +39,15 @@ let
       inspectAttrs = inspect;
       orEmptyAttrs = orEmpty;
       recursiveUpdate = merge;
+      removeAttrPaths = removePaths;
+      removeAttrPath = removePath;
     };
   };
 
   inherit ((import ./types.nix).scoped) isNotEmpty;
-  inherit (builtins) head isFunction isList isString typeOf;
+  inherit ((import ./strings.nix).scoped) concat split;
+  inherit ((import ./lists.nix).scoped) asList asListIf;
+  inherit (builtins) concatMap head filter foldl' isFunction isAttrs isList isString tail typeOf;
   namesOf = builtins.attrNames;
   valuesOf = builtins.attrValues;
   get = builtins.getAttr;
@@ -50,6 +56,119 @@ let
   fromList = builtins.listToAttrs;
   intersect = builtins.intersectAttrs;
   maps = builtins.mapAttrs;
+
+  /**
+  Normalize raw path inputs into consistent lists of split string segments.
+  Accepts flat strings, lists of segments, or a matrix set containing `scopes` and `items`.
+
+  Options for matrix sets:
+    - root:  boolean (default: true). Unconditionally checks the root scope.
+    - exact: boolean (default: false). If true, disables full permutation generation
+             and treats the provided `scopes` as literal, exact paths.
+
+  Example:
+    normalizePaths [ { scopes = ["lib.lists"]; items = ["fold"]; exact = true; } ]
+    # => [ ["fold"] ["lib" "lists" "fold"] ]
+  */
+  normalizePaths = args:
+    concatMap (
+      entry:
+        if isAttrs entry && entry ? scopes && entry ? items
+        then let
+          permutations = list:
+            if list == []
+            then [[]]
+            else
+              concatMap (
+                element:
+                  map (
+                    perm: [element] ++ perm
+                  ) (permutations (filter (candidate: candidate != element) list))
+              )
+              list;
+
+          prefixes = list:
+            if list == []
+            then []
+            else
+              [[(head list)]]
+              ++ map (perm: [(head list)] ++ perm) (prefixes (tail list));
+
+          scopeStrings =
+            (
+              if (entry.root or true)
+              then [""]
+              else []
+            )
+            ++ (
+              if (entry.exact or false)
+              then entry.scopes
+              else
+                map
+                (concat ".")
+                (concatMap prefixes (permutations entry.scopes))
+            );
+        in
+          concatMap (
+            scope:
+              map (
+                item:
+                  split "." (
+                    if scope == ""
+                    then item
+                    else "${scope}.${item}"
+                  )
+              )
+              entry.items
+          )
+          scopeStrings
+        else if isList entry
+        then asList entry
+        else asList (split "." entry)
+    ) (
+      if isAttrs args && args ? paths
+      then args.paths
+      else args
+    );
+
+  /**
+  Recursively traverses an attribute set to remove a single pre-segmented path.
+  Matches the native `removeAttrs` input style: (set -> path).
+
+  Example:
+    removePath { lib = { lists = { fold = ...; }; }; } [ "lib" "lists" "fold" ]
+  */
+  removePath = set: list:
+    if !isAttrs set || list == []
+    then set
+    else let
+      path = {
+        initial = head list;
+        remaining = tail list;
+      };
+    in
+      if path.remaining == []
+      then removeAttrs set [path.initial]
+      else if set ? ${path.initial}
+      then set // {${path.initial} = removePath set.${path.initial} path.remaining;}
+      else set;
+
+  /**
+  Remove nested attributes from a set using a list of dot-separated path strings
+  or lists of strings. Safe against missing intermediate keys.
+
+  Example (AttrSet style):
+    removePaths { inherit set; paths = [ "lists.fold" ]; }
+
+  Example (Positional style - matches removeAttrs):
+    removePaths set [ "lists.fold" ]
+  */
+  removePaths = args: let
+    exec = set: list: foldl' removePath set (normalizePaths list);
+  in
+    if isAttrs args && args ? set && args ? paths
+    then with args; exec set paths
+    else exec args;
 
   /**
   Coerce a value into an attrset.
@@ -154,7 +273,7 @@ let
   # Type
 
   ```nix
-  filter :: (String -> a -> Bool) -> { ${String} :: a; } -> { ${String} :: a; }
+  select :: (String -> a -> Bool) -> { ${String} :: a; } -> { ${String} :: a; }
   ```
 
   # Dependencies
@@ -172,14 +291,14 @@ let
   # Examples
 
   ```nix
-  filter (_: value: value != null) { a = 1; b = null; }
+  select (_: value: value != null) { a = 1; b = null; }
   # => { a = 1; }
 
-  filter (name: _: name == "a") { a = 1; b = 2; }
+  select (name: _: name == "a") { a = 1; b = 2; }
   # => { a = 1; }
   ```
   */
-  filter = predicate: set:
+  select = predicate: set:
     fromList (
       map
       (name: {
@@ -187,7 +306,7 @@ let
         value = set.${name};
       })
       (
-        builtins.filter
+        filter
         (name: predicate name set.${name})
         (namesOf set)
       )
