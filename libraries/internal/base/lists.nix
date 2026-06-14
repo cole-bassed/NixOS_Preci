@@ -1,21 +1,32 @@
-let
+{
+  attrsets,
+  types,
+  ...
+}: let
   exports = {
     scoped =
       {
         inherit
-          as
           asIf
           orEmpty
           unique
+          foldl
+          head
+          tail
+          as
           ;
-        concat = builtins.concatLists;
+        first = head;
+        initial = head;
+        remaining = tail;
+        concat = concatLists;
         isIn = builtins.elem;
-        inherit (builtins) foldl';
         select = filter;
+        inherit (builtins) sort filter;
       }
       // exports.global;
 
     global = {
+      inherit concatLists foldl isList;
       asList = as;
       asListIf = asIf;
       orEmptyList = orEmpty;
@@ -23,19 +34,9 @@ let
     };
   };
 
-  inherit
-    (builtins)
-    attrNames
-    filter
-    head
-    isAttrs
-    isList
-    isString
-    tail
-    typeOf
-    ;
-
-  inherit ((import ./types.nix).scoped) isNotEmpty;
+  inherit (builtins) concatLists filter head isAttrs tail;
+  inherit (attrsets) namesOf;
+  inherit (types) isList isNotEmpty isString typeOf;
 
   /**
   Coerce a value into a list.
@@ -49,7 +50,7 @@ let
   # Type
 
   ```nix
-  as :: [ a ] | String | AttrSet | Path -> [ a ]
+  asList :: [ a ] | String | AttrSet | Path -> [ a ]
   ```
 
   # Dependencies
@@ -64,13 +65,13 @@ let
   # Examples
 
   ```nix
-  as "pop"
+  asList "pop"
   # => [ "pop" ]
 
-  as { a = 1; b = 2; }
+  asList { a = 1; b = 2; }
   # => [ "a" "b" ]
 
-  as ./file.nix
+  asList ./file.nix
   # => [ ./file.nix ]
   ```
   */
@@ -82,7 +83,7 @@ let
     else if isString value
     then [value]
     else if isAttrs value
-    then attrNames value
+    then namesOf value
     else if type == "path"
     then [value]
     else throw "lists.as:= unsupported type: ${type}";
@@ -200,5 +201,21 @@ let
         (value: value != (head list))
         (tail list)
       );
+
+  foldl = input: let
+    exec = fn: initial: list: let
+      recurse = accumulated: remaining:
+        if remaining == []
+        then accumulated
+        else let
+          item = head remaining;
+        in
+          recurse (fn accumulated item) (tail remaining);
+    in
+      recurse initial list;
+  in
+    if isAttrs input
+    then exec input.fn input.initial input.list
+    else fn: initial: list: exec fn initial list;
 in
   exports

@@ -1,4 +1,4 @@
-let
+{strings, ...}: let
   exports = {
     scoped = {
       inherit
@@ -18,6 +18,7 @@ let
     };
 
     global = {
+      inherit (builtins) lessThan;
       inherit
         isEmpty
         isNotEmpty
@@ -35,7 +36,7 @@ let
   };
 
   inherit (builtins) isAttrs isFunction isList isString stringLength;
-  inherit ((import ./strings.nix).scoped) trim;
+  inherit (strings) trim;
 
   /**
   Check if a value is considered empty for defaulting purposes.

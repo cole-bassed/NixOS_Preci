@@ -1,49 +1,63 @@
 let
-  inherit
-    (builtins)
-    attrNames
-    filter
-    foldl'
-    listToAttrs
-    match
-    readDir
-    stringLength
-    substring
-    ;
+  bootstrap = import ./bootstrap.nix;
+  inherit (bootstrap) fix merge mkLibs foldl';
 
-  removeNix = name: substring 0 (stringLength name - 4) name;
+  scoped = fix (libraries:
+    mkLibs {
+      libraries = merge {inherit bootstrap;} libraries;
+      base = {inherit bootstrap;};
+      specs = [
+        {
+          input = ./attrsets.nix;
+          dependencies = ["lists" "strings" "types"];
+        }
+        {
+          input = ./config.nix;
+          dependencies = ["attrsets" "lists"];
+        }
+        {
+          input = ./debug.nix;
+          dependencies = ["attrsets" "types"];
+        }
+        {
+          input = ./filesystem.nix;
+          dependencies = ["attrsets" "lists" "strings" "types"];
+        }
+        {
+          input = ./lists.nix;
+          dependencies = ["attrsets" "types"];
+        }
+        {
+          input = ./modules.nix;
+          dependencies = ["attrsets" "lists"];
+        }
+        {
+          input = ./packages.nix;
+          dependencies = ["attrsets"];
+        }
+        {
+          input = ./strings.nix;
+          dependencies = ["attrsets" "filesystem" "lists" "types"];
+        }
+        {
+          input = ./types.nix;
+          dependencies = ["strings"];
+        }
+      ];
+    });
 
-  libraries =
-    filter
-    (name: name != "default.nix" && match ".*\\.nix" name != null)
-    (attrNames (readDir ./.));
-
-  normalize = library:
-    (library.scoped or {})
-    // (library.global or {})
-    // library;
-
-  scoped = listToAttrs (
-    map
-    (name: {
-      name = removeNix name;
-      value = normalize (import ./${name});
-    })
-    libraries
-  );
-
-  global =
-    builtins
-    // foldl'
-    (
-      acc: name: let
-        library = scoped.${name};
-      in
-        if library ? global
-        then acc // library.global
-        else acc
-    )
-    {}
-    (attrNames scoped);
+  global = foldl' (acc: name: acc // (scoped.${name}.global or {})) {} [
+    "config"
+    "attrsets"
+    "debug"
+    "filesystem"
+    "lists"
+    "modules"
+    "packages"
+    "strings"
+    "types"
+  ];
 in
-  global // scoped // {inherit global scoped;}
+  {inherit scoped global;}
+  // scoped
+  // global

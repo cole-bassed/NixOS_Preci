@@ -1,4 +1,8 @@
-let
+{
+  attrsets,
+  lists,
+  ...
+}: let
   exports = {
     scoped = {
       inherit
@@ -13,8 +17,8 @@ let
     };
   };
 
-  inherit ((import ./attrsets.nix).scoped) get has maps valuesOf;
-  inherit ((import ./lists.nix).scoped) asIf concat unique;
+  inherit (attrsets) get has maps valuesOf;
+  inherit (lists) asIf concat unique;
 
   /**
   Prefer a module set's `default` entry when present.

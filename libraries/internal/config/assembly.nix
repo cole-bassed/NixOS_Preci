@@ -9,7 +9,7 @@
   names,
   strings,
   defaults,
-  system,
+  systems,
   environment,
   ...
 }: let
@@ -43,7 +43,7 @@
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (api) hosts;
   inherit (strings) concat;
-  inherit (system) getClassification getBuilder;
+  inherit (systems) getClassification getBuilder;
 
   defaultHost = api.hosts.${defaults.host};
 

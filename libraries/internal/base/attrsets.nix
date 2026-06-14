@@ -1,4 +1,9 @@
-let
+{
+  strings,
+  types,
+  lists,
+  ...
+}: let
   exports = {
     scoped = {
       inherit
@@ -44,9 +49,6 @@ let
     };
   };
 
-  inherit ((import ./types.nix).scoped) isNotEmpty;
-  inherit ((import ./strings.nix).scoped) concat split;
-  inherit ((import ./lists.nix).scoped) asList asListIf;
   inherit (builtins) concatMap head filter foldl' isFunction isAttrs isList isString tail typeOf;
   namesOf = builtins.attrNames;
   valuesOf = builtins.attrValues;
@@ -56,6 +58,10 @@ let
   fromList = builtins.listToAttrs;
   intersect = builtins.intersectAttrs;
   maps = builtins.mapAttrs;
+
+  inherit (lists) asList;
+  inherit (strings) concat split;
+  inherit (types) isNotEmpty;
 
   /**
   Normalize raw path inputs into consistent lists of split string segments.
@@ -437,6 +443,53 @@ let
     fn level;
 
   /**
+  Recursively merge two attrsets.
+
+  When both sides contain an attrset at the same key, they are merged
+  recursively. Otherwise the right-hand value wins.
+
+  # Type
+
+  ```nix
+  merge :: AttrSet -> AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+
+  - attrsets.merge
+
+  # Arguments
+
+  lhs
+  : The base attrset.
+
+  rhs
+  : The overriding attrset.
+
+  # Examples
+
+  ```nix
+  merge { a.b = 1; } { a.c = 2; }
+  # => { a = { b = 1; c = 2; }; }
+  ```
+  */
+  merge = lhs: rhs:
+    if isAttrs lhs && isAttrs rhs
+    then
+      fromList (
+        map
+        (key: {
+          name = key;
+          value =
+            if lhs ? ${key} && rhs ? ${key}
+            then merge lhs.${key} rhs.${key}
+            else rhs.${key} or lhs.${key};
+        })
+        (namesOf (lhs // rhs))
+      )
+    else rhs;
+
+  /**
   Normalize a value to a non-empty attrset.
 
   Returns the attrset unchanged when `value` is a non-empty attrset.
@@ -527,53 +580,6 @@ let
         if has nameOrArgs set
         then {${nameOrArgs} = get nameOrArgs set;}
         else {};
-
-  /**
-  Recursively merge two attrsets.
-
-  When both sides contain an attrset at the same key, they are merged
-  recursively. Otherwise the right-hand value wins.
-
-  # Type
-
-  ```nix
-  merge :: AttrSet -> AttrSet -> AttrSet
-  ```
-
-  # Dependencies
-
-  - attrsets.merge
-
-  # Arguments
-
-  lhs
-  : The base attrset.
-
-  rhs
-  : The overriding attrset.
-
-  # Examples
-
-  ```nix
-  merge { a.b = 1; } { a.c = 2; }
-  # => { a = { b = 1; c = 2; }; }
-  ```
-  */
-  merge = lhs: rhs:
-    if is lhs && is rhs
-    then
-      fromList (
-        map
-        (key: {
-          name = key;
-          value =
-            if lhs ? ${key} && rhs ? ${key}
-            then merge lhs.${key} rhs.${key}
-            else rhs.${key} or lhs.${key};
-        })
-        (namesOf (lhs // rhs))
-      )
-    else rhs;
 
   /**
   Pick the first value from an attrset.

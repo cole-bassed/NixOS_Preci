@@ -1,4 +1,4 @@
-let
+{attrsets, ...}: let
   exports = {
     scoped = {
       inherit get;
@@ -9,7 +9,7 @@ let
     };
   };
 
-  inherit ((import ./attrsets.nix).scoped) orEmpty;
+  inherit (attrsets) orEmpty;
 
   /**
   Normalize package exports from a flake-like input.

@@ -5,142 +5,122 @@
   defaults,
   names,
 }: let
-  inherit (bootstrap.attrsets) gets maps merge valuesOf;
-  inherit (bootstrap.lists) foldl';
+  inherit (bootstrap.attrsets) merge gets;
+  inherit (bootstrap.config) mkLib mkLibs;
 
-  flake = external.flake or {};
-  name = args.names.lib;
-  args = {
-    inherit bootstrap;
-    defaults = merge (merge defaults {
-      host = "ExampleHost";
-      excludes = {
-        paths = [
+  fix = fn: let set = fn set; in set;
+
+  resolved = {
+    flake = external.flake or {};
+
+    defaults =
+      merge
+      (merge defaults {
+        host = "ExampleHost";
+        excludes.paths = [
           "archive"
           "backup"
           "review"
           "temp"
-
           "default.nix"
           "flake.nix"
         ];
-      };
+        tags = ["core" "home"];
+      })
+      (resolved.flake.defaults or {});
 
-      tags = ["core" "home"];
-    }) (flake.defaults or {});
+    paths =
+      merge
+      paths
+      (merge {
+        store = {
+          src = ../../.;
+          api = ../../configuration/api;
+        };
+        local.src = "/etc/nixos";
+      })
+      (resolved.flake.paths or {});
 
-    paths = merge paths (merge {
-      store = {
-        src = ../../.;
-        api = ../../configuration/api;
-      };
-      local.src = "/etc/nixos";
-    } (flake.paths or {}));
-
-    names = merge names (merge {
-      src = "dots";
-      lib = "lix";
-      top = "_";
-    } (flake.names or {}));
+    names =
+      merge
+      names
+      (merge {
+        src = "dots";
+        lib = "lix";
+        top = "_";
+      })
+      (resolved.flake.names or {});
+    name = resolved.names.lib;
   };
 
-  scoped =
-    maps
-    (_: library: (library.scoped or {}) // (library.global or {}))
-    libraries;
-
-  global = scoped.attrsets.mergeUnique {
-    owner = library: "${name}.${library}.global";
-    what = "libraries";
-    items = libraries;
-    attrs = library:
-      libraries.${library}.global or (libraries.${library} or {});
-  };
-
-  base =
-    merge
-    (merge external bootstrap)
-    {
-      inherit (args) defaults names paths;
-      inherit flake libraries external;
-      inherit mkLibNested;
+  mkLib' = {
+    libraries,
+    input,
+    dependencies ? [],
+    output ? [],
+  }:
+    mkLib {
+      inherit input output;
+      args =
+        (
+          merge
+          (merge external bootstrap)
+          {inherit (resolved) defaults names paths external flake;}
+        )
+        // (gets dependencies libraries);
     };
 
-  mkLibNested = {
-    dependencies,
-    modules,
-  }: let
-    evaluated = valuesOf (maps (name: path:
-      import path (mkLib (dependencies.${name} or [])))
-    modules);
+  libraries = fix (
+    libraries: let
+      mk = {
+        input,
+        dependencies ? [],
+        output ? [],
+      }:
+        mkLib' {inherit input output dependencies libraries;};
+    in
+      {}
+      // mk {
+        input = resolved.paths.store.api;
+        dependencies = ["attrsets" "config" "lists"];
+      }
+      // mk {
+        input = ./attrsets.nix;
+        dependencies = ["debug" "lists" "types"];
+      }
+      // mk {
+        input = ./debug.nix;
+        dependencies = ["lists" "types"];
+      }
+      // mk {
+        input = ./filesystem.nix;
+        dependencies = ["debug" "lists"];
+      }
+      // mk {
+        input = ./lists.nix;
+        dependencies = ["debug" "types"];
+      }
+      // mk {
+        input = ./options.nix;
+        dependencies = ["debug" "lists" "types"];
+      }
+      // mk {
+        input = ./strings.nix;
+        dependencies = ["debug" "lists" "types"];
+      }
+      // mk {
+        input = ./types.nix;
+        dependencies = ["debug"];
+      }
+      // (import ./config {
+        inherit libraries mkLibs;
+      })
+  );
 
-    merge' = key: foldl' (acc: x: acc // (x.${key} or {})) {} evaluated;
-  in
-    {
-      scoped = merge' "scoped";
-      global = merge' "global";
-    }
-    // merge' "scoped";
-
-  mkLib = includes: merge base (gets includes scoped);
-
-  libraries = {
-    api = import args.paths.store.api (mkLib [
-      "attrsets"
-      "config"
-      "lists"
-    ]);
-
-    attrsets = import ./attrsets.nix (mkLib [
-      "debug"
-      "lists"
-      "types"
-    ]);
-
-    config = import ./config {inherit mkLibNested;};
-
-    debug = import ./debug.nix (mkLib [
-      "lists"
-      "types"
-    ]);
-
-    filesystem = import ./filesystem.nix (mkLib [
-      "debug"
-      "lists"
-    ]);
-
-    lists = import ./lists.nix (mkLib [
-      "debug"
-      "types"
-    ]);
-
-    options = import ./options.nix (mkLib [
-      "debug"
-      "lists"
-      "types"
-    ]);
-
-    strings = import ./strings.nix (mkLib [
-      "debug"
-      "lists"
-      "types"
-    ]);
-
-    types = import ./types.nix (mkLib [
-      "debug"
-    ]);
-  };
+  legacy = external;
+  global = merge legacy libraries;
 in
-  merge base (
-    global
-    // scoped
-    // {
-      lib = external;
-
-      "${name}" = merge external (
-        global
-        // scoped
-        // {inherit global scoped;}
-      );
-    }
-  )
+  merge global {
+    lib = legacy;
+    "${resolved.name}" = global;
+  }

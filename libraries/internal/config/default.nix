@@ -1,57 +1,79 @@
-{mkLibNested, ...}:
-mkLibNested {
-  dependencies = {
-    assembly = [
-      "api"
-      "debug"
-      "attrsets"
-      "modules"
-      "lists"
-      "strings"
-      "system"
-      "environment"
-      "types"
-    ];
-
-    environment = [
-      "api"
-      "attrsets"
-      "debug"
-      "strings"
-      "types"
-    ];
-
-    ingestion = [
-      "attrsets"
-      "filesystem"
-      "lists"
-      "strings"
-      "types"
-    ];
-
-    system = [
-      "api"
-      "attrsets"
-      "debug"
-      "lists"
-      "strings"
-      "types"
-    ];
-
-    users = [
-      "attrsets"
-      "environment"
-      "importers"
-      "lists"
-      "strings"
-    ];
-  };
-
-  modules = {
-    assembly = ./assembly.nix;
-    environment = ./environment.nix;
-    ingestion = ./ingestion.nix;
-    system = ./system.nix;
-    users = ./users.nix;
-  };
+{
+  mkLibs,
+  libraries,
+}:
+mkLibs {
+  inherit libraries;
+  prefix = ["config"];
+  specs = [
+    {
+      input = ./assembly.nix;
+      dependencies = [
+        "api"
+        "attrsets"
+        "debug"
+        "lists"
+        "strings"
+        "types"
+        "environment"
+        "names"
+        "paths"
+        "defaults"
+        "external"
+        "systems"
+        "flake"
+      ];
+    }
+    {
+      input = ./environment.nix;
+      dependencies = [
+        "flake"
+        "names"
+        "paths"
+        "defaults"
+        "external"
+        "api"
+        "attrsets"
+        "debug"
+        "lists"
+        "strings"
+        "types"
+      ];
+    }
+    {
+      input = ./ingestion.nix;
+      dependencies = [
+        "attrsets"
+        "filesystem"
+        "lists"
+        "defaults"
+        "strings"
+        "types"
+      ];
+    }
+    {
+      input = ./systems.nix;
+      dependencies = [
+        "api"
+        "flake"
+        "defaults"
+        "external"
+        "attrsets"
+        "debug"
+        "lists"
+        "strings"
+        "types"
+      ];
+    }
+    {
+      input = ./users.nix;
+      dependencies = [
+        "attrsets"
+        "environment"
+        "ingestion"
+        "lists"
+        "strings"
+      ];
+    }
+  ];
 }

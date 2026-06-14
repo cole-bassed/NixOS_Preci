@@ -1,7 +1,7 @@
 {
   attrsets,
   environment,
-  importers,
+  ingestion,
   lists,
   strings,
   ...
@@ -44,7 +44,7 @@
     ;
   inherit (environment) mkVariables mkCdAliases;
   inherit (lists) asList concatMap length;
-  inherit (importers) collectNamedSpecs;
+  inherit (ingestion) collectNamedSpecs;
   inherit (strings) concat;
 
   getAll = spec: let

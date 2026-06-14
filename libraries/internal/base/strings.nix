@@ -1,4 +1,10 @@
-let
+{
+  attrsets,
+  lists,
+  types,
+  filesystem,
+  ...
+}: let
   exports = {
     scoped = {
       inherit
@@ -7,37 +13,27 @@ let
         orEmpty
         trim
         ;
-      split = splitString;
+      split = split';
+      infix = substring;
+      length = stringLength;
+      regex = match;
     };
 
     global = {
-      inherit cat splitString;
-      trimString = trim;
-      orEmptyString = orEmpty;
+      inherit cat substring stringLength;
+      matchRegex = match;
       joinStrings = concat;
+      orEmptyString = orEmpty;
+      splitString = split';
+      trimString = trim;
     };
   };
 
-  inherit
-    (builtins)
-    attrNames
-    concatLists
-    concatStringsSep
-    filter
-    head
-    split
-    substring
-    isString
-    isAttrs
-    isList
-    lessThan
-    match
-    readDir
-    readFile
-    readFileType
-    sort
-    stringLength
-    ;
+  inherit (attrsets) namesOf;
+  inherit (builtins) concatStringsSep split substring match stringLength;
+  inherit (filesystem) readDir readFile readFileType;
+  inherit (lists) head select concatLists sort;
+  inherit (types) isAttrs isList isString lessThan;
 
   /**
   Concatenate a list of strings with an optional delimiter, safely filtering out null values.
@@ -85,7 +81,7 @@ let
   */
   concat = arg: let
     exec = delim: parts:
-      concatStringsSep delim (filter (part: part != null) parts);
+      concatStringsSep delim (select (part: part != null) parts);
   in
     if isAttrs arg
     then exec (arg.delim or "") arg.parts
@@ -169,7 +165,7 @@ let
 
     collectFiles = dir: let
       entries = readDir dir;
-      names = sort lessThan (attrNames entries);
+      names = sort lessThan (namesOf entries);
     in
       concatLists (map (
           name: let
@@ -268,7 +264,7 @@ let
   Splits a string by a literal string separator.
   Safe for bootstrap as it only relies on basic builtins.
   */
-  splitString = sep: str: let
+  split' = sep: str: let
     # Basic regex escaping for common delimiters like '.' or '-'
     # If your paths only use dots, escaping the dot is the main priority.
     escapedSep =
@@ -282,6 +278,6 @@ let
 
     rawSplit = split escapedSep str;
   in
-    filter isString rawSplit;
+    select isString rawSplit;
 in
   exports
