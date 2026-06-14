@@ -5,25 +5,70 @@
   ...
 }: let
   exports = {
-    global = {inherit mkLib mkLibs;};
-    scoped = {inherit stem nest mkLib mkLibs;};
+    global = {
+      inherit mkLib mkLibs;
+      fixedPoint = fix;
+      recursiveSelf = fix;
+    };
+    scoped = {inherit fix stem nest mkLib mkLibs;};
   };
   inherit (attrsets) gets merge;
-  inherit (lists) head foldl' asList tail;
+  inherit (lists) concat head foldl' asList tail;
   inherit (strings) matchRegex;
 
-  stem = path: let
-    name = baseNameOf (toString path);
-    groups = matchRegex "^(.*)\\.nix$" name;
-  in
-    if groups == null
-    then name
-    else head groups;
+  /**
+  Compute the fixed point of a function.
 
-  nest = path: value:
-    if path == []
-    then value
-    else {${head path} = nest (tail path) value;};
+  The function receives its own final result as input.
+  This allows self-referential values and recursive scopes to be defined
+  without using `rec`.
+
+  # Type
+  ```nix
+  fix :: (a -> a) -> a
+  ```
+
+  # Aliases
+  - `fixedPoint`
+  - `recursiveSelf`
+
+  # Dependencies
+  None
+
+  # Arguments
+  fn
+  : The function to evaluate against its own final result.
+
+  # Examples
+  ```nix
+  fix (self: {
+    a = 1;
+    b = self.a + 1;
+  })
+  # => { a = 1; b = 2; }
+  ```
+
+  ```nix
+  fixedPoint (self: {
+    inherit (self) name;
+    name = "lix";
+  })
+  # => { name = "lix"; }
+  ```
+
+  ```nix
+  recursiveSelf (libraries:
+    {
+      core = "ok";
+      derived = libraries.core;
+    })
+  # => { core = "ok"; derived = "ok"; }
+  ```
+  */
+  fix = fn: let
+    self = fn self;
+  in
+    self;
 
   mkLib = {
     input,
@@ -37,23 +82,29 @@
   in
     {
       __raw = imported;
-      # __scoped = scoped;
-      # __global = global;
+      __scoped = scoped;
+      __global = global;
       __value = value;
     }
-    // (nest (asList output) value)
-    // global;
+    // (nest (asList output) value);
 
   mkLibs = {
     libraries,
     specs,
     prefix ? [],
     base ? {},
+    seed ? {},
   }: let
+    resolved = {
+      seed = merge base seed;
+      libraries = merge resolved.seed libraries;
+    };
+
     mkOne = {
       input,
       dependencies ? [],
       output ? null,
+      prefix ? [],
     }: let
       finalOutput =
         if output == null
@@ -62,10 +113,106 @@
     in
       mkLib {
         inherit input;
-        args = gets dependencies libraries;
+        args = gets dependencies resolved.libraries;
         output = finalOutput;
       };
+
+    flattenSpec = spec:
+      if spec ? specs
+      then
+        concat (map
+          (child:
+            flattenSpec (
+              child
+              // {
+                prefix = (spec.prefix or []) ++ (child.prefix or []);
+              }
+            ))
+          (spec.specs or []))
+      else [spec];
+
+    flattenSpecs = specs: concat (map flattenSpec specs);
+  in let
+    outputs = map (spec: mkOne (spec // {prefix = prefix ++ (spec.prefix or []);})) (flattenSpecs specs);
+    nested = foldl' merge resolved.seed outputs;
+    globals = foldl' merge {} (map (o: o.__global or {}) outputs);
   in
-    foldl' merge base (map mkOne specs);
+    merge nested globals;
+
+  stem = path: let
+    name = baseNameOf (toString path);
+    groups = matchRegex "^(.*)\\.nix$" name;
+  in
+    if groups == null
+    then name
+    else head groups;
+
+  nest = path: value:
+    if path == []
+    then value
+    else {${head path} = nest (tail path) value;};
+  # mkLib = {
+  #   input,
+  #   output ? [(stem input)],
+  #   args ? {},
+  # }: let
+  #   imported = import input args;
+  #   scoped = imported.scoped or imported.global or imported;
+  #   global = imported.global or {};
+  #   value = merge scoped global;
+  # in
+  #   {
+  #     __raw = imported;
+  #     __scoped = scoped;
+  #     __global = global;
+  #     __value = value;
+  #   }
+  #   // (nest (asList output) value)
+  #   // global;
+  # mkLibs = {
+  #   libraries,
+  #   specs,
+  #   prefix ? [],
+  #   base ? {},
+  #   seed ? {},
+  # }: let
+  #   resolved = merge seed libraries;
+  #   mkOne = {
+  #     input,
+  #     dependencies ? [],
+  #     output ? null,
+  #     prefix ? [],
+  #   }: let
+  #     finalOutput =
+  #       if output == null
+  #       then prefix ++ [(stem input)]
+  #       else prefix ++ asList output;
+  #   in
+  #     mkLib {
+  #       inherit input;
+  #       args = gets dependencies resolved;
+  #       output = finalOutput;
+  #     };
+  #   flattenSpec = spec:
+  #     if spec ? specs
+  #     then
+  #       concat (map
+  #         (child:
+  #           flattenSpec (
+  #             child
+  #             // {
+  #               prefix = (spec.prefix or []) ++ (child.prefix or []);
+  #             }
+  #           ))
+  #         (spec.specs or []))
+  #     else [spec];
+  #   flattenSpecs = specs: concat (map flattenSpec specs);
+  # in
+  #   foldl'
+  #   merge
+  #   (merge base seed)
+  #   (map
+  #     (spec: mkOne (spec // {prefix = prefix ++ (spec.prefix or []);}))
+  #     (flattenSpecs specs));
 in
   exports

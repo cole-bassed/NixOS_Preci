@@ -6,7 +6,7 @@
   name ? null,
   names ? {src = "dots";},
   path ? null,
-  paths ? {},
+  paths ? {src = ../../.;},
 }: let
   inherit (bootstrap.attrsets) merge;
   inherit (bootstrap.types) isFlakeLike isAttrs;
@@ -16,45 +16,56 @@
     inherit bootstrap;
     inherit (resolved) inputs;
 
-    defaults = merge {
-      host = let
-        env = {
-          host = getEnv "HOSTNAME";
-          name = getEnv "NAME";
+    defaults = merge defaults (
+      merge {
+        host = let
+          env = {
+            host = getEnv "HOSTNAME";
+            name = getEnv "NAME";
+          };
+        in
+          if isAttrs flake && (flake.currentHost or "") != ""
+          then flake.currentHost
+          else if env.host != ""
+          then env.host
+          else if env.name != ""
+          then env.name
+          else "ExampleHost";
+
+        excludes = {
+          paths = [
+            "archive"
+            "backup"
+            "review"
+            "temp"
+
+            "default.nix"
+            "flake.nix"
+          ];
         };
-      in
-        if isAttrs flake && (flake.currentHost or "") != ""
-        then flake.currentHost
-        else if env.host != ""
-        then env.host
-        else if env.name != ""
-        then env.name
-        else "ExampleHost";
 
-      excludes = {
-        paths = [
-          "archive"
-          "backup"
-          "review"
-          "temp"
+        tags = ["core" "home"];
+      } (flake.defaults or {})
+    );
 
-          "default.nix"
-          "flake.nix"
-        ];
-      };
+    names = merge names (
+      merge {
+        src =
+          if name != null
+          then name
+          else names.src;
+      }
+      (flake.names or {})
+    );
 
-      tags = ["core" "home"];
-    } (merge defaults (flake.defaults or {}));
-
-    names.src =
-      if name != null
-      then name
-      else (names.src or "dots");
-
-    paths.store.src =
-      if path != null
-      then path
-      else (paths.store.src or ../../.);
+    paths = merge paths (
+      merge {
+        store.src =
+          if path != null
+          then path
+          else paths.src;
+      } (flake.paths or{})
+    );
 
     path = args.paths.store.src;
     name = args.names.src;
@@ -81,7 +92,8 @@
     flake = common // resolved;
   };
 in
-  resolved.libraries.merged
+  {inherit (args) defaults names paths;}
+  // resolved.libraries.merged
   // (
     if (isFlakeLike resolved.inputs)
     then {

@@ -40,5 +40,4 @@
     import paths.store.libraries
     {inherit defaults flake names paths;};
 in
-  libraries
-# libraries.config.mkSrc {inherit libraries;}
+  libraries.mkSrc {inherit libraries;}

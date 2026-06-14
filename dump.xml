@@ -1,0 +1,5166 @@
+<code_files>
+  <file name="default.nix" path="default.nix"><![CDATA[
+{flake ? {}, ...}: let
+  names = {
+    src = "dots";
+    top = "dots";
+    lib = "lix";
+  };
+
+  paths = {
+    store = {
+      src = ./.;
+      api = ./configuration/api;
+      dbg = ./debug;
+      documentation = ./documentation;
+      configurations = ./configuration/modules;
+      templates = ./templates;
+      devShells = ./utilities/shells;
+      utilities = ./utilities;
+      secrets = ./configuration/secrets;
+      libraries = ./libraries;
+    };
+    local.src = "/etc/nixos";
+  };
+
+  defaults.host = let
+    inherit (builtins) isAttrs getEnv;
+    env = {
+      host = getEnv "HOSTNAME";
+      name = getEnv "NAME";
+    };
+  in
+    if isAttrs flake && (flake.currentHost or "") != ""
+    then flake.currentHost
+    else if env.host != ""
+    then env.host
+    else if env.name != ""
+    then env.name
+    else "ExampleHost";
+
+  libraries =
+    import paths.store.libraries
+    {inherit defaults flake names paths;};
+in
+  # libraries
+  libraries.mkSrc {inherit libraries;}
+
+]]></file>
+  <file name="flake.nix" path="flake.nix"><![CDATA[
+{
+  description = "Configuration Flake";
+
+  outputs = inputs: let
+    defaults = {
+      allowUnfree = true;
+      nixpkgs = inputs.nixCore;
+      excludes = let
+        core = [
+          "nixCore"
+          "nixLegacy"
+          "nixDarwin"
+          "nixEdge"
+        ];
+      in {
+        modules = core ++ ["treeFormatter" "treefmt"];
+        overlays = core ++ ["nixHM" "home-manager"];
+      };
+    };
+
+    src = import ./. {flake = {inherit defaults inputs;};};
+  in
+    {inherit src;}
+    // src.lix.mkFlake
+    src {
+      configurations = true;
+      utilities = true;
+      devShells = true;
+      templates = true;
+    };
+
+  inputs = {
+    #~@ Core/Nix Infrastructure
+    nixCore.url = "nixpkgs/nixos-unstable";
+    nixLegacy.url = "nixpkgs/nixos-25.11";
+    nixDarwin = {
+      repo = "nix-darwin";
+      owner = "LnL7";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    nixEdge = {
+      ref = "nyxpkgs-unstable";
+      repo = "nyx";
+      owner = "chaotic-cx";
+      type = "github";
+      inputs = {
+        nixpkgs.follows = "nixCore";
+        home-manager.follows = "nixHM";
+        rust-overlay.follows = "rust";
+      };
+    };
+    nixHM = {
+      repo = "home-manager";
+      owner = "nix-community";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
+    #~@ Display/Window Managers
+    compositorNiri = {
+      repo = "niri-flake";
+      owner = "sodiboo";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
+    #~@ Utilities:= formatting, tooling, secrets
+    aiToolkit = {
+      repo = "llm-agents.nix";
+      owner = "numtide";
+      type = "github";
+      # inputs.nixpkgs.follows = "nixCore"; #? See llm-agents documentation
+    };
+    aiHermes = {
+      repo = "hermes-agent";
+      owner = "NousResearch";
+      type = "github";
+    };
+    rust = {
+      owner = "oxalica";
+      repo = "rust-overlay";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    treeFormatter = {
+      repo = "treefmt-nix";
+      owner = "numtide";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    secretsManager = {
+      repo = "sops-nix";
+      owner = "Mic92";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
+    #~@ UI/UX:= shells, launchers, styling
+    shellCaelestia = {
+      repo = "shell";
+      owner = "caelestia-dots";
+      type = "github";
+      inputs = {
+        nixpkgs.follows = "nixCore";
+        quickshell.follows = "shellQuick";
+      };
+    };
+    shellDankMaterial = {
+      # ref = "stable";
+      repo = "DankMaterialShell";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellDankMaterialPlugins = {
+      repo = "dms-plugin-registry";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellNoctalia = {
+      repo = "noctalia-shell";
+      owner = "noctalia-dev";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellQuick = {
+      repo = "quickshell";
+      owner = "outfoxxed";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    styleManager = {
+      url = "github:nix-community/stylix";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
+    #~@ Applications
+    zenBrowser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs = {
+        nixpkgs.follows = "nixCore";
+        home-manager.follows = "nixHM";
+      };
+    };
+    vicinae = {
+      repo = "vicinae";
+      owner = "vicinaehq";
+      type = "github";
+    };
+  };
+}
+
+]]></file>
+  <file name="default.nix" path="libraries/default.nix"><![CDATA[
+{
+  bootstrap ? import ./internal/base,
+  defaults ? {},
+  flake ? {},
+  names ? {},
+  paths ? {},
+}: let
+  inherit (bootstrap.attrsets) merge removePaths;
+
+  external = import ./external {
+    inherit bootstrap defaults flake names paths;
+  };
+
+  internal = import ./internal {
+    inherit bootstrap defaults external names paths;
+  };
+in
+  removePaths (merge external internal) [
+    {
+      scopes = [
+        "lib"
+        "lists"
+        "modules"
+      ];
+      items = [
+        "applyModuleArgsIfFunction"
+        "collectModules"
+        "dischargeProperties"
+        "evalOptionValue"
+        "fold"
+        "isInOldestRelease"
+        "mergeModules'"
+        "mergeModules"
+        "mkAliasOptionModuleMD"
+        "mkFixStrictness"
+        "nixpkgsVersion"
+        "pushDownProperties"
+        "unifyModuleSyntax"
+      ];
+    }
+  ]
+
+]]></file>
+  <file name="default.nix" path="libraries/external/default.nix"><![CDATA[
+{
+  bootstrap ? import ../internal/base,
+  defaults ? {allowUnfree = true;},
+  flake ? {},
+  inputs ? {},
+  name ? null,
+  names ? {src = "dots";},
+  path ? null,
+  paths ? {src = ../../.;},
+}: let
+  inherit (bootstrap.attrsets) merge;
+  inherit (bootstrap.types) isFlakeLike isAttrs;
+  inherit (bootstrap.config) getEnv;
+
+  args = {
+    inherit bootstrap;
+    inherit (resolved) inputs;
+
+    defaults = merge defaults (
+      merge {
+        host = let
+          env = {
+            host = getEnv "HOSTNAME";
+            name = getEnv "NAME";
+          };
+        in
+          if isAttrs flake && (flake.currentHost or "") != ""
+          then flake.currentHost
+          else if env.host != ""
+          then env.host
+          else if env.name != ""
+          then env.name
+          else "ExampleHost";
+
+        excludes = {
+          paths = [
+            "archive"
+            "backup"
+            "review"
+            "temp"
+
+            "default.nix"
+            "flake.nix"
+          ];
+        };
+
+        tags = ["core" "home"];
+      } (flake.defaults or {})
+    );
+
+    names = merge names (
+      merge {
+        src =
+          if name != null
+          then name
+          else names.src;
+      }
+      (flake.names or {})
+    );
+
+    paths = merge paths (
+      merge {
+        store.src =
+          if path != null
+          then path
+          else paths.src;
+      } (flake.paths or{})
+    );
+
+    path = args.paths.store.src;
+    name = args.names.src;
+  };
+
+  common = {
+    inherit (args) defaults names paths;
+    inherit (resolved) libraries;
+  };
+
+  resolved = {
+    inputs = import ./inputs.nix {
+      inputs = flake.inputs or inputs;
+      inherit (args) bootstrap defaults name;
+    };
+    libraries = import ./libraries.nix args;
+    modules = import ./modules.nix args;
+    overlays = import ./overlays.nix args;
+    packages = import ./packages.nix args;
+  };
+
+  src = {
+    inherit common;
+    flake = common // resolved;
+  };
+in
+  {inherit (args) defaults names paths;}
+  // resolved.libraries.merged
+  // (
+    if (isFlakeLike resolved.inputs)
+    then {
+      inherit (src) flake;
+      ${args.names.src} = src.flake;
+    }
+    else {${args.names.src} = src.common;}
+  )
+
+]]></file>
+  <file name="inputs.nix" path="libraries/external/inputs.nix"><![CDATA[
+{
+  bootstrap,
+  defaults,
+  inputs,
+  name,
+  ...
+}: let
+  inherit (bootstrap) attrsets lists types;
+  inherit (lists) isIn;
+  inherit (attrsets) filter firstOf;
+  inherit (types) hasLib hasModules hasOverlays isHomeManagerLike isNixDarwinLike isNixpkgsInfrastructure isNixpkgsLike isNotEmpty isTreefmtLike;
+
+  raw =
+    filter
+    (input: _: !(isIn input ["self" name]))
+    inputs;
+
+  classified = {
+    nixpkgs = filter (_: isNixpkgsLike) raw;
+    nix-darwin = filter (_: isNixDarwinLike) raw;
+    treefmt = filter (_: isTreefmtLike) raw;
+
+    home-manager =
+      filter
+      (
+        input: isHomeManagerLike
+        # || input == "nixHM"
+      )
+      raw;
+
+    modules =
+      filter
+      (
+        input: value:
+          hasModules value
+          && !(isNixpkgsLike value)
+        # && input != "nixHM"
+      )
+      raw;
+
+    overlays = filter (_: hasOverlays) raw;
+
+    packages =
+      filter
+      (_: value: value ? packages && !(isNixpkgsLike value))
+      raw;
+
+    libraries = filter (_: hasLib) raw;
+    infrastructure = filter (_: isNixpkgsInfrastructure) raw;
+  };
+
+  normalized = {
+    nixpkgs =
+      if isNotEmpty (defaults.nixpkgs or {})
+      then defaults.nixpkgs
+      else firstOf classified.nixpkgs;
+
+    nix-darwin = firstOf classified.nix-darwin;
+    home-manager = firstOf classified.home-manager;
+    treefmt = firstOf classified.treefmt;
+  };
+
+  merged = classified // normalized;
+in {inherit raw classified normalized merged;}
+
+]]></file>
+  <file name="libraries.nix" path="libraries/external/libraries.nix"><![CDATA[
+{
+  bootstrap,
+  inputs,
+  path,
+  ...
+}: let
+  inherit (bootstrap) attrsets;
+  inherit (attrsets) asIf filter maps orEmpty;
+
+  classified =
+    maps
+    (_: input: input.lib)
+    inputs.classified.libraries;
+
+  treefmt = orEmpty inputs.normalized.treefmt;
+
+  normalized =
+    (
+      maps
+      (_: input: input.lib)
+      (
+        filter
+        (_: value: value != null && value ? lib)
+        inputs.normalized
+      )
+    )
+    // {
+      nixpkgs = let
+        lib = inputs.normalized.nixpkgs.lib or (import <nixpkgs/lib>);
+        inherit (lib) asserts attrsets debug filesystem lists strings trivial types;
+      in
+        lib
+        // {
+          filesystem =
+            filesystem
+            // {
+              inherit (trivial) pathExists;
+            };
+        }
+        // {
+          debug =
+            debug
+            // {
+              inherit (builtins) tryEval;
+              inherit (asserts) assertMsg;
+              inherit (trivial) deepSeq;
+            };
+        }
+        // {
+          lists =
+            lists
+            // (with lists; {
+              firstList = findFirst;
+              first = head;
+              lastDropped = init;
+              firstItem = head;
+              lastItem = tail;
+              itemFirst = head;
+              itemLast = tail;
+              itemIndexed = elemAt;
+            });
+        }
+        // {
+          types =
+            types
+            // {
+              inherit (filesystem) isPath;
+              inherit (attrsets) isAttrs isDerivation;
+              inherit (trivial) isBool isFloat isFunction;
+              inherit
+                (strings)
+                isConvertibleWithToString
+                isInt
+                isList
+                isStorePath
+                isString
+                isStringLike
+                isValidPosixName
+                typeOf
+                ;
+            };
+        };
+    }
+    // asIf (treefmt ? lib) {
+      treefmt = treefmt.lib // {projectRoot = path;};
+    };
+
+  merged =
+    normalized.nixpkgs
+    // classified
+    // normalized;
+in {
+  inherit classified normalized merged;
+  scoped = normalized;
+  global = merged;
+}
+
+]]></file>
+  <file name="modules.nix" path="libraries/external/modules.nix"><![CDATA[
+{
+  bootstrap,
+  defaults,
+  inputs,
+  ...
+}: let
+  inherit (bootstrap) attrsets config lists;
+  inherit (attrsets) filter isAttrs namesOf;
+  inherit (config) collect;
+  inherit (lists) asListIf isIn;
+
+  excludes = defaults.excludes.modules or [];
+
+  classified =
+    filter
+    (input: _: !(isIn input excludes))
+    inputs.classified.modules;
+
+  normalized = let
+    mk = type: collect type classified;
+  in {
+    nixos = mk "nixos";
+    darwin = mk "darwin";
+    home = mk "home";
+  };
+
+  merged = classified // normalized;
+
+  mkHM = type: let
+    key =
+      if type == "nixos"
+      then "nixosModules"
+      else if type == "darwin"
+      then "darwinModules"
+      else null;
+    input = inputs.normalized.home-manager;
+  in
+    asListIf
+    (
+      (key != null)
+      && (isAttrs input)
+      && input ? ${key}.home-manager
+    )
+    input.${key}.home-manager;
+
+  mkCore = type:
+    asListIf
+    (isIn type ["nixos" "darwin"])
+    (
+      [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
+      ++ (mkHM type)
+    );
+
+  mkMods = type:
+    if (isIn type (namesOf merged))
+    then merged.${type} ++ (mkCore type)
+    else throw "external.modules.mkMods: unknown type '${type}'";
+in {inherit classified normalized excludes merged mkMods;}
+
+]]></file>
+  <file name="overlays.nix" path="libraries/external/overlays.nix"><![CDATA[
+{
+  bootstrap,
+  defaults,
+  inputs,
+  ...
+}: let
+  inherit (bootstrap) attrsets config lists;
+  inherit (config) preferDefault;
+  inherit (lists) concat elem;
+  inherit (attrsets) filter maps valuesOf;
+
+  excludes = defaults.excludes.overlays or [];
+
+  raw =
+    filter
+    (input: _: !(elem input excludes))
+    inputs.classified.overlays;
+
+  classified =
+    filter
+    (_: value: value != {})
+    (maps (_: input: input.overlays or {}) raw);
+
+  normalized = {};
+in {
+  inherit raw classified normalized excludes;
+
+  merged =
+    concat
+    (map preferDefault (valuesOf (classified // normalized)));
+}
+
+]]></file>
+  <file name="packages.nix" path="libraries/external/packages.nix"><![CDATA[
+{
+  bootstrap,
+  inputs,
+  ...
+}: let
+  inherit (bootstrap) attrsets config;
+  inherit (config) getPackages;
+  inherit (attrsets) asIf maps orEmpty;
+
+  raw = inputs.classified.packages;
+
+  classified =
+    maps
+    (_: getPackages)
+    raw;
+
+  normalized =
+    asIf (inputs.normalized.nixpkgs != null) {
+      nixpkgs = getPackages inputs.normalized.nixpkgs;
+    }
+    // asIf (inputs.normalized.home-manager != null) {
+      home-manager = getPackages inputs.normalized.home-manager;
+    };
+in {
+  inherit raw classified normalized;
+
+  merged = classified // normalized;
+  default = orEmpty normalized.nixpkgs;
+}
+
+]]></file>
+  <file name="attrsets.nix" path="libraries/internal/attrsets.nix"><![CDATA[
+{
+  attrsets,
+  debug,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        findFirst
+        getBySpec
+        getOrderedOr
+        inspect
+        inspectJSON
+        isEmpty
+        isNotEmpty
+        mapOrdered
+        mapParsedOrdered
+        mergeUnique
+        orDefault
+        orEmpty
+        orNull
+        parseOrdered
+        removeEmpty
+        resolveBySpecs
+        toOrdered
+        ;
+      dropNull = removeEmpty;
+      merge = mergeUnique;
+      orderedOf = toOrdered;
+      parsedOf = parseOrdered;
+    };
+    global = {
+      inspectAttr = inspect;
+      inspectAttrJSON = inspectJSON;
+      removeEmptyAttrs = removeEmpty;
+      orNullAttr = orNull;
+      orDefaultAttr = orDefault;
+      orEmptyAttr = orEmpty;
+      toOrderedAttrs = toOrdered;
+      mapOrderedAttrs = mapOrdered;
+      parseOrderedAttrs = parseOrdered;
+      mapParsedOrderedAttrs = mapParsedOrdered;
+      mergeUniqueAttrs = mergeUnique;
+      getAttrBySpec = getBySpec;
+      findFirstAttrs = findFirst;
+      resolveAttrsBySpecs = resolveBySpecs;
+      isEmptyAttr = isEmpty;
+      isNotEmptyAttr = isNotEmpty;
+    };
+  };
+
+  inherit (attrsets) attrNames filterAttrs hasAttr attrByPath getAttr listToAttrs mapAttrs optionalAttrs;
+  inherit (lists) concatMap filter findFirstList foldl' genList isList length map nthOr;
+  inherit (strings) concatStringsSep toJSON;
+  inherit (debug) withContext;
+  inherit (types) isAttrs typeOf isString isFunction' isPath;
+
+  isEmpty = input: (input == null) || (isAttrs input && input == {});
+  isNotEmpty = input: !isEmpty input;
+  removeEmpty = sets: filterAttrs (_: value: (isNotEmpty value)) sets;
+
+  orNull = input:
+    assert withContext {
+      name = "attrsets.orNull";
+      assertion = types.isEmpty input || isAttrs input;
+      message = "expected an attrset, got ${typeOf input}";
+      context = "evaluating attrsets.orNull";
+    };
+      if types.isEmpty input || !(isAttrs input)
+      then null
+      else input;
+
+  orDefault = default: input:
+    assert withContext {
+      name = "attrsets.orDefault";
+      assertion = isAttrs default && isAttrs input;
+      message = "expected attrsets, got default=${typeOf default} input=${typeOf input}";
+      context = "evaluating attrsets.orDefault";
+    };
+      if isNotEmpty input
+      then input
+      else default;
+
+  orEmpty = input:
+    assert withContext {
+      name = "attrsets.orEmpty";
+      assertion = isNull input || isAttrs input;
+      message = "expected an attrset or null, got ${typeOf input}";
+      context = "evaluating attrsets.orEmpty";
+    };
+      optionalAttrs (isNotEmpty input) input;
+
+  inspect = level: let
+    fn = depth: value:
+      if depth <= 0
+      then "..."
+      # else if builtins.isFunction value
+      else if isFunction' value
+      then "<function>"
+      else if isPath value
+      then "<path>"
+      else if isList value
+      then map (fn (depth - 1)) value
+      else if isAttrs value
+      then mapAttrs (_: fn (depth - 1)) value
+      else value;
+  in
+    fn level;
+
+  inspectJSON = level: value:
+    toJSON (inspect level value);
+
+  getBySpec = input: spec:
+    assert withContext {
+      name = "attrsets.getBySpec";
+      assertion = isNull input || isAttrs input;
+      message = "expected input to be an attrset or null, got ${typeOf input}";
+      context = "evaluating attrsets.getBySpec";
+    };
+      if input == null
+      then null
+      else if isList spec
+      then attrByPath spec null input
+      else if isString spec && hasAttr spec input
+      then getAttr spec input
+      else null;
+
+  findFirst = {
+    sets,
+    specs,
+    default ? null,
+  }:
+    assert withContext {
+      name = "attrsets.findFirst'";
+      assertion = isList sets && isList specs;
+      message = "expected sets and specs to be lists";
+      context = "evaluating attrsets.findFirst";
+    };
+      findFirstList (x: x != null) default
+      (concatMap (input: map (spec: getBySpec input spec) specs) sets);
+
+  resolveBySpecs = {
+    input,
+    specs,
+    default ? null,
+  }:
+    assert withContext {
+      name = "attrsets.resolveBySpecs";
+      assertion = (input == null || isAttrs input) && isList specs;
+      message = "expected input to be an attrset or null, and specs to be a list";
+      context = "evaluating attrsets.resolveBySpecs";
+    };
+      findFirst {
+        sets = [input];
+        inherit specs default;
+      };
+
+  mergeUnique = {
+    items,
+    attrs,
+    what ? "attributes",
+    owner ? (name: name),
+  }:
+    foldl'
+    (
+      acc: name: let
+        incoming = attrs name;
+        collisions = filter (k: hasAttr k acc) (attrNames incoming);
+      in
+        if collisions == []
+        then acc // incoming
+        else
+          throw ''
+            ${what}: collision(s) detected in '${owner name}':
+              ${concatStringsSep ", " collisions}
+            Each merged attribute name must be unique.
+          ''
+    )
+    {}
+    (attrNames items);
+
+  getOrderedOr = {
+    key,
+    set,
+    default ? null,
+  }:
+    if hasAttr key set
+    then getAttr key set
+    else default;
+
+  toOrdered = {value}: let
+    count =
+      if isList value
+      then length value
+      else 1;
+  in
+    listToAttrs (
+      map (position: {
+        name = toString (position + 1);
+        value = nthOr {
+          inherit position value;
+        };
+      }) (genList (x: x) count)
+    );
+
+  mapOrdered = set:
+    mapAttrs (_: value: toOrdered {inherit value;}) set;
+
+  parseOrdered = value: let
+    ordered =
+      if isAttrs value
+      then value
+      else toOrdered {inherit value;};
+
+    primary = getOrderedOr {
+      key = "1";
+      set = ordered;
+    };
+    secondary = getOrderedOr {
+      key = "2";
+      set = ordered;
+    };
+    tertiary = getOrderedOr {
+      key = "3";
+      set = ordered;
+    };
+
+    preferred = primary;
+    fallback = secondary;
+
+    default =
+      if isList value
+      then
+        if value == []
+        then null
+        else
+          nthOr {
+            position = (length value) - 1;
+            inherit value;
+          }
+      else if isAttrs value
+      then
+        getOrderedOr {
+          key = "default";
+          set = value;
+          default = primary;
+        }
+      else value;
+  in
+    ordered
+    // {inherit primary secondary tertiary preferred fallback default;};
+
+  mapParsedOrdered = set: mapAttrs (_: parseOrdered) set;
+in
+  exports
+
+]]></file>
+  <file name="attrsets.nix" path="libraries/internal/base/attrsets.nix"><![CDATA[
+{
+  strings,
+  types,
+  lists,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        as
+        asIf
+        firstOf
+        fromList
+        get
+        gets
+        gets'
+        has
+        inspect
+        is
+        maps
+        merge
+        namesOf
+        orEmpty
+        orEmpty'
+        removePath
+        removePaths
+        select
+        valuesOf
+        ;
+      filter = select;
+      getFirst = firstOf;
+      orEmptyNamed = orEmpty';
+      inherit (builtins) isAttrs;
+    };
+
+    global = {
+      asAttrs = as;
+      asAttrsIf = asIf;
+      filterAttrs = select;
+      findFirstAttr = firstOf;
+      getAttrs = gets;
+      getAttrsSafe = gets;
+      inheritAttr = orEmpty';
+      inspectAttrs = inspect;
+      orEmptyAttrs = orEmpty;
+      recursiveUpdate = merge;
+      recursiveAttrs = merge;
+      removeAttrPaths = removePaths;
+      removeAttrPath = removePath;
+    };
+  };
+
+  inherit (builtins) concatMap head filter foldl' isFunction isAttrs isList isString tail typeOf;
+  namesOf = builtins.attrNames;
+  valuesOf = builtins.attrValues;
+  get = builtins.getAttr;
+  has = builtins.hasAttr;
+  is = builtins.isAttrs;
+  fromList = builtins.listToAttrs;
+  intersect = builtins.intersectAttrs;
+  maps = builtins.mapAttrs;
+
+  inherit (lists) asList;
+  inherit (strings) concat split;
+  inherit (types) isNotEmpty;
+
+  /**
+  Normalize raw path inputs into consistent lists of split string segments.
+  Accepts flat strings, lists of segments, or a matrix set containing `scopes` and `items`.
+
+  Options for matrix sets:
+    - root:  boolean (default: true). Unconditionally checks the root scope.
+    - exact: boolean (default: false). If true, disables full permutation generation
+             and treats the provided `scopes` as literal, exact paths.
+
+  Example:
+    normalizePaths [ { scopes = ["lib.lists"]; items = ["fold"]; exact = true; } ]
+    # => [ ["fold"] ["lib" "lists" "fold"] ]
+  */
+  normalizePaths = args:
+    concatMap (
+      entry:
+        if isAttrs entry && entry ? scopes && entry ? items
+        then let
+          permutations = list:
+            if list == []
+            then [[]]
+            else
+              concatMap (
+                element:
+                  map (
+                    perm: [element] ++ perm
+                  ) (permutations (filter (candidate: candidate != element) list))
+              )
+              list;
+
+          prefixes = list:
+            if list == []
+            then []
+            else
+              [[(head list)]]
+              ++ map (perm: [(head list)] ++ perm) (prefixes (tail list));
+
+          scopeStrings =
+            (
+              if (entry.root or true)
+              then [""]
+              else []
+            )
+            ++ (
+              if (entry.exact or false)
+              then entry.scopes
+              else
+                map
+                (concat ".")
+                (concatMap prefixes (permutations entry.scopes))
+            );
+        in
+          concatMap (
+            scope:
+              map (
+                item:
+                  split "." (
+                    if scope == ""
+                    then item
+                    else "${scope}.${item}"
+                  )
+              )
+              entry.items
+          )
+          scopeStrings
+        else if isList entry
+        then asList entry
+        else asList (split "." entry)
+    ) (
+      if isAttrs args && args ? paths
+      then args.paths
+      else args
+    );
+
+  /**
+  Recursively traverses an attribute set to remove a single pre-segmented path.
+  Matches the native `removeAttrs` input style: (set -> path).
+
+  Example:
+    removePath { lib = { lists = { fold = ...; }; }; } [ "lib" "lists" "fold" ]
+  */
+  removePath = set: list:
+    if !isAttrs set || list == []
+    then set
+    else let
+      path = {
+        initial = head list;
+        remaining = tail list;
+      };
+    in
+      if path.remaining == []
+      then removeAttrs set [path.initial]
+      else if set ? ${path.initial}
+      then set // {${path.initial} = removePath set.${path.initial} path.remaining;}
+      else set;
+
+  /**
+  Remove nested attributes from a set using a list of dot-separated path strings
+  or lists of strings. Safe against missing intermediate keys.
+
+  Example (AttrSet style):
+    removePaths { inherit set; paths = [ "lists.fold" ]; }
+
+  Example (Positional style - matches removeAttrs):
+    removePaths set [ "lists.fold" ]
+  */
+  removePaths = args: let
+    exec = set: list: foldl' removePath set (normalizePaths list);
+  in
+    if isAttrs args && args ? set && args ? paths
+    then with args; exec set paths
+    else exec args;
+
+  /**
+  Coerce a value into an attrset.
+
+  ```nix
+  - Attrsets are returned unchanged
+  - Strings become `{ ${value} = true; }`
+  - Lists become an attrset of boolean flags keyed by list entries
+  ```
+
+  # Type
+
+  ```nix
+  as :: { ... } | String | [ String ] -> { ... }
+  ```
+
+  # Dependencies
+
+  None
+
+  # Arguments
+
+  value
+  : The value to coerce.
+
+  # Examples
+
+  ```nix
+  as { a = 1; }
+  # => { a = 1; }
+
+  as "debug"
+  # => { debug = true; }
+
+  as [ "debug" "types" ]
+  # => { debug = true; types = true; }
+  ```
+  */
+  as = value: let
+    type = typeOf value;
+  in
+    if is value
+    then value
+    else if isString value
+    then {${value} = true;}
+    else if isList value
+    then
+      fromList (
+        map
+        (name: {
+          inherit name;
+          value = true;
+        })
+        value
+      )
+    else throw "attrsets.as:= unsupported type: ${type}";
+
+  /**
+  Conditionally coerce a value into an attrset.
+
+  Returns `as value` when `predicate` is true, otherwise `{}`.
+
+  # Type
+
+  ```nix
+  asIf :: Bool -> ({ ... } | String | [ String ]) -> { ... }
+  ```
+
+  # Dependencies
+
+  - attrsets.as
+
+  # Arguments
+
+  predicate
+  : Whether coercion should happen.
+
+  value
+  : The value to coerce when enabled.
+
+  # Examples
+
+  ```nix
+  asIf true "flake"
+  # => { flake = true; }
+
+  asIf false "flake"
+  # => {}
+  ```
+  */
+  asIf = predicate: value:
+    if predicate
+    then as value
+    else {};
+
+  /**
+  Filter an attrset by attribute name and value.
+
+  Returns a new attrset containing only the attributes for which
+  `predicate name value` returns true.
+
+  # Type
+
+  ```nix
+  select :: (String -> a -> Bool) -> { ${String} :: a; } -> { ${String} :: a; }
+  ```
+
+  # Dependencies
+
+  None
+
+  # Arguments
+
+  predicate
+  : A function taking an attribute name and value.
+
+  set
+  : The attrset to filter.
+
+  # Examples
+
+  ```nix
+  select (_: value: value != null) { a = 1; b = null; }
+  # => { a = 1; }
+
+  select (name: _: name == "a") { a = 1; b = 2; }
+  # => { a = 1; }
+  ```
+  */
+  select = predicate: set:
+    fromList (
+      map
+      (name: {
+        inherit name;
+        value = set.${name};
+      })
+      (
+        filter
+        (name: predicate name set.${name})
+        (namesOf set)
+      )
+    );
+
+  /**
+  Select a specific list of attributes from an attrset.
+
+  Returns a new attrset containing only the keys specified in the names list.
+  Note that this function will throw an evaluation error if any of the specified
+  names do not exist in the source attrset.
+
+  # Type
+  ```nix
+  gets :: [String] -> { ${String} :: a; } -> { ${String} :: a; }
+  ```
+  # Dependencies
+  None
+
+  # Arguments
+  names
+  : A list of attribute names (strings) to extract.
+
+  attrs
+  : The source attrset to extract values from.
+
+  #Examples
+  ```nix
+  gets [ "a" "c" ] { a = 1; b = 2; c = 3; }
+  # => { a = 1; c = 3; }
+
+  gets [ "x" ] { a = 1; }
+  # => error: attribute 'x' missing
+  ```
+  */
+  gets = names: attrs:
+    fromList (
+      map (name: {
+        inherit name;
+        value = attrs.${name} or {};
+      })
+      names
+    );
+
+  /**
+  Safely select a specific list of attributes from an attrset.
+
+  Returns a new attrset containing only the keys specified in the names list
+  that actually exist in the source attrset. Missing keys are gracefully ignored.
+
+  # Type
+  ```nix
+  gets' :: [String] -> { ${String} :: a; } -> { ${String} :: a; }
+  ```
+
+  # Dependencies
+  None
+
+  # Arguments
+  names
+  : A list of attribute names (strings) to look for.
+
+  attrs
+  : The source attrset to filter against.
+
+  # Examples
+  ```nix
+  gets' [ "a" "x" ] { a = 1; b = 2; }
+  # => { a = 1; }
+  ```
+  */
+  gets' = names: attrs:
+    intersect
+    (fromList (map (name: {
+        inherit name;
+        value = null;
+      })
+      names))
+    attrs;
+
+  /**
+  Recursively inspect an attrset or list to a bounded depth.
+
+  Functions and paths are rendered as placeholders to keep inspection safe
+  and REPL-friendly.
+
+  # Type
+
+  ```nix
+  inspect :: Int -> a -> a
+  ```
+
+  # Dependencies
+
+  - debug.inspect
+
+  # Arguments
+
+  level
+  : Maximum inspection depth.
+
+  value
+  : The value to inspect.
+
+  # Examples
+
+  ```nix
+  inspect 1 { a.b = 1; }
+  # => { a = "..."; }
+  ```
+  */
+  inspect = level: let
+    fn = depth: value: let
+      type = typeOf value;
+    in
+      if depth <= 0
+      then "..."
+      else if isFunction value
+      then "<function>"
+      else if isList value
+      then map (fn (depth - 1)) value
+      else if is value
+      then maps (_: fn (depth - 1)) value
+      else if type == "path"
+      then "<path>"
+      else value;
+  in
+    fn level;
+
+  /**
+  Recursively merge two attrsets.
+
+  When both sides contain an attrset at the same key, they are merged
+  recursively. Otherwise the right-hand value wins.
+
+  # Type
+
+  ```nix
+  merge :: AttrSet -> AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+
+  - attrsets.merge
+
+  # Arguments
+
+  lhs
+  : The base attrset.
+
+  rhs
+  : The overriding attrset.
+
+  # Examples
+
+  ```nix
+  merge { a.b = 1; } { a.c = 2; }
+  # => { a = { b = 1; c = 2; }; }
+  ```
+  */
+  merge = lhs: rhs:
+    if isAttrs lhs && isAttrs rhs
+    then
+      fromList (
+        map
+        (key: {
+          name = key;
+          value =
+            if lhs ? ${key} && rhs ? ${key}
+            then merge lhs.${key} rhs.${key}
+            else rhs.${key} or lhs.${key};
+        })
+        (namesOf (lhs // rhs))
+      )
+    else rhs;
+
+  /**
+  Normalize a value to a non-empty attrset.
+
+  Returns the attrset unchanged when `value` is a non-empty attrset.
+  Returns `{}` for empty attrsets and non-attrset values.
+
+  # Type
+
+  ```nix
+  orEmpty :: a -> { ... }
+  ```
+
+  # Dependencies
+
+  - types.isNotEmpty
+
+  # Arguments
+
+  value
+  : The value to normalize.
+
+  # Examples
+
+  ```nix
+  orEmpty { a = 1; }
+  # => { a = 1; }
+
+  orEmpty {}
+  # => {}
+
+  orEmpty null
+  # => {}
+  ```
+  */
+  orEmpty = value:
+    if is value && isNotEmpty value
+    then value
+    else {};
+
+  /**
+  Inherit a named attribute from a source attrset when it exists.
+
+  Supports two call forms:
+  - Curried: `orEmpty' name set`
+  - Attrset: `orEmpty' { name = ...; set = ...; }`
+
+  # Type
+
+  ```nix
+  orEmpty' :: String -> { ... } -> { ... }
+  orEmpty' :: { name :: String; set :: { ... }; ... } -> { ... }
+  ```
+
+  # Dependencies
+
+  None
+
+  # Arguments
+
+  name
+  : The attribute name to inherit.
+
+  set
+  : The source attrset.
+
+  # Examples
+
+  ```nix
+  orEmpty' "flake" { flake = { a = 1; }; }
+  # => { flake = { a = 1; }; }
+
+  orEmpty' "flake" {}
+  # => {}
+  ```
+  */
+  orEmpty' = nameOrArgs:
+    if is nameOrArgs
+    then let
+      name = nameOrArgs.name or null;
+      set = nameOrArgs.set or null;
+    in
+      if name == null || set == null
+      then throw "attrsets.orEmpty':= expected { name, set; }"
+      else if has name set
+      then {${name} = get name set;}
+      else {}
+    else
+      set:
+        if has nameOrArgs set
+        then {${nameOrArgs} = get nameOrArgs set;}
+        else {};
+
+  /**
+  Pick the first value from an attrset.
+
+  Returns `null` when the attrset is empty.
+
+  # Type
+
+  ```nix
+  firstOf :: AttrSet -> a | null
+  ```
+
+  # Dependencies
+
+  None
+
+  # Arguments
+
+  attrs
+  : The attrset to inspect.
+
+  # Examples
+
+  ```nix
+  firstOf {}
+  # => null
+
+  firstOf { a = 1; }
+  # => 1
+  ```
+  */
+  firstOf = attrs:
+    if attrs == {}
+    then null
+    else head (valuesOf attrs);
+in
+  exports
+
+]]></file>
+  <file name="bootstrap.nix" path="libraries/internal/base/bootstrap.nix"><![CDATA[
+let
+  exports = {
+    inherit
+      asList
+      fix
+      foldl'
+      gets
+      merge
+      mkLib
+      mkLibs
+      nest
+      stem
+      ;
+  };
+
+  inherit
+    (builtins)
+    attrNames
+    foldl'
+    head
+    isAttrs
+    isList
+    isString
+    listToAttrs
+    match
+    tail
+    typeOf
+    ;
+
+  fix = fn: let result = fn result; in result;
+
+  asList = value: let
+    type = typeOf value;
+  in
+    if isList value
+    then value
+    else if isString value
+    then [value]
+    else if isAttrs value
+    then attrNames value
+    else if type == "path"
+    then [value]
+    else throw "lists.as:= unsupported type: ${type}";
+
+  gets = names: attrs:
+    listToAttrs (
+      map (name: {
+        inherit name;
+        value = attrs.${name} or {};
+      })
+      names
+    );
+
+  merge = lhs: rhs:
+    if isAttrs lhs && isAttrs rhs
+    then
+      listToAttrs (
+        map
+        (key: {
+          name = key;
+          value =
+            if lhs ? ${key} && rhs ? ${key}
+            then merge lhs.${key} rhs.${key}
+            else rhs.${key} or lhs.${key};
+        })
+        (attrNames (lhs // rhs))
+      )
+    else rhs;
+
+  stem = path: let
+    name = baseNameOf (toString path);
+    groups = match "^(.*)\\.nix$" name;
+  in
+    if groups == null
+    then name
+    else head groups;
+
+  nest = path: value:
+    if path == []
+    then value
+    else {${head path} = nest (tail path) value;};
+
+  mkLib = {
+    input,
+    output ? [(stem input)],
+    args ? {},
+  }: let
+    imported = import input args;
+    scoped = imported.scoped or imported.global or imported;
+    global = imported.global or {};
+    value = merge scoped global;
+  in
+    {
+      __raw = imported;
+      __scoped = scoped;
+      __global = global;
+      __value = value;
+    }
+    // (nest (asList output) value)
+    // global;
+
+  mkLibs = {
+    libraries,
+    specs,
+    prefix ? [],
+    base ? {},
+  }: let
+    mkOne = {
+      input,
+      dependencies ? [],
+      output ? null,
+    }: let
+      finalOutput =
+        if output == null
+        then prefix ++ [(stem input)]
+        else prefix ++ asList output;
+    in
+      mkLib {
+        inherit input;
+        args = gets dependencies libraries;
+        output = finalOutput;
+      };
+  in
+    foldl' merge base (map mkOne specs);
+in
+  exports
+
+]]></file>
+  <file name="config.nix" path="libraries/internal/base/config.nix"><![CDATA[
+{
+  attrsets,
+  lists,
+  strings,
+  ...
+}: let
+  exports = {
+    global = {
+      inherit mkLib mkLibs;
+      fixedPoint = fix;
+      recursiveSelf = fix;
+    };
+    scoped = {inherit fix stem nest mkLib mkLibs;};
+  };
+  inherit (attrsets) gets merge;
+  inherit (lists) concat head foldl' asList tail;
+  inherit (strings) matchRegex;
+
+  /**
+  Compute the fixed point of a function.
+
+  The function receives its own final result as input.
+  This allows self-referential values and recursive scopes to be defined
+  without using `rec`.
+
+  # Type
+  ```nix
+  fix :: (a -> a) -> a
+  ```
+
+  # Aliases
+  - `fixedPoint`
+  - `recursiveSelf`
+
+  # Dependencies
+  None
+
+  # Arguments
+  fn
+  : The function to evaluate against its own final result.
+
+  # Examples
+  ```nix
+  fix (self: {
+    a = 1;
+    b = self.a + 1;
+  })
+  # => { a = 1; b = 2; }
+  ```
+
+  ```nix
+  fixedPoint (self: {
+    inherit (self) name;
+    name = "lix";
+  })
+  # => { name = "lix"; }
+  ```
+
+  ```nix
+  recursiveSelf (libraries:
+    {
+      core = "ok";
+      derived = libraries.core;
+    })
+  # => { core = "ok"; derived = "ok"; }
+  ```
+  */
+  fix = fn: let
+    self = fn self;
+  in
+    self;
+
+  stem = path: let
+    name = baseNameOf (toString path);
+    groups = matchRegex "^(.*)\\.nix$" name;
+  in
+    if groups == null
+    then name
+    else head groups;
+
+  nest = path: value:
+    if path == []
+    then value
+    else {${head path} = nest (tail path) value;};
+
+  mkLib = {
+    input,
+    output ? [(stem input)],
+    args ? {},
+  }: let
+    imported = import input args;
+    scoped = imported.scoped or imported.global or imported;
+    global = imported.global or {};
+    value = merge scoped global;
+  in
+    {
+      __raw = imported;
+      __scoped = scoped;
+      __global = global;
+      __value = value;
+    }
+    // (nest (asList output) value)
+    // global;
+
+  mkLibs = {
+    libraries,
+    specs,
+    prefix ? [],
+    base ? {},
+    seed ? {},
+  }: let
+    resolved = merge seed libraries;
+
+    mkOne = {
+      input,
+      dependencies ? [],
+      output ? null,
+      prefix ? [],
+    }: let
+      finalOutput =
+        if output == null
+        then prefix ++ [(stem input)]
+        else prefix ++ asList output;
+    in
+      mkLib {
+        inherit input;
+        args = gets dependencies resolved;
+        output = finalOutput;
+      };
+
+    flattenSpec = spec:
+      if spec ? specs
+      then
+        concat (map
+          (child:
+            flattenSpec (
+              child
+              // {
+                prefix = (spec.prefix or []) ++ (child.prefix or []);
+              }
+            ))
+          (spec.specs or []))
+      else [spec];
+
+    flattenSpecs = specs: concat (map flattenSpec specs);
+  in
+    foldl'
+    merge
+    (merge base seed)
+    (map
+      (spec: mkOne (spec // {prefix = prefix ++ (spec.prefix or []);}))
+      (flattenSpecs specs));
+in
+  exports
+
+]]></file>
+  <file name="debug.nix" path="libraries/internal/base/debug.nix"><![CDATA[
+{
+  attrsets,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit inspect;
+    };
+
+    global = {
+      inspectAttrs = inspect;
+    };
+  };
+
+  inherit (attrsets) maps;
+  inherit (types) isFunction isPath isList isAttrs;
+
+  inspect = level: let
+    fn = depth: value:
+      if depth <= 0
+      then "..."
+      else if isFunction value
+      then "<function>"
+      else if isPath value
+      then "<path>"
+      else if isList value
+      then map (fn (depth - 1)) value
+      else if isAttrs value
+      then maps (_: fn (depth - 1)) value
+      else value;
+  in
+    fn level;
+in
+  exports
+
+]]></file>
+  <file name="default.nix" path="libraries/internal/base/default.nix"><![CDATA[
+let
+  bootstrap = import ./bootstrap.nix;
+  inherit (bootstrap) fix merge mkLibs foldl';
+
+  scoped = fix (libraries:
+    mkLibs {
+      libraries = merge {inherit bootstrap;} libraries;
+      base = {inherit bootstrap;};
+      specs = [
+        {
+          input = ./attrsets.nix;
+          dependencies = ["lists" "strings" "types"];
+        }
+        {
+          input = ./config.nix;
+          dependencies = ["attrsets" "lists" "strings"];
+        }
+        {
+          input = ./debug.nix;
+          dependencies = ["attrsets" "types"];
+        }
+        {
+          input = ./filesystem.nix;
+          dependencies = ["attrsets" "lists" "strings" "types"];
+        }
+        {
+          input = ./lists.nix;
+          dependencies = ["attrsets" "types"];
+        }
+        {
+          input = ./modules.nix;
+          dependencies = ["attrsets" "lists"];
+        }
+        {
+          input = ./packages.nix;
+          dependencies = ["attrsets"];
+        }
+        {
+          input = ./strings.nix;
+          dependencies = ["attrsets" "filesystem" "lists" "types"];
+        }
+        {
+          input = ./types.nix;
+          dependencies = ["strings"];
+        }
+      ];
+    });
+
+  global = foldl' (acc: name: acc // (scoped.${name}.global or {})) {} [
+    "config"
+    "attrsets"
+    "debug"
+    "filesystem"
+    "lists"
+    "modules"
+    "packages"
+    "strings"
+    "types"
+  ];
+in
+  {inherit scoped global;}
+  // scoped
+  // global
+
+]]></file>
+  <file name="filesystem.nix" path="libraries/internal/base/filesystem.nix"><![CDATA[
+_: let
+  exports = {
+    scoped = {};
+    global = {inherit readDir readFile readFileType;};
+  };
+
+  inherit (builtins) readDir readFile readFileType;
+in
+  exports
+
+]]></file>
+  <file name="lists.nix" path="libraries/internal/base/lists.nix"><![CDATA[
+{
+  attrsets,
+  types,
+  ...
+}: let
+  exports = {
+    scoped =
+      {
+        inherit
+          asIf
+          orEmpty
+          unique
+          foldl
+          head
+          tail
+          as
+          sort
+          filter
+          ;
+        first = head;
+        initial = head;
+        remaining = tail;
+        concat = concatLists;
+        isIn = elem;
+        select = filter;
+      }
+      // exports.global;
+
+    global = {
+      inherit concatLists foldl foldl' isList;
+      asList = as;
+      asListIf = asIf;
+      orEmptyList = orEmpty;
+      uniqueList = unique;
+    };
+  };
+
+  inherit (builtins) concatLists elem filter foldl' head sort tail;
+  inherit (attrsets) namesOf;
+  inherit (types) isAttrs isList isNotEmpty isString typeOf;
+
+  /**
+  Coerce a value into a list.
+
+  Supported inputs:
+  - Lists are returned unchanged
+  - Strings are wrapped as singleton lists
+  - Attrsets become `attrNames value`
+  - Paths are wrapped as singleton lists
+
+  # Type
+
+  ```nix
+  asList :: [ a ] | String | AttrSet | Path -> [ a ]
+  ```
+
+  # Dependencies
+
+  None
+
+  # Arguments
+
+  value
+  : The value to coerce.
+
+  # Examples
+
+  ```nix
+  asList "pop"
+  # => [ "pop" ]
+
+  asList { a = 1; b = 2; }
+  # => [ "a" "b" ]
+
+  asList ./file.nix
+  # => [ ./file.nix ]
+  ```
+  */
+  as = value: let
+    type = typeOf value;
+  in
+    if isList value
+    then value
+    else if isString value
+    then [value]
+    else if isAttrs value
+    then namesOf value
+    else if type == "path"
+    then [value]
+    else throw "lists.as:= unsupported type: ${type}";
+
+  /**
+  Conditionally coerce a value into a list.
+
+  Returns `as value` when `predicate` is true, otherwise `[]`.
+
+  # Type
+
+  ```nix
+  asIf :: Bool -> a -> [ b ]
+  ```
+
+  # Dependencies
+
+  - lists.as
+
+  # Arguments
+
+  predicate
+  : Whether coercion should happen.
+
+  value
+  : The value to coerce when enabled.
+
+  # Examples
+
+  ```nix
+  asIf true "debug"
+  # => [ "debug" ]
+
+  asIf false "debug"
+  # => []
+  ```
+  */
+  asIf = predicate: value:
+    if predicate
+    then as value
+    else [];
+
+  /**
+  Returns the original value only when:
+    - the value is a list
+    - the list is not empty
+
+  Otherwise returns `[]`.
+
+    # Type
+
+    ```nix
+    orEmpty :: a -> [ b ]
+    ```
+
+    # Dependencies
+
+    - types.isNotEmpty
+
+    # Arguments
+
+    value
+    : The value to normalize.
+
+    # Examples
+
+    ```nix
+    orEmpty [ 1 2 ]
+    # => [ 1 2 ]
+
+    orEmpty []
+    # => []
+
+    orEmpty null
+    # => []
+    ```
+  */
+  orEmpty = value:
+    if isList value && isNotEmpty value
+    then value
+    else [];
+
+  /**
+  Deduplicate a list while preserving first occurrence order.
+
+  # Type
+
+  ```nix
+  unique :: [ a ] -> [ a ]
+  ```
+
+  # Dependencies
+
+  - lists.unique
+
+  # Arguments
+
+  list
+  : The list to deduplicate.
+
+  # Examples
+
+  ```nix
+  unique [ 1 2 1 3 ]
+  # => [ 1 2 3 ]
+  ```
+  */
+  unique = list:
+    if list == []
+    then []
+    else
+      [(head list)]
+      ++ unique (
+        filter
+        (value: value != (head list))
+        (tail list)
+      );
+
+  foldl = input: let
+    exec = fn: initial: list: let
+      recurse = accumulated: remaining:
+        if remaining == []
+        then accumulated
+        else let
+          item = head remaining;
+        in
+          recurse (fn accumulated item) (tail remaining);
+    in
+      recurse initial list;
+  in
+    if isAttrs input
+    then exec input.fn input.initial input.list
+    else fn: initial: list: exec fn initial list;
+in
+  exports
+
+]]></file>
+  <file name="modules.nix" path="libraries/internal/base/modules.nix"><![CDATA[
+{
+  attrsets,
+  lists,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        collect
+        preferDefault
+        ;
+    };
+
+    global = {
+      collectModules = collect;
+      preferDefaultModules = preferDefault;
+    };
+  };
+
+  inherit (attrsets) get has maps valuesOf;
+  inherit (lists) asIf concat unique;
+
+  /**
+  Prefer a module set's `default` entry when present.
+
+  If `modules.default` exists, returns a singleton list containing only that
+  module. Otherwise returns all attribute values of the module set.
+
+  # Type
+
+  ```nix
+  preferDefault :: AttrSet -> List
+  ```
+
+  # Dependencies
+
+  None
+  */
+  preferDefault = modules:
+    if modules ? default
+    then [modules.default]
+    else valuesOf modules;
+
+  /**
+  Collect modules of a given type from a set of flake inputs.
+
+  Supported types:
+  - `nixos`
+  - `darwin`
+  - `home`
+
+  # Type
+
+  ```nix
+  collect :: String -> AttrSet -> List
+  ```
+
+  # Dependencies
+
+  - lists.asIf
+  - lists.unique
+  - modules.preferDefault
+  */
+  collect = type: modules: let
+    moduleAttr =
+      if type == "nixos"
+      then "nixosModules"
+      else if type == "darwin"
+      then "darwinModules"
+      else if type == "home"
+      then "homeModules"
+      else throw "modules.collect:= unsupported type '${type}'";
+
+    rawCollected =
+      if type == "home"
+      then
+        concat (
+          valuesOf (
+            maps
+            (
+              _: input: let
+                mods =
+                  if has "homeModules" input
+                  then input.homeModules
+                  else input.homeManagerModules or {};
+              in
+                preferDefault mods
+            )
+            modules
+          )
+        )
+      else
+        concat (
+          valuesOf (
+            maps
+            (
+              _: input:
+                asIf
+                (has moduleAttr input)
+                (preferDefault (get moduleAttr input))
+            )
+            modules
+          )
+        );
+  in
+    unique rawCollected;
+in
+  exports
+
+]]></file>
+  <file name="packages.nix" path="libraries/internal/base/packages.nix"><![CDATA[
+{attrsets, ...}: let
+  exports = {
+    scoped = {
+      inherit get;
+    };
+
+    global = {
+      getPackages = get;
+    };
+  };
+
+  inherit (attrsets) orEmpty;
+
+  /**
+  Normalize package exports from a flake-like input.
+
+  Supports both `legacyPackages` and `packages` layouts and always returns
+  an attrset. When both exist, `packages` is merged over `legacyPackages`.
+
+  # Type
+
+  ```nix
+  get :: AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+
+  - attrsets.orEmpty
+
+  # Arguments
+
+  input
+  : The flake-like input to inspect.
+
+  # Examples
+
+  ```nix
+  get { packages.x86_64-linux.hello = {}; }
+  # => { x86_64-linux.hello = {}; }
+  ```
+  */
+  get = input: let
+    value = orEmpty input;
+  in
+    orEmpty (value.legacyPackages or {})
+    // orEmpty (value.packages or {});
+in
+  exports
+
+]]></file>
+  <file name="strings.nix" path="libraries/internal/base/strings.nix"><![CDATA[
+{
+  attrsets,
+  lists,
+  types,
+  filesystem,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        cat
+        concat
+        orEmpty
+        trim
+        ;
+      split = split';
+      infix = substring;
+      length = stringLength;
+      regex = match;
+    };
+
+    global = {
+      inherit cat substring stringLength;
+      matchRegex = match;
+      joinStrings = concat;
+      orEmptyString = orEmpty;
+      splitString = split';
+      trimString = trim;
+    };
+  };
+
+  inherit (attrsets) namesOf;
+  inherit (builtins) concatStringsSep split substring match stringLength;
+  inherit (filesystem) readDir readFile readFileType;
+  inherit (lists) head select concatLists sort;
+  inherit (types) isAttrs isList isString lessThan;
+
+  /**
+  Concatenate a list of strings with an optional delimiter, safely filtering out null values.
+
+  Supports three hybrid invocation patterns: an explicit configuration attribute set,
+  a curried positional layout (delimiter string then parts list), or a shorthand parts
+  list (which defaults the delimiter to an empty string `""`).
+
+  # Type
+  ```nix
+  concat :: AttrSet -> String
+  concat :: String -> List String -> String
+  concat :: List String -> String
+
+  # Dependencies
+  ```nix
+  - builtins.concatStringsSep
+  - builtins.filter
+  - builtins.isAttrs
+  - builtins.isString
+  - builtins.isList
+  ```
+
+  # Arguments
+  arg
+  : An configuration attribute set { delim ?, parts }, a delimiter string, or a direct list of string parts.
+
+  # Examples
+  Nix
+  # Pattern 1: Explicit Attribute Set Configuration
+  concat { delim = "-"; parts = [ "foo" "bar" ]; }
+  # => "foo-bar"
+
+  # Pattern 2: Curried Positional (Delimiter then Parts)
+  concat "/" [ "usr" "local" "bin" ]
+  # => "usr/local/bin"
+
+  # Pattern 3: Shorthand List (Omits Delimiter)
+  concat [ "a" "b" "c" ]
+  # => "abc"
+
+  # Built-in Null Safety
+  concat { delim = "_"; parts = [ "core" null "system" ]; }
+  # => "core_system"
+  */
+  concat = arg: let
+    exec = delim: parts:
+      concatStringsSep delim (select (part: part != null) parts);
+  in
+    if isAttrs arg
+    then exec (arg.delim or "") arg.parts
+    else if isString arg
+    then parts: exec arg parts
+    else if isList arg
+    then exec "" arg
+    else exec "" [];
+
+  /**
+  Read a file, or recursively collect and label all regular files in a directory.
+
+  When given a path to a regular file, returns its contents preceded by a
+  visible path header using the path as provided.
+
+  When given a path to a directory, walks it recursively — sorted
+  lexicographically at each level — and returns each regular file's content
+  preceded by a visible path header using the file's path relative to the
+  given directory.
+
+  Path headers use this format:
+
+  ```nix
+  #========================================
+  #> PATH: relative/or/provided/path.nix
+  #========================================
+
+  Symlinks and unknown filesystem entries are silently skipped.
+
+  # Type
+  ```nix
+  cat :: Path -> String
+  ```
+
+  # Dependencies
+  None
+
+  # Arguments
+  path
+  : A path to a file or directory to read.
+
+  # Examples
+  ```nix
+  cat ./config.nix
+  ```
+  # => "#========================================\n#> PATH: ./config.nix\n#========================================\n\n{ foo = 1; }\n"
+
+  cat ./parts
+  # => "#========================================\n#> PATH: a.nix\n#========================================\n\n<content>\n\n#========================================\n#> PATH: sub/c.nix\n#========================================\n\n<content>"
+  */
+  cat = input: let
+    args =
+      if isAttrs input
+      then input
+      else {
+        root = input;
+        path = input;
+      };
+
+    inherit (args) root path;
+
+    rootStr = toString root;
+
+    pathHeader = pathString: ''
+      #========================================
+      #> PATH: ${pathString}
+      #========================================
+    '';
+
+    relPath = child: let
+      childStr = toString child;
+      start = stringLength rootStr + 1;
+      len = stringLength childStr - start;
+    in
+      substring start len childStr;
+
+    fileBlock = pathString: child: ''
+      ${pathHeader pathString}
+      ${readFile child}
+    '';
+
+    collectFiles = dir: let
+      entries = readDir dir;
+      names = sort lessThan (namesOf entries);
+    in
+      concatLists (map (
+          name: let
+            child = dir + "/${name}";
+          in
+            if entries.${name} == "regular"
+            then [(fileBlock (relPath child) child)]
+            else if entries.${name} == "directory"
+            then collectFiles child
+            else []
+        )
+        names);
+  in
+    if readFileType path == "directory"
+    then concatStringsSep "\n\n" (collectFiles path)
+    else fileBlock (relPath path) path;
+
+  /**
+  Trim leading and trailing whitespace from a string.
+
+  Non-string values are treated as the empty string.
+
+  # Type
+  ```nix
+  trim :: a -> String
+  ```
+
+  # Dependencies
+  None
+
+  # Arguments
+  value
+  : The value to trim. Non-string values produce `""`.
+
+  # Examples
+  ```nix
+  trim "  hello  "
+  # => "hello"
+
+  trim "\n  hi there\t"
+  # => "hi there"
+
+  trim null
+  # => ""
+  ```
+  */
+  trim = value: let
+    string =
+      if isString value
+      then value
+      else "";
+
+    matches = match "[[:space:]]*(.*[^[:space:]])?[[:space:]]*" string;
+  in
+    if matches != null
+    then head matches
+    else "";
+
+  /**
+  Return a non-empty string as-is, otherwise return `""`.
+
+  Strings containing only whitespace are treated as empty.
+
+  # Type
+  ```nix
+  orEmpty :: a -> String
+  ```
+
+  # Dependencies
+  ```nix
+  - strings.trim
+  ```
+  # Arguments
+
+  value
+  : The value to normalize.
+
+  # Examples
+  ```nix
+  orEmpty "hello"
+  # => "hello"
+
+  orEmpty "   "
+  # => ""
+
+  orEmpty null
+  # => ""
+  ```
+  */
+  orEmpty = value:
+    if isString value && stringLength (trim value) > 0
+    then value
+    else "";
+
+  /**
+  Splits a string by a literal string separator.
+  Safe for bootstrap as it only relies on basic builtins.
+  */
+  split' = sep: str: let
+    # Basic regex escaping for common delimiters like '.' or '-'
+    # If your paths only use dots, escaping the dot is the main priority.
+    escapedSep =
+      if sep == "."
+      then "\\."
+      else if sep == "*"
+      then "\\*"
+      else if sep == "+"
+      then "\\+"
+      else sep;
+
+    rawSplit = split escapedSep str;
+  in
+    select isString rawSplit;
+in
+  exports
+
+]]></file>
+  <file name="types.nix" path="libraries/internal/base/types.nix"><![CDATA[
+{strings, ...}: let
+  exports = {
+    scoped = {
+      inherit
+        isEmpty
+        isNotEmpty
+        hasLib
+        hasModules
+        hasOverlays
+        isFlakeLike
+        isHomeManagerLike
+        isNixDarwinLike
+        isNixpkgsInfrastructure
+        isNixpkgsLike
+        isTreefmtLike
+        ;
+      inherit isAttrs isFunction isList isString;
+    };
+
+    global = {
+      inherit (builtins) lessThan;
+      inherit
+        isEmpty
+        isNotEmpty
+        hasLib
+        hasModules
+        hasOverlays
+        isFlakeLike
+        isHomeManagerLike
+        isNixDarwinLike
+        isNixpkgsInfrastructure
+        isNixpkgsLike
+        isTreefmtLike
+        ;
+    };
+  };
+
+  inherit (builtins) isAttrs isFunction isList isString stringLength;
+  inherit (strings) trim;
+
+  /**
+  Check if a value is considered empty for defaulting purposes.
+
+  # Emptiness Rules
+
+  - `null`: empty
+  - Strings: empty when `""` or whitespace-only
+  - Lists: empty when `[]`
+  - Attrsets: empty when `{}`
+  - Numbers, booleans, and paths: never empty
+  - Functions: unsupported and cause an error
+
+  # Type
+
+  ```nix
+  isEmpty :: a -> Bool
+  ```
+
+  # Dependencies
+
+  - strings.trim
+
+  # Arguments
+
+  value
+  : The value to test.
+
+  # Examples
+
+  ```nix
+  isEmpty null
+  # => true
+
+  isEmpty "   "
+  # => true
+
+  isEmpty {}
+  # => true
+
+  isEmpty [ 1 ]
+  # => false
+  ```
+  */
+  isEmpty = value:
+    assert !isFunction value || throw "isEmpty:= functions are not supported";
+      if value == null
+      then true
+      else if isString value
+      then value == "" || stringLength (trim value) == 0
+      else if isList value
+      then value == []
+      else if isAttrs value
+      then value == {}
+      else false;
+
+  /**
+  Return whether a value is not empty according to `isEmpty`.
+
+  # Type
+
+  ```nix
+  isNotEmpty :: a -> Bool
+  ```
+
+  # Dependencies
+
+  - types.isEmpty
+
+  # Arguments
+
+  value
+  : The value to test.
+
+  # Examples
+
+  ```nix
+  isNotEmpty "hello"
+  # => true
+
+  isNotEmpty []
+  # => false
+  ```
+  */
+  isNotEmpty = value: !isEmpty value;
+
+  /**
+  Return whether an input exposes a `lib` attribute.
+
+  # Type
+
+  ```nix
+  hasLib :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasLib = input:
+    input ? lib;
+
+  /**
+  Return whether an input exposes any recognized module namespace.
+
+  # Type
+
+  ```nix
+  hasModules :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasModules = input:
+    input ? nixosModules
+    || input ? darwinModules
+    || input ? homeModules
+    || input ? homeManagerModules;
+
+  /**
+  Return whether an input exposes overlays.
+
+  # Type
+
+  ```nix
+  hasOverlays :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasOverlays = input:
+    input ? overlays;
+
+  /**
+  Return whether an input summary should be treated as flake-like.
+
+  # Type
+
+  ```nix
+  isFlakeLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - types.isNotEmpty
+  */
+  isFlakeLike = inputs:
+    isNotEmpty (inputs.classified.modules or {})
+    || isNotEmpty (inputs.classified.overlays or {})
+    || isNotEmpty (inputs.normalized.nixpkgs or {});
+
+  /**
+  Return whether an input looks like a nixpkgs-style input.
+
+  # Type
+
+  ```nix
+  isNixpkgsLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isNixpkgsLike = input:
+    input ? legacyPackages
+    && input ? lib
+    && !(input ? __functor);
+
+  /**
+  Return whether an input looks like nix-darwin.
+
+  # Type
+
+  ```nix
+  isNixDarwinLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isNixDarwinLike = input:
+    input ? darwinModules
+    && input ? lib
+    && !(input ? legacyPackages)
+    && !(input ? nixosModules)
+    && !(input ? homeModules)
+    && !(input ? homeManagerModules);
+
+  /**
+  Return whether an input looks like home-manager.
+
+  # Type
+
+  ```nix
+  isHomeManagerLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isHomeManagerLike = input:
+    input ? nixosModules
+    && input ? darwinModules
+    && input ? legacyPackages
+    && input ? lib
+    && input ? flakeModules
+    && !(input ? homeModules);
+
+  /**
+  Return whether an input looks like treefmt-nix.
+
+  # Type
+
+  ```nix
+  isTreefmtLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - flakes.hasModules
+  - flakes.hasOverlays
+  */
+  isTreefmtLike = input:
+    input ? lib
+    && input.lib ? evalModule
+    && input ? flakeModule
+    && !(input ? legacyPackages)
+    && !(hasModules input)
+    && !(hasOverlays input);
+
+  /**
+  Return whether an input is nixpkgs-like infrastructure only.
+
+  # Type
+
+  ```nix
+  isNixpkgsInfrastructure :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - flakes.isNixpkgsLike
+  - flakes.hasModules
+  - flakes.hasOverlays
+  */
+  isNixpkgsInfrastructure = input:
+    isNixpkgsLike input
+    && !(hasModules input)
+    && !(hasOverlays input);
+in
+  exports
+
+]]></file>
+  <file name="assembly.nix" path="libraries/internal/config/assembly.nix"><![CDATA[
+{
+  api,
+  debug,
+  attrsets,
+  lists,
+  external,
+  types,
+  paths,
+  names,
+  strings,
+  defaults,
+  systems,
+  environment,
+  ...
+}: let
+  exports = {
+    scoped = {
+      configurations = mkConfigurations;
+      systems = mkConfigurations;
+      flake = mkFlake;
+      inherit mkConfigurations mkFlake;
+    };
+    global = {
+      inherit mkFlake mkConfigurations;
+    };
+  };
+
+  inherit (external.flake.modules) mkMods;
+  inherit (attrsets) namesOf filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs recursiveUpdate;
+  inherit (debug) withContext expect;
+  inherit (environment) mkSrc;
+  inherit (lists) elem foldl' groupBy;
+  inherit (types) isAttrs isBool isEnabled typeOf;
+  inherit (api) hosts;
+  inherit (strings) concat;
+  inherit (systems) getClassification getBuilder;
+
+  defaultHost = api.hosts.${defaults.host};
+
+  mkPaths = base:
+    mapAttrs (
+      name: value:
+        expect {
+          type = "path";
+          inherit value;
+          name = "config.assembly.mkFlake.paths";
+          context = "validating paths before import loop";
+        }
+    )
+    (recursiveUpdate paths.store (base.paths.store or (base.paths or {})));
+
+  mkFlake = arg: let
+    _name = "config.assembly.mkFlake";
+    exec = base: mods: let
+      normalize = value:
+        assert withContext {
+          name = _name;
+          assertion = isBool value || isAttrs value;
+          message = "expected a bool or attrset, got ${typeOf value}";
+          context = "normalising path spec in assemble";
+        };
+          optionalAttrs (isAttrs value) (removeAttrs value ["enable"]);
+
+      resolved = {
+        paths = mkPaths base;
+      };
+
+      enabled =
+        filterAttrs (
+          name: value:
+            assert withContext {
+              inherit name;
+              assertion = resolved.paths ? ${name};
+              message = "'${name}' is not a known path in paths.store";
+              context = "resolving path for '${name}' in assemble";
+            };
+              (name != "configurations") && (isEnabled value)
+        )
+        mods;
+    in
+      mergeAttrsList (
+        mapAttrsToList (
+          name: args:
+            import resolved.paths.${name} (base // {args = normalize args;})
+        )
+        enabled
+      )
+      // (
+        let
+          configurations = mods.configurations or false;
+        in
+          optionalAttrs (isEnabled configurations) (
+            mkConfigurations {
+              inherit base;
+              args = {
+                modules = let
+                  collected = import resolved.paths.configurations (
+                    recursiveUpdate base {
+                      top = base.names.top or (names.top or "dots");
+                      args = normalize configurations;
+                    }
+                  );
+                in {
+                  core = collected.imports or [];
+                  home = collected."home-manager".sharedModules or [];
+                };
+              };
+            }
+          )
+      );
+  in
+    if isAttrs arg && arg ? base && arg ? mods
+    then exec arg.base arg.mods
+    else mods: exec arg mods;
+
+  mkConfigurations = arg: let
+    _name = "config.assembly.mkConfigurations";
+    exec = base: args: let
+      extraArgs =
+        recursiveUpdate (expect {
+          name = _name;
+          type = "attrs";
+          value = base;
+          context = "validating base in systems";
+        }) (
+          optionalAttrs (args != null)
+          (expect {
+            name = _name;
+            type = "attrs";
+            value = args;
+            context = "validating args type in systems";
+          })
+        );
+      resolved =
+        mapAttrs (_: spec: let
+          host = recursiveUpdate defaultHost spec;
+          class = host.class or defaultHost.class;
+          src = mkSrc {
+            inherit host;
+            overrides = extraArgs;
+          };
+          specialArgs =
+            {
+              inherit host src args;
+              top = src.names.top or names.top;
+            }
+            // (removeAttrs src ["lib" "modules" "packages"]);
+        in {
+          inherit class specialArgs;
+          modules =
+            (mkMods class)
+            ++ (src.modules.core or [])
+            ++ (host.imports or [])
+            ++ [
+              {
+                home-manager = {
+                  extraSpecialArgs = specialArgs;
+                  backupFileExtension = concat {
+                    delim = "-";
+                    parts = [src.name "backup"];
+                  };
+                  sharedModules = (mkMods "home") ++ (src.modules.home or []);
+                  useGlobalPkgs = true;
+                  useUserPackages = true;
+                };
+              }
+            ];
+        })
+        hosts;
+    in
+      foldl' recursiveUpdate {} (
+        mapAttrsToList (
+          class: hostNames: let
+            classification = getClassification class;
+            builder = getBuilder class;
+            opts = ["nixos" "darwin"];
+          in
+            assert withContext {
+              name = _name;
+              assertion = elem class opts;
+              message = "unknown class '${class}' in host specs, expected one of [${concat {
+                delim = ", ";
+                parts = opts;
+              }}]";
+              context = "grouping hosts by class";
+            }; {
+              ${classification} = genAttrs hostNames (
+                name:
+                  builder {inherit (resolved.${name}) specialArgs modules;}
+              );
+            }
+        )
+        (groupBy (name: resolved.${name}.class) (namesOf resolved))
+      );
+  in
+    if isAttrs arg && arg ? base
+    then exec arg.base (arg.args or {})
+    else args: exec arg args;
+in
+  exports
+
+]]></file>
+  <file name="default.nix" path="libraries/internal/config/default.nix"><![CDATA[
+let
+  mk = {
+    input,
+    output ? [],
+    dependencies ? [
+      "api"
+      "assembly"
+      "attrsets"
+      "config"
+      "debug"
+      "defaults"
+      "environment"
+      "external"
+      "filesystem"
+      "flake"
+      "ingestion"
+      "lists"
+      "names"
+      "options"
+      "paths"
+      "strings"
+      "systems"
+      "types"
+      "types"
+      "users"
+    ],
+  }: {inherit input dependencies output;};
+in {
+  prefix = ["config"];
+  specs = [
+    (mk {input = ./assembly.nix;})
+    (mk {input = ./environment.nix;})
+    (mk {input = ./ingestion.nix;})
+    (mk {input = ./systems.nix;})
+    (mk {input = ./users.nix;})
+  ];
+}
+
+]]></file>
+  <file name="environment.nix" path="libraries/internal/config/environment.nix"><![CDATA[
+{
+  api,
+  debug,
+  types,
+  attrsets,
+  external,
+  flake,
+  strings,
+  paths,
+  names,
+  defaults,
+  ...
+}: let
+  exports = {
+    scoped = {inherit source mkCdAliases mkVariables;};
+    global = {
+      inherit mkCdAliases;
+      mkSrc = source;
+      mkEnvVars = mkVariables;
+    };
+  };
+
+  inherit (debug) expect;
+  inherit (types) isAttrs isString;
+  inherit (attrsets) foldlAttrs recursiveUpdate;
+  inherit (strings) concat toUpper;
+
+  defaultHost = api.hosts.${defaults.host};
+
+  /**
+  Build the basic `dots` path configuration for a host.
+
+  # Type
+  ```nix
+  source :: { host :: AttrSet?, libraries :: AttrSet?, overrides :: AttrSet? } -> AttrSet
+  ```
+
+  # Dependencies
+  ```nix
+  - debug.expect
+  - attrsets.recursiveUpdate
+  ```
+
+  # Arguments
+  host
+  : Target machine profile configurations. Defaults to the system primary host.
+
+  libraries
+  : Target environment specific shared code injection.
+
+  overrides
+  : Explicit framework and configuration adjustments to overlay on the defaults.
+  */
+  source = {
+    host ? defaultHost,
+    libraries ? {},
+    overrides ? {},
+  }: let
+    _name = "config.environment.mkSrc";
+
+    checked = {
+      host = expect {
+        name = _name;
+        type = "attrs";
+        value = host;
+        context = "validating target host specifications";
+      };
+
+      overrides = expect {
+        name = _name;
+        type = "attrs";
+        value = overrides;
+        context = "validating environment value overrides";
+      };
+    };
+
+    args =
+      (
+        if builtins.hasAttr names.src external
+        then builtins.getAttr names.src external
+        else {}
+      )
+      // {
+        name = flake.names.src or names.src;
+        inherit names defaults host external;
+        paths = {
+          local = let
+            src =
+              checked.host.paths.src or (
+                checked.host.paths.dots or (
+                  checked.host.paths.home or (
+                    checked.host.dots or (
+                      checked.host.home or paths.local.src
+                    )
+                  )
+                )
+              );
+          in
+            recursiveUpdate paths.local (
+              recursiveUpdate {inherit src;} (checked.host.paths or {})
+            );
+          store = recursiveUpdate (
+            paths.store or {
+              src = flake.paths.src or paths.src;
+            }
+          ) (checked.overrides.paths or {});
+        };
+      };
+
+    libs = {${names.lib} = checked.overrides.libraries or libraries;};
+    src = recursiveUpdate args checked.overrides // libs;
+  in
+    src
+    // {
+      inherit src;
+      ${args.name} = src;
+    }
+    // libs;
+
+  /**
+  Flatten structured attribute paths downwards into a standard uppercase
+  POSIX shell environment variable map.
+
+  # Type
+  ```nix
+  mkVariables :: { prefix :: String?, attrs :: AttrSet } -> AttrSet
+  ```
+
+  # Dependencies
+  ```nix
+  - debug.expect
+  - attrsets.foldlAttrs
+  - strings.toUpper
+  ```
+
+  # Arguments
+  prefix
+  : String token block to pre-append to key configurations.
+
+  attrs
+  : The structured dataset map targeted for environment emission.
+  */
+  mkVariables = arg: let
+    _name = "config.environment.mkVariables";
+    checked = expect {
+      name = _name;
+      type = "attrs";
+      value = arg;
+      context = "flattening attribute architecture maps into shell constants";
+    };
+
+    prefix = checked.prefix or null;
+    attrs = checked.attrs or {};
+  in
+    foldlAttrs (
+      acc: name: value: let
+        # The hybrid curried pattern removes the entire conditional block!
+        key = toUpper (concat "_" [prefix name]);
+      in
+        if isAttrs value && value ? base
+        then
+          acc
+          // {"${key}" = value.base;}
+          // mkVariables {
+            prefix = key;
+            attrs = value;
+          }
+        else if isString value
+        then acc // {"${key}" = value;}
+        else acc
+    ) {}
+    attrs;
+
+  /**
+  Generate shell directory jumping aliases based on existing framework path maps.
+
+  # Type
+  ```nix
+  mkCdAliases :: AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+  ```nix
+  - debug.expect
+  - attrsets.foldlAttrs
+  ```
+
+  # Arguments
+  attrs
+  : Base directory mapping layouts providing a path schema.
+  */
+  mkCdAliases = attrs: let
+    _name = "config.environment.mkCdAliases";
+    _attrs = expect {
+      name = _name;
+      type = "attrs";
+      value = attrs;
+      context = "generating filesystem path alias macros";
+    };
+  in
+    foldlAttrs (
+      acc: name: value:
+        if isAttrs value && value ? base
+        then acc // {"cd${name}" = "cd ${value.base}";}
+        else acc
+    ) {}
+    _attrs;
+in
+  exports
+
+]]></file>
+  <file name="ingestion.nix" path="libraries/internal/config/ingestion.nix"><![CDATA[
+{
+  attrsets,
+  defaults,
+  filesystem,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      modules = importModules;
+      module = importModule;
+      all = importAll;
+      collect = collectSpecs;
+      collectNamed = collectNamedSpecs;
+      importAttrs = readDirAttrs;
+      resolve = resolveEntrypoint;
+    };
+    global = {
+      inherit
+        collectNamedSpecs
+        collectSpecs
+        importAll
+        importModule
+        importModules
+        readDirAttrs
+        resolveEntrypoint
+        ;
+    };
+  };
+
+  inherit (attrsets) filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (filesystem) pathExists readDir entrypoint entrypoints;
+  inherit (lists) asList any concatMap elem findFirst;
+  inherit (strings) hasSuffix removeSuffix;
+  inherit (types) isFunction;
+
+  candidates = entrypoints.nix.candidates or ["default.nix"];
+
+  pathExcludes =
+    defaults.excludes.paths or [
+      "archive"
+      "backup"
+      "review"
+      "temp"
+      "default.nix"
+      "flake.nix"
+    ];
+
+  readDirAttrs = {
+    base,
+    excludes ? pathExcludes,
+    predicate ? null,
+    includeFiles ? false,
+  }:
+    filterAttrs
+    (
+      name: type: let
+        defaultPredicate =
+          if includeFiles
+          then type == "directory" || (type == "regular" && hasSuffix ".nix" name && name != "default.nix")
+          else type == "directory";
+      in
+        (
+          if predicate != null
+          then predicate name type
+          else defaultPredicate
+        )
+        && !(elem name excludes)
+        && (
+          if type == "directory"
+          then any (f: pathExists (base + "/${name}/${f}")) candidates
+          else true
+        )
+    )
+    (readDir base);
+
+  resolveEntrypoint = {
+    base,
+    name,
+  }:
+    findFirst (f: pathExists (base + "/${name}/${f}")) entrypoint candidates;
+
+  importModule = {
+    args ? {},
+    base,
+    name,
+    path ? null,
+  }: let
+    isDir = (readDir base).${name} == "directory";
+    resolved =
+      if isDir
+      then
+        base
+        + "/${name}/${
+          if path != null
+          then path
+          else resolveEntrypoint {inherit base name;}
+        }"
+      else base + "/${name}";
+    imported = import resolved;
+  in
+    if isFunction imported
+    then imported args
+    else imported;
+
+  collectSpecs = {
+    args,
+    extraArgs ? {},
+    base,
+    excludes ? pathExcludes,
+    tags ? defaults.tags,
+    includeFiles ? false,
+    rawTag ? "core",
+  }: let
+    entries = readDirAttrs {inherit base excludes includeFiles;};
+    specs =
+      mapAttrsToList
+      (
+        name: type: let
+          module = importModule {
+            inherit base name;
+            args =
+              args
+              // {
+                dom = baseNameOf (toString base);
+                mod =
+                  if type == "regular"
+                  then removeSuffix ".nix" name
+                  else name;
+              }
+              // extraArgs;
+          };
+        in
+          if module ? core || module ? home
+          then module
+          else {${rawTag} = module;}
+      )
+      entries;
+  in
+    genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);
+
+  collectNamedSpecs = {
+    args ? {},
+    extraArgs ? {},
+    base,
+    excludes ? pathExcludes,
+    tags ? defaults.tags,
+    rekey ? false,
+  }: let
+    entries = readDirAttrs {inherit base excludes;};
+    raw =
+      mapAttrs
+      (
+        name: _: let
+          importedModule = importModule {
+            inherit base name;
+            args =
+              args
+              // {
+                dom = baseNameOf (toString base);
+                mod = name;
+                inherit tags;
+              }
+              // extraArgs;
+          };
+        in
+          importedModule // {tags = (importedModule.tags or []) ++ asList tags;}
+      )
+      entries;
+  in
+    if rekey
+    then
+      mapAttrs' (dirName: spec: {
+        name = spec.name or dirName;
+        value = spec // {name = spec.name or dirName;};
+      })
+      raw
+    else raw;
+
+  # STREAMLINED: Stripped of profile logic layouts. Purely evaluates modules.
+  importAll = args @ {
+    base,
+    excludes ? pathExcludes,
+    tags ? defaults.tags,
+    extraArgs ? {},
+    includeFiles ? false,
+    ...
+  }: let
+    specs = collectSpecs {inherit args base excludes tags extraArgs includeFiles;};
+  in {
+    imports = specs.core or [];
+    home-manager.sharedModules = specs.home or [];
+  };
+
+  importModules = args @ {
+    base,
+    excludes ? pathExcludes,
+    tags ? defaults.tags,
+    extraArgs ? {},
+    includeFiles ? true,
+    ...
+  }:
+    importAll (args
+      // {
+        inherit base excludes tags extraArgs includeFiles;
+      });
+in
+  exports
+
+]]></file>
+  <file name="systems.nix" path="libraries/internal/config/systems.nix"><![CDATA[
+{
+  api,
+  debug,
+  attrsets,
+  lists,
+  external,
+  types,
+  flake,
+  strings,
+  defaults,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit per classification builder;
+      forEach = per;
+      getBuilder = builder;
+      getClassification = classification;
+    };
+    global = {
+      forEachSystem = per;
+    };
+  };
+
+  inherit (attrsets) attrValues genAttrs;
+  inherit (debug) withContext;
+  inherit (lists) elem unique;
+  inherit (types) isFunction;
+  inherit (api) hosts;
+  inherit (strings) concat;
+  defaultHost = api.hosts.${defaults.host};
+
+  classification = class:
+    assert withContext {
+      name = "config.systemType";
+      assertion = elem class ["nixos" "darwin"];
+      message = ''expected one of ["nixos" "darwin"], got ${class}'';
+      context = "parsing system type from class";
+    };
+      if class == "darwin"
+      then "darwinConfigurations"
+      else "nixosConfigurations";
+
+  builder = class: let
+    opts = ["nixos" "darwin"];
+  in
+    assert withContext {
+      name = "config.systemBuilder";
+      assertion = elem class opts;
+      message = ''expected one of [${concat {
+          delim = ", ";
+          parts = opts;
+        }}], got ${class}'';
+      context = "parsing system builder from class";
+    };
+      if class == "nixos"
+      then external.nixpkgs.nixosSystem
+      else external.nix-darwin.darwinSystem;
+
+  supported = {extra ? []}:
+    unique (
+      extra
+      ++ map (host: host.system or host.platform or defaultHost.system)
+      (attrValues hosts)
+    );
+
+  per = arg: let
+    opts =
+      if isFunction arg
+      then {fn = arg;}
+      else arg;
+    packages = opts.packages or flake.packages.default;
+    extra = opts.extra or [];
+  in
+    genAttrs
+    (supported {inherit extra;})
+    (system: opts.fn packages.${system});
+  # TODO: add kind (get via parsing input or pkgs.stdenv.hostPaltform) and getOrDefault (via kind or builtins.currentSystem or most common system from api hosts)
+in
+  exports
+
+]]></file>
+  <file name="users.nix" path="libraries/internal/config/users.nix"><![CDATA[
+{
+  attrsets,
+  environment,
+  ingestion,
+  lists,
+  strings,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        getAll
+        mkHomeUser
+        collectImports
+        mkHomeUsers
+        mkCoreUsers
+        mkSudoRules
+        ;
+      all = getAll;
+      admins = getAdmins;
+      nonService = getNonService;
+      login = getNonService;
+    };
+    global = {
+      inherit mkHomeUser mkHomeUsers mkSudoRules;
+      collectHostImports = collectImports;
+      mkHostUsers = mkCoreUsers;
+      getUsers = getAll;
+      getAdminUsers = getAdmins;
+      getNonServiceUsers = getNonService;
+    };
+  };
+
+  inherit
+    (attrsets)
+    namesOf
+    valuesOf
+    filterAttrs
+    genAttrs
+    mapAttrs
+    listToAttrs
+    optionalAttrs
+    orEmpty
+    ;
+  inherit (environment) mkVariables mkCdAliases;
+  inherit (lists) asList concatMap length;
+  inherit (ingestion) collectNamedSpecs;
+  inherit (strings) concat;
+
+  getAll = spec: let
+    mkGroup = attrs: let
+      names = namesOf attrs;
+      values = mapAttrs (name: user:
+        user
+        // {
+          inherit name;
+          home = user.home or "/home/${name}";
+          description = user.description or name;
+        })
+      attrs;
+      count = length names;
+    in {inherit names values count;};
+
+    filterByStatus = status: attrs:
+      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
+
+    filterByRole = wantedRole: attrs:
+      filterAttrs (
+        _: u: let
+          role = u.role or "";
+          isNormal = role == "" || role == "user" || role == "normal";
+        in
+          if wantedRole == "normal"
+          then isNormal
+          else role == wantedRole
+      )
+      attrs;
+
+    mkStatusIndex = attrs:
+      genAttrs ["enabled" "disabled"] (status: let
+        subset = filterByStatus status attrs;
+      in
+        (mkGroup subset) // {byRole = mkRoleIndex subset;});
+
+    mkRoleIndex = attrs:
+      genAttrs ["normal" "administrator" "service" "guest"] (role: let
+        subset = filterByRole role attrs;
+      in
+        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
+
+    users = mapAttrs (_: u:
+      {
+        role = "user";
+        enable = true;
+      }
+      // u)
+    spec;
+  in
+    (mkGroup users)
+    // {
+      byStatus = mkStatusIndex users;
+      byRole = mkRoleIndex users;
+    };
+
+  getAdmins = host:
+    (
+      if host.users ? values
+      then host.users
+      else getAll host.users
+    ).byRole.administrator.values;
+
+  getNonService = host:
+    filterAttrs (_: user: (user.role or "") != "service")
+    (
+      if host.users ? values
+      then host.users
+      else getAll host.users
+    ).values;
+
+  mkCoreUsers = host: let
+    principals =
+      (
+        if host.users ? values
+        then host.users
+        else getAll host.users
+      ).values;
+  in {
+    users =
+      mapAttrs (_: user: {
+        inherit (user) description;
+        group = user.group or user.name;
+        isNormalUser = (user.role or "") != "service";
+        isSystemUser = (user.role or "") == "service";
+        extraGroups =
+          if user.role == "administrator"
+          then ["networkmanager" "wheel"]
+          else if user.role == "service"
+          then ["networkmanager"]
+          else [];
+      })
+      principals;
+
+    groups = mapAttrs (_: user: {}) principals;
+  };
+
+  /**
+  Generate Home Manager targets for all interactive users tracked by the host.
+  */
+  mkHomeUsers = {
+    lib,
+    host,
+    dom,
+    mod,
+  }: let
+    byName = collectNamedSpecs {
+      args = {inherit host lib dom mod;};
+      base = mod;
+    };
+  in
+    mapAttrs (
+      name: user:
+        mkHomeUser (byName.${name} or {})
+    ) (getNonService host);
+
+  /**
+  UNIFIED RULE: Generates a Home Manager configuration layout for an individual user profile.
+  Automatically merges system-wide flake paths with user-specific custom paths.
+  */
+  mkHomeUser = spec: {
+    config,
+    osConfig,
+    top,
+    src,
+    ...
+  }: let
+    paths = let
+      flake = osConfig.${top}.paths.local or {};
+      host = listToAttrs (map (name: {
+        name = concat "_" [src.name name];
+        value = flake.${name};
+      }) (namesOf flake));
+      user = orEmpty spec.paths;
+    in {
+      inherit host user;
+      merged = host // user;
+      resolved = config.${top}.paths.local;
+    };
+  in {
+    imports =
+      [
+        {
+          ${top}.paths.local = paths.merged;
+          home = {
+            sessionVariables = mkVariables paths.config;
+            shellAliases = mkCdAliases paths.config;
+          };
+          programs.home-manager.enable = true;
+        }
+        (
+          optionalAttrs
+          (osConfig ? system.stateVersion)
+          {home = {inherit (osConfig.system) stateVersion;};}
+        )
+      ]
+      ++ asList (spec.home or null);
+  };
+
+  mkSudoRules = host:
+    map (user: {
+      users = [user.name];
+      commands = [
+        {
+          command = "ALL";
+          options = ["SETENV" "NOPASSWD"];
+        }
+      ];
+    }) (valuesOf (getAdmins host));
+
+  /**
+  Reads your active host users and injects their respective operating system core modules.
+  */
+  collectImports = {
+    host,
+    top,
+    base,
+  }: let
+    byName = collectNamedSpecs {
+      args = {inherit top host;};
+      inherit base;
+    };
+  in
+    concatMap (
+      user: let
+        spec = byName.${user.name} or {};
+      in
+        asList (spec.core or null)
+    ) (valuesOf (getNonService host));
+in
+  exports
+
+]]></file>
+  <file name="debug.nix" path="libraries/internal/debug.nix"><![CDATA[
+{
+  debug,
+  types,
+  strings,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        mkTest
+        mkTest'
+        mkThrows
+        assertMsgFunc
+        assertWithContext
+        warnWithContext
+        expect
+        ;
+      withContext = assertWithContext;
+    };
+    global = {
+      inherit
+        assertWithContext
+        expect
+        warnWithContext
+        ;
+    };
+  };
+
+  inherit (debug) addErrorContext assertMsg deepSeq traceIf tryEval;
+  inherit (types) isAttrs isBool isPath isString typeOf;
+  inherit (strings) toJSON;
+
+  assertMsgFunc = {
+    name,
+    assertion,
+    message,
+  }:
+    assertMsg assertion "${name}: ${message}";
+
+  assertWithContext = {
+    name,
+    assertion,
+    message,
+    context,
+  }:
+    addErrorContext
+    "while ${context}"
+    (assert assertMsgFunc {
+      inherit name assertion message;
+    }; true);
+
+  _build = desired: outcome: command: let
+    value = deepSeq outcome outcome;
+  in {
+    inherit desired command;
+    result = value;
+    passed = desired == value;
+  };
+
+  warnWithContext = {
+    name,
+    assertion,
+    message,
+    context,
+  }:
+    deepSeq
+    (traceIf (!assertion) "[${name}] while ${context}: ${message}" true)
+    assertion;
+
+  /**
+  Create a named test case with desired output, outcome expression, and an
+  optional command string for display in test results.
+
+  # Type
+  ```nix
+  mkTest :: { desired :: a, outcome :: a, command :: string? } -> Test
+  ```
+
+  # Examples
+  ```nix
+  mkTest {
+    desired = "foo-bar";
+    command = ''normalize "Foo Bar"'';
+    outcome = normalize "Foo Bar";
+  }
+  ```
+  */
+  mkTest = {
+    desired,
+    outcome,
+    command ? null,
+  }:
+    _build desired outcome command;
+
+  /**
+  Positional shorthand for `mkTest` - no command string.
+
+  Useful in enum and validator test blocks where the expression is self-evident.
+
+  # Type
+  ```nix
+  mkTest' :: a -> a -> Test
+  ```
+
+  # Examples
+  ```nix
+  validatesRust = mkTest' true  (languages.validator.check "rust")
+  correctCount  = mkTest' 4     (length cpuBrands.values)
+  ```
+  */
+  mkTest' = desired: outcome: _build desired outcome null;
+
+  /**
+  Create a test case that expects evaluation to throw.
+
+  Uses `builtins.tryEval` to catch the error - the test passes only if
+  evaluation fails.
+
+  # Type
+  ```nix
+  mkThrows :: a -> Test
+  ```
+
+  # Examples
+  ```nix
+  mkThrows (validate { fnName = "f"; argName = "x"; desired = "set"; predicate = isAttrs; outcome = "oops"; })
+  ```
+  */
+  mkThrows = outcome:
+    mkTest {
+      desired = {
+        success = false;
+        value = false;
+      };
+      outcome = tryEval outcome;
+    };
+
+  expect = {
+    type,
+    value,
+    context,
+    name,
+  }:
+    assert assertWithContext {
+      inherit name context;
+      assertion =
+        if type == "bool"
+        then isBool value
+        else if type == "attrs"
+        then isAttrs value
+        else if type == "path"
+        then (isPath value || (isString value && value != ""))
+        else false;
+      message = "Expected type '${type}', but got '${typeOf value}' with value: ${toJSON value}";
+    }; value;
+in
+  exports
+
+]]></file>
+  <file name="default.nix" path="libraries/internal/default.nix"><![CDATA[
+{
+  bootstrap ? import ./base,
+  external ? import ../external {},
+  paths ? {},
+  defaults ? {},
+  names ? {},
+}: let
+  inherit (bootstrap) foldl' mkLibs recursiveAttrs recursiveSelf;
+
+  flake = external.flake or {};
+
+  resolved = {
+    defaults = recursiveAttrs defaults (
+      recursiveAttrs {
+        host = "ExampleHost";
+        excludes.paths = [
+          "archive"
+          "backup"
+          "review"
+          "temp"
+          "default.nix"
+          "flake.nix"
+        ];
+        tags = ["core" "home"];
+      }
+      (flake.defaults or {})
+    );
+
+    paths = recursiveAttrs paths (
+      recursiveAttrs {
+        store = {
+          src = ../../.;
+          api = ../../configuration/api;
+        };
+        local.src = "/etc/nixos";
+      }
+      (flake.paths or {})
+    );
+
+    names = recursiveAttrs names (
+      recursiveAttrs {
+        src = "dots";
+        lib = "lix";
+        top = "_";
+      }
+      (flake.names or {})
+    );
+  };
+
+  mk = {
+    input,
+    output ? [],
+    dependencies ? [
+      "api"
+      "attrsets"
+      "config"
+      "debug"
+      "defaults"
+      "environment"
+      "external"
+      "flake"
+      "lists"
+      "names"
+      "options"
+      "paths"
+      "strings"
+      "systems"
+      "types"
+    ],
+  }: {inherit input dependencies output;};
+
+  scoped = recursiveSelf (libraries:
+    mkLibs {
+      libraries =
+        recursiveAttrs
+        (recursiveAttrs external bootstrap)
+        (
+          libraries
+          // {
+            inherit (resolved) defaults names paths;
+            flake = flake;
+            external = external;
+          }
+        );
+
+      specs = [
+        (mk {
+          input = resolved.paths.store.api;
+          output = ["api"];
+        })
+        (mk {input = ./attrsets.nix;})
+        (mk {input = ./debug.nix;})
+        (mk {input = ./filesystem.nix;})
+        (mk {input = ./lists.nix;})
+        (mk {input = ./options.nix;})
+        (mk {input = ./strings.nix;})
+        (mk {input = ./types.nix;})
+        (import ./config)
+      ];
+    });
+
+  global = foldl' (acc: name: acc // (scoped.${name}.global or {})) {} [
+    "api"
+    "attrsets"
+    "debug"
+    "filesystem"
+    "lists"
+    "options"
+    "strings"
+    "types"
+    "config"
+  ];
+
+  merged = recursiveAttrs scoped global;
+in
+  merged
+  // {
+    lib = external;
+    "${resolved.names.lib}" = merged;
+  }
+
+]]></file>
+  <file name="filesystem.nix" path="libraries/internal/filesystem.nix"><![CDATA[
+{
+  attrsets,
+  lists,
+  strings,
+  ...
+}: let
+  exports = {
+    scoped = {inherit entrypoint entrypoints;};
+    global = {inherit entrypoint entrypoints;};
+  };
+
+  # inherit (debug) withContext;
+  inherit (lists) head;
+  inherit (attrsets) mapAttrs;
+  inherit (strings) stringLength substring;
+
+  entrypoints.nix = let
+    ext = "nix";
+    candidates = map (name: "${name}.${ext}") [
+      "default"
+      "shell"
+      "flake"
+      "configuration"
+      "_"
+    ];
+    primary = head candidates;
+  in {inherit ext candidates primary;};
+  entrypoint = entrypoints.nix.primary;
+
+  /**
+  Maps a set of pure store paths into absolute local path strings relative to local.src
+  */
+  mapStoreToLocal = {
+    store,
+    localSrc,
+  }: let
+    storeRoot = toString store.src;
+    rootLength = stringLength storeRoot;
+  in
+    mapAttrs (
+      _: path: let
+        pathStr = toString path;
+        # Strip out the base store path prefix to capture the relative subpath
+        relSubpath = substring rootLength (-1) pathStr;
+      in "${localSrc}${relSubpath}"
+    )
+    store;
+in
+  exports
+
+]]></file>
+  <file name="lists.nix" path="libraries/internal/lists.nix"><![CDATA[
+{
+  attrsets,
+  debug,
+  lists,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit asList nthOr orNull orDefault orEmpty;
+
+      atOr = nthOr;
+      has = has';
+      hasAny = hasAny';
+      isEmpty = isEmpty';
+      isNotEmpty = isNotEmpty';
+    };
+    global = {
+      isEmptyList = isEmpty';
+      isNotEmptyList = isNotEmpty';
+      orDefaultList = orDefault;
+      orNullList = orNull;
+      toList' = asList;
+      valueInList = nthOr;
+
+      # Added to global exports
+      inList = has';
+      anyInList = hasAny';
+    };
+  };
+
+  inherit (attrsets) isAttrs;
+  inherit (debug) assertWithContext;
+  inherit (lists) elemAt isList length optionals toList any elem; # Inherited 'any' and 'elem'
+  inherit (types) typeOf isEmpty;
+
+  isEmpty' = value: value == [];
+  isNotEmpty' = value: !isEmpty' value;
+
+  # --- Membership Checks ---
+
+  has' = item: list:
+    assert assertWithContext {
+      name = "lists.has";
+      assertion = isList list;
+      message = "expected a list to search within, got ${typeOf list}";
+      context = "evaluating lists.has";
+    };
+      elem item list;
+
+  hasAny' = candidates: list:
+    assert assertWithContext {
+      name = "lists.hasAny";
+      assertion = isList list;
+      message = "expected a target list to search within, got ${typeOf list}";
+      context = "evaluating lists.hasAny";
+    };
+      any (candidate: elem candidate list) (asList candidates);
+
+  # --- Existing Methods ---
+
+  orNull = value:
+    assert assertWithContext {
+      name = "lists.orNull";
+      assertion = isEmpty value || isList value;
+      message = "expected a list, got ${typeOf value}";
+      context = "evaluating lists.orNull";
+    };
+      if isEmpty value || !(isList value)
+      then null
+      else value;
+
+  orDefault = default: value:
+    assert assertWithContext {
+      name = "lists.orDefault";
+      assertion = isList default && isList value;
+      message = "expected lists, got default=${typeOf default} value=${typeOf value}";
+      context = "evaluating lists.orDefault";
+    };
+      if isNotEmpty' value
+      then value
+      else default;
+
+  orEmpty = value:
+    assert assertWithContext {
+      name = "lists.orEmpty";
+      assertion = value == null || isList value;
+      message = "expected a list or null, got ${typeOf value}";
+      context = "evaluating lists.orEmpty";
+    };
+      optionals (isNotEmpty' value) value;
+
+  asList = val: optionals (val != null) (toList val);
+
+  nthOr = input: let
+    fromArgs = {
+      position,
+      value,
+      default ? null,
+    }:
+      if isList value
+      then
+        if length value > position
+        then elemAt value position
+        else default
+      else if position == 0
+      then value
+      else default;
+  in
+    if isAttrs input
+    then fromArgs input
+    else
+      position:
+        fromArgs {
+          value = input;
+          inherit position;
+        };
+in
+  exports
+
+]]></file>
+  <file name="options.nix" path="libraries/internal/options.nix"><![CDATA[
+{
+  attrsets,
+  lists,
+  options,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        mkEnable
+        mkCfg
+        mkOpt
+        mkEnableMod
+        mkModuleArgs
+        mkFloatOption
+        mkLatitudeOption
+        mkLongitudeOption
+        mkGeoProviderOption
+        mkTimezoneOption
+        mkLocalTimeOption
+        mkLocaleOption
+        ;
+    };
+    global = {inherit mkModuleArgs;};
+  };
+
+  inherit (attrsets) attrByPath setAttrByPath optionalAttrs;
+  inherit (lists) asList hasAny;
+  inherit (options) mkOption mkEnableOption;
+  inherit (types) nullOr addCheck float str;
+
+  mkEnable = {
+    name ? null,
+    mod ? null,
+    description ? null,
+    scope ? "core",
+  }: let
+    module =
+      if name != null && name != ""
+      then name
+      else if mod != null && mod != ""
+      then mod
+      else null;
+
+    description' =
+      if description != null
+      then description
+      else if module != null
+      then "Whether ${module} should be enabled ${
+        if scope == "core"
+        then "system-wide"
+        else if scope == "home"
+        then "for the user"
+        else throw "Expected scope to be one of [core home], got ${scope}"
+      }"
+      else "Whether to enable this module";
+  in {
+    false = mkEnableOption description';
+    true = mkEnableOption description' // {default = true;};
+  };
+
+  mkCfg = {
+    config,
+    path,
+  }:
+    attrByPath (asList path) {} config;
+
+  mkOpt = {
+    options,
+    path,
+  }:
+    setAttrByPath (asList path) options;
+
+  mkEnableMod = {
+    mod,
+    scope,
+  }:
+    mkEnable {inherit mod scope;};
+
+  mkModuleArgs = {
+    config,
+    top,
+    dom,
+    mod,
+    host ? {},
+    scope ? "core",
+  }: let
+    path = [top dom mod];
+  in {
+    inherit host top config scope;
+    cfg = mkCfg {inherit config path;};
+    opt = options: mkOpt {inherit options path;};
+    base = mod;
+    mkEnableMod = mkEnableMod {inherit mod scope;};
+  };
+
+  mkFloatOption = {
+    description,
+    min ? null,
+    max ? null,
+    default ? null,
+  }: let
+    check = value:
+      (
+        if min != null
+        then value >= min
+        else true
+      )
+      && (
+        if max != null
+        then value <= max
+        else true
+      );
+  in
+    mkOption ({
+        type = nullOr (addCheck float check);
+        inherit description;
+      }
+      // optionalAttrs (default != null) {inherit default;});
+
+  mkLatitudeOption = {
+    host,
+    default ? null,
+  }:
+    mkFloatOption {
+      description = "Latitude coordinate, between -90.0 and 90.0";
+      min = -90.0;
+      max = 90.0;
+      default = host.localization.latitude or default;
+    };
+
+  mkLongitudeOption = {
+    host,
+    default ? null,
+  }:
+    mkFloatOption {
+      description = "Longitude coordinate, between -180.0 and 180.0";
+      min = -180.0;
+      max = 180.0;
+      default = host.localization.longitude or default;
+    };
+
+  mkGeoProviderOption = {
+    host,
+    default ? "manual",
+  }: let
+    loc = host.localization or {};
+    provider = loc.provider or null;
+    latitude = loc.latitude or null;
+    longitude = loc.longitude or null;
+  in
+    mkOption {
+      type = types.enum ["manual" "geoclue2"];
+      description = "Location provider. If 'manual', valid latitude and longitude must be provided.";
+      default =
+        if provider != null
+        then provider
+        else if latitude != null && longitude != null
+        then default
+        else "geoclue2";
+    };
+
+  mkTimezoneOption = {
+    host,
+    default ? null,
+  }:
+    mkOption ({
+        type = nullOr str;
+        description = "The system or user timezone.";
+      }
+      // optionalAttrs (host.localization.timezone or default != null) {
+        default = host.localization.timezone or default;
+      });
+
+  mkLocalTimeOption = {host}: let
+    useLocalTime =
+      hasAny
+      ["dual-boot" "dualboot-windows"]
+      (host.functionalities or []);
+  in
+    mkEnableOption ''
+      Keeps the hardware clock in local time instead of UTC.
+      This is particularly important when the system dual-boots with Windows,
+      as Windows defaults to local time for the RTC.
+    ''
+    // {default = useLocalTime;};
+
+  mkLocaleOption = {
+    host,
+    default ? "en_US.UTF-8",
+  }:
+    mkOption {
+      type = str;
+      description = ''
+        Configures the default locale settings. This determines:
+        - Language for program messages and UI text.
+        - Date, time, numeric, and monetary formatting conventions.
+        - Character sorting and collation order.
+
+        Applies to all applications that respect locale environment variables.
+      '';
+      default = host.localization.locale or default;
+    };
+in
+  exports
+
+]]></file>
+  <file name="strings.nix" path="libraries/internal/strings.nix"><![CDATA[
+{
+  debug,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {
+      inherit
+        _applyStr
+        _normalizeSymbols
+        _splitWords
+        capitalize
+        indent
+        normalize
+        orDefault
+        orEmpty
+        orNull
+        replaceAll
+        toCamel
+        toLower'
+        toPascal
+        toScreamingSnake
+        toSnake
+        toTitle
+        toUpper'
+        trim'
+        trimEnd
+        trimStart
+        wrap
+        ;
+      trim = trim';
+      isEmpty = isEmpty';
+      isNotEmpty = isNotEmpty';
+    };
+    global = {
+      inherit
+        capitalize
+        indent
+        normalize
+        replaceAll
+        toCamel
+        toLower'
+        toPascal
+        toScreamingSnake
+        toSnake
+        toTitle
+        toUpper'
+        trim'
+        trimEnd
+        trimStart
+        wrap
+        ;
+      capitalizeString = capitalize;
+      isEmptyString = isEmpty';
+      isNotEmptyString = isNotEmpty';
+      normalizeString = normalize;
+      orDefaultString = orDefault;
+      orEmptyString = orEmpty;
+      orNullString = orNull;
+      quote = wrap;
+      quoteString = wrap;
+      replaceAllStrings = replaceAll;
+      toCamelCase = toCamel;
+      toLowerCase = toLower';
+      toPascalCase = toPascal;
+      toScreamingSnakeCase = toScreamingSnake;
+      toSnakeCase = toSnake;
+      toTitleCase = toTitle;
+      toUpperCase = toUpper';
+      trimString = trim';
+      trimStringEnd = trimEnd;
+      trimStringStart = trimStart;
+    };
+  };
+
+  inherit (lists) head tail genList asList any;
+  inherit (debug) withContext;
+  inherit (types) isEmpty isNotEmpty isList isAttrs isString typeOf;
+  inherit (strings) concatStrings concatStringsSep hasPrefix hasSuffix optionalString removePrefix removeSuffix replaceStrings splitString stringLength substring toLower toUpper;
+
+  isEmpty' = value: value == "";
+  isNotEmpty' = value: !isEmpty' value;
+
+  orNull = value:
+    assert withContext {
+      name = "strings.orNull";
+      assertion = isEmpty value || isString value;
+      message = "expected a string, got ${typeOf value}";
+      context = "evaluating strings.orNull";
+    };
+      if isEmpty value || !(isString value)
+      then null
+      else value;
+
+  orDefault = default: value:
+    assert withContext {
+      name = "strings.orDefault";
+      assertion = isString default && isString value;
+      message = "expected strings, got default=${typeOf default} value=${typeOf value}";
+      context = "evaluating strings.orDefault";
+    };
+      if isNotEmpty' value
+      then value
+      else default;
+
+  orEmpty = value:
+    assert withContext {
+      name = "strings.orEmpty";
+      assertion = value == null || isString value;
+      message = "expected a string or null, got ${typeOf value}";
+      context = "evaluating strings.orEmpty";
+    };
+      optionalString (isNotEmpty' value) value;
+
+  # Internal: apply a string transform to a string or each item in a list.
+  _applyStr = fn: input:
+    if isList input
+    then map fn input
+    else fn input;
+
+  # Internal: split a string into lowercase words on spaces, underscores, hyphens.
+  _splitWords = text:
+    splitString "-" (
+      replaceStrings [" " "_"] ["-" "-"]
+      (_normalizeSymbols (toLower text))
+    );
+
+  _symbolAliases = {
+    "c++" = "cpp";
+    "c#" = "csharp";
+    ".net" = "dotnet";
+    "objc" = "objectivec";
+  };
+
+  _normalizeSymbols = text:
+    _symbolAliases.${text} or (replaceStrings ["++" "#" "."] ["p" "sharp" "-"] text);
+
+  /**
+  Convert a string or list of strings to lower case.
+  */
+  toLower' = input:
+    assert withContext {
+      name = "strings.toLower'";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toLower'";
+    };
+      _applyStr toLower input;
+
+  /**
+  Convert a string or list of strings to upper case.
+  */
+  toUpper' = input:
+    assert withContext {
+      name = "strings.toUpper'";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toUpper'";
+    };
+      _applyStr toUpper input;
+
+  /**
+  Remove leading occurrences of `chars` from a string or list of strings.
+  Pass null to default to a single space. Strips repeatedly.
+  */
+  trimStart = chars: let
+    char =
+      if chars == null
+      then " "
+      else if !isString chars
+      then throw "trimStart: chars must be a string or null"
+      else chars;
+    asStr = text:
+      if hasPrefix char text
+      then asStr (removePrefix char text)
+      else text;
+  in
+    input:
+      assert withContext {
+        name = "strings.trimStart";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported";
+        context = "evaluating trimStart";
+      };
+        _applyStr asStr input;
+
+  /**
+  Remove trailing occurrences of `chars` from a string or list of strings.
+  Pass null to default to a single space. Strips repeatedly.
+  */
+  trimEnd = chars: let
+    char =
+      if chars == null
+      then " "
+      else if !isString chars
+      then throw "trimEnd: chars must be a string or null"
+      else chars;
+    asStr = text:
+      if hasSuffix char text
+      then asStr (removeSuffix char text)
+      else text;
+  in
+    input:
+      assert withContext {
+        name = "strings.trimEnd";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported";
+        context = "evaluating trimEnd";
+      };
+        _applyStr asStr input;
+
+  /**
+  Remove leading and trailing occurrences of `chars` from a string or list of strings.
+  Pass null to default to a single space.
+  */
+  trim' = chars: input: trimStart chars (trimEnd chars input);
+
+  /**
+  Replace all occurrences of substrings in a string or list of strings.
+  Accepts either a single search/replace pair, or parallel lists.
+  */
+  replaceAll = search: replace: let
+    ss = asList search;
+    rs = asList replace;
+  in
+    input:
+      assert withContext {
+        name = "strings.replaceAll";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported in input";
+        context = "evaluating replaceAll";
+      };
+        _applyStr (replaceStrings ss rs) input;
+
+  /**
+  Normalize a string or list of strings for fuzzy matching.
+  Converts to lower case and replaces spaces/underscores with hyphens.
+  */
+  normalize = input:
+    if isEmpty input
+    then null
+    else
+      assert withContext {
+        name = "strings.normalize";
+        assertion = !(isList input && any isList input);
+        message = "nested lists are not supported";
+        context = "evaluating normalize";
+      };
+        _applyStr (text: replaceStrings [" " "_"] ["-" "-"] (toLower text)) input;
+
+  indent = n: concatStringsSep "" (genList (_: " ") n);
+
+  /**
+  Capitalize the first character of a string or list of strings.
+  */
+  capitalize = input: let
+    asStr = text:
+      if text == ""
+      then ""
+      else toUpper (substring 0 1 text) + substring 1 (stringLength text) text;
+  in
+    assert withContext {
+      name = "strings.capitalize";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating capitalize";
+    };
+      _applyStr asStr input;
+
+  /**
+  Convert a string or list of strings to camelCase.
+  */
+  toCamel = input: let
+    asStr = text: let
+      words = _splitWords text;
+    in
+      head words + concatStringsSep "" (map capitalize (tail words));
+  in
+    assert withContext {
+      name = "strings.toCamel";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toCamel";
+    };
+      if isList input
+      then concatStringsSep "" ([head input] ++ map capitalize (tail input))
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to PascalCase.
+  */
+  toPascal = input: let
+    asStr = text: concatStringsSep "" (map capitalize (_splitWords text));
+  in
+    assert withContext {
+      name = "strings.toPascal";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toPascal";
+    };
+      if isList input
+      then concatStringsSep "" (map capitalize input)
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to snake_case.
+  */
+  toSnake = input: let
+    asStr = text: concatStringsSep "_" (_splitWords text);
+  in
+    assert withContext {
+      name = "strings.toSnake";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toSnake";
+    };
+      if isList input
+      then concatStringsSep "_" input
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to SCREAMING_SNAKE_CASE.
+  */
+  toScreamingSnake = input: let
+    asStr = text: toUpper (concatStringsSep "_" (_splitWords text));
+  in
+    assert withContext {
+      name = "strings.toScreamingSnake";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toScreamingSnake";
+    };
+      if isList input
+      then toUpper (concatStringsSep "_" input)
+      else asStr input;
+
+  /**
+  Convert a string or list of strings to Title Case.
+  */
+  toTitle = input: let
+    asStr = text: concatStringsSep " " (map capitalize (_splitWords text));
+  in
+    assert withContext {
+      name = "strings.toTitle";
+      assertion = !(isList input && any isList input);
+      message = "nested lists are not supported";
+      context = "evaluating toTitle";
+    };
+      if isList input
+      then concatStringsSep " " (map capitalize input)
+      else asStr input;
+
+  /**
+  Wrap string(s) in a token (default backtick).
+  */
+  wrap = value: let
+    args =
+      if isAttrs value
+      then
+        if value ? input
+        then value
+        else if value ? text
+        then value // {input = value.text;}
+        else
+          assert withContext {
+            name = "strings.wrap";
+            assertion = false;
+            message = "expected attrset to have an `input` or `text` key";
+            context = "evaluating wrap input";
+          }; null
+      else if isList value || isString value
+      then {input = value;}
+      else
+        assert withContext {
+          name = "strings.wrap";
+          assertion = false;
+          message = "expected `value` to be a string, list, or attrset";
+          context = "evaluating wrap value";
+        }; null;
+
+    input = assert withContext {
+      name = "strings.wrap";
+      assertion = isNotEmpty args.input;
+      message = "expected `input` to be a non-null value or a non-empty list";
+      context = "evaluating wrap input";
+    };
+      args.input;
+
+    token = let
+      token' = args.token or "`";
+    in
+      assert withContext {
+        name = "strings.wrap";
+        assertion = isString token' && token' != "";
+        message = "expected `token` to be a non-empty string";
+        context = "evaluating wrap token";
+      }; token';
+
+    delimiter = let
+      sep = args.delimiter or (args.sep or (optionalString (isList args.input) " or "));
+    in
+      assert withContext {
+        name = "strings.wrap";
+        assertion = isString sep;
+        message = "expected `delimiter` to be a string";
+        context = "evaluating wrap delimiter";
+      }; sep;
+
+    rendered = map (item: concatStrings [token (toString item) token]) (asList input);
+  in
+    if isList input
+    then concatStringsSep delimiter rendered
+    else head rendered;
+in
+  exports
+
+]]></file>
+  <file name="types.nix" path="libraries/internal/types.nix"><![CDATA[
+{
+  debug,
+  lists,
+  strings,
+  types,
+  ...
+}: let
+  exports = {
+    scoped = {inherit isFunction';};
+    global = {
+      inherit
+        isEmpty
+        isNotEmpty
+        isFunction'
+        isNull
+        isNotNull
+        isEnabled
+        ;
+      isFunctionSafe = isFunction';
+    };
+  };
+
+  inherit (debug) withContext;
+  inherit (lists) head tail isList optionals reverseList;
+  inherit (strings) concatStrings stringLength stringToCharacters;
+  inherit (types) isAttrs isBool isString;
+  inherit (builtins) isFunction;
+
+  /**
+  Determine if a module, feature, or configuration target is enabled.
+
+  Follows the structural design principle of "presence implies intent." Naked
+  booleans are evaluated directly. Attribute sets look for an explicit `enable`
+  or `enabled` flag; if neither is specified, it is assumed the user wants the
+  feature active, defaulting to `true`. All other fallback types evaluate to `true`.
+
+  # Type
+  ```nix
+    isEnabled :: a -> Bool
+  ```
+
+  # Dependencies
+  ```nix
+  - types.isBool
+  - types.isAttrs
+  ```
+
+  # Arguments
+  value
+  : The configuration toggle, attribute set, or value to evaluate.
+
+  # Examples
+  ```nix
+  # Naked booleans pass through directly
+  isEnabled true
+  # => true
+
+  isEnabled false
+  # => false
+
+  # Explicit overrides inside attribute sets
+  isEnabled { enable = false; }
+  # => false
+
+  isEnabled { enabled = true; }
+  # => true
+
+  # Presence implies intent (no explicit toggle means true)
+  isEnabled { userName = "John Doe"; }
+  # => true
+
+  # Fallback fail-safe for unexpected types
+  isEnabled "active"
+  # => true
+  ```
+  */
+  isEnabled = value:
+    if isBool value
+    then value
+    else if isAttrs value
+    then value.enable or (value.enabled or true)
+    else true;
+
+  /**
+  Strict check for callables, safely handling standard primitive functions
+  and Nix attribute set functors without accidentally evaluating them.
+  */
+  isFunction' = value:
+    isFunction value
+    || (isAttrs value && value ? __functor && isFunction value.__functor);
+
+  # Minimal local trim so predicates doesn't circularly depend on strings.
+  trim = s: let
+    chars = stringToCharacters s;
+    isSpace = c: c == " " || c == "\t" || c == "\n" || c == "\r";
+    dropWhile = pred: list:
+      optionals (list != []) (
+        if pred (head list)
+        then dropWhile pred (tail list)
+        else list
+      );
+    trimmed = dropWhile isSpace (reverseList (dropWhile isSpace (reverseList chars)));
+  in
+    concatStrings trimmed;
+
+  isNull = value: value == null;
+  isNotNull = value: value != null;
+
+  /**
+  Check if a value is considered "empty" for defaulting purposes.
+
+  # Emptiness Rules
+  - `null`:             always empty
+  - Strings:            empty when `""` or whitespace-only
+  - Lists:              empty when `[]`
+  - Attrsets:           empty when `{}`
+  - Numbers, booleans, paths, functions: **never** empty
+
+  # Type
+  ```nix
+  isEmpty :: a -> Bool
+  ```
+
+  # Examples
+  ```nix
+  isEmpty null        # => true
+  isEmpty ""          # => true
+  isEmpty "  "        # => true
+  isEmpty []          # => true
+  isEmpty {}          # => true
+  isEmpty 0           # => false
+  isEmpty false       # => false
+  isEmpty "hello"     # => false
+  isEmpty [1 2 3]     # => false
+  ```
+  */
+  isEmpty = value:
+    assert withContext {
+      name = "isEmpty";
+      assertion = !isFunction' value;
+      message = "functions are not supported";
+      context = "evaluating isEmpty";
+    };
+      if value == null
+      then true
+      else if isString value
+      then value == "" || stringLength (trim value) == 0
+      else if isList value
+      then value == []
+      else if isAttrs value
+      then value == {}
+      else false;
+
+  /**
+  Check if a value is not empty. Convenience negation of `isEmpty`.
+
+  # Type
+  ```nix
+  isNotEmpty :: a -> Bool
+  ```
+
+  # Examples
+  ```nix
+  isNotEmpty "hello"  # => true
+  isNotEmpty 0        # => true
+  isNotEmpty false    # => true
+  isNotEmpty null     # => false
+  isNotEmpty ""       # => false
+
+  # Common use in filters
+  validItems = filter isNotEmpty rawList;
+  ```
+  */
+  isNotEmpty = value: !isEmpty value;
+in
+  exports
+
+]]></file>
+</code_files>

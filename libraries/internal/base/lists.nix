@@ -23,12 +23,11 @@
         concat = concatLists;
         isIn = elem;
         select = filter;
-        inherit (builtins) foldl';
       }
       // exports.global;
 
     global = {
-      inherit concatLists foldl isList;
+      inherit concatLists foldl foldl' isList;
       asList = as;
       asListIf = asIf;
       orEmptyList = orEmpty;
@@ -36,7 +35,7 @@
     };
   };
 
-  inherit (builtins) concatLists elem filter head sort tail;
+  inherit (builtins) concatLists elem filter foldl' head sort tail;
   inherit (attrsets) namesOf;
   inherit (types) isAttrs isList isNotEmpty isString typeOf;
 

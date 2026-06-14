@@ -14,7 +14,7 @@
         isNixpkgsLike
         isTreefmtLike
         ;
-      inherit isAttrs isFunction isList isString;
+      inherit (builtins) isAttrs isFunction isList isPath isString typeOf;
     };
 
     global = {

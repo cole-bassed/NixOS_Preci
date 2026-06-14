@@ -75,7 +75,11 @@
     };
 
     args =
-      external.${names.src}
+      (
+        if builtins.hasAttr names.src external
+        then builtins.getAttr names.src external
+        else {}
+      )
       // {
         name = flake.names.src or names.src;
         inherit names defaults host external;

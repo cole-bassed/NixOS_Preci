@@ -1,21 +1,19 @@
 {
   bootstrap ? import ./base,
   external ? import ../external {},
-  paths,
-  defaults,
-  names,
+  paths ? {},
+  defaults ? {},
+  names ? {},
 }: let
-  inherit (bootstrap.attrsets) merge gets;
-  inherit (bootstrap.config) mkLib mkLibs;
+  inherit (bootstrap.attrsets) recursiveAttrs;
+  inherit (bootstrap.config) mkLibs recursiveSelf;
+  inherit (bootstrap.types) isAttrs isPath isString typeOf;
 
-  fix = fn: let set = fn set; in set;
+  flake = external.flake or {};
 
   resolved = {
-    flake = external.flake or {};
-
-    defaults =
-      merge
-      (merge defaults {
+    defaults = recursiveAttrs defaults (
+      recursiveAttrs {
         host = "ExampleHost";
         excludes.paths = [
           "archive"
@@ -26,101 +24,107 @@
           "flake.nix"
         ];
         tags = ["core" "home"];
-      })
-      (resolved.flake.defaults or {});
+      }
+      (flake.defaults or {})
+    );
 
-    paths =
-      merge
-      paths
-      (merge {
+    paths = recursiveAttrs paths (
+      recursiveAttrs {
         store = {
           src = ../../.;
           api = ../../configuration/api;
         };
         local.src = "/etc/nixos";
-      })
-      (resolved.flake.paths or {});
+      }
+      (flake.paths or {})
+    );
 
-    names =
-      merge
-      names
-      (merge {
+    names = recursiveAttrs names (
+      recursiveAttrs {
         src = "dots";
         lib = "lix";
         top = "_";
-      })
-      (resolved.flake.names or {});
-    name = resolved.names.lib;
+      }
+      (flake.names or {})
+    );
   };
 
-  mkLib' = {
-    libraries,
-    input,
-    dependencies ? [],
-    output ? [],
-  }:
-    mkLib {
-      inherit input output;
-      args =
+  libraries = recursiveSelf (libraries:
+    mkLibs {
+      libraries =
+        recursiveAttrs
+        (recursiveAttrs external bootstrap)
         (
-          merge
-          (merge external bootstrap)
-          {inherit (resolved) defaults names paths external flake;}
-        )
-        // (gets dependencies libraries);
-    };
+          libraries
+          // {
+            inherit (resolved) defaults names paths;
+            flake = flake;
+            external = external;
+          }
+        );
 
-  libraries = fix (
-    libraries: let
-      mk = {
-        input,
-        dependencies ? [],
-        output ? [],
-      }:
-        mkLib' {inherit input output dependencies libraries;};
-    in
-      {}
-      // mk {
-        input = resolved.paths.store.api;
-        dependencies = ["attrsets" "config" "lists"];
-      }
-      // mk {
-        input = ./attrsets.nix;
-        dependencies = ["debug" "lists" "types"];
-      }
-      // mk {
-        input = ./debug.nix;
-        dependencies = ["lists" "types"];
-      }
-      // mk {
-        input = ./filesystem.nix;
-        dependencies = ["debug" "lists"];
-      }
-      // mk {
-        input = ./lists.nix;
-        dependencies = ["debug" "types"];
-      }
-      // mk {
-        input = ./options.nix;
-        dependencies = ["debug" "lists" "types"];
-      }
-      // mk {
-        input = ./strings.nix;
-        dependencies = ["debug" "lists" "types"];
-      }
-      // mk {
-        input = ./types.nix;
-        dependencies = ["debug"];
-      }
-      // (import ./config {
-        inherit libraries mkLibs;
-      })
-  );
-
-  legacy = external;
-  global = merge legacy libraries;
+      specs = let
+        mk = arg: let
+          dependencies = [
+            "api"
+            "attrsets"
+            "config"
+            "debug"
+            "defaults"
+            "environment"
+            "external"
+            "flake"
+            "lists"
+            "names"
+            "options"
+            "paths"
+            "strings"
+            "systems"
+            "types"
+          ];
+        in
+          if isPath arg || isString arg
+          then {
+            input = arg;
+            output = [];
+            inherit dependencies;
+          }
+          else if isAttrs arg
+          then {
+            input = arg.input;
+            output = arg.output or [];
+            dependencies = arg.dependencies or dependencies;
+          }
+          else abort "mk: Expected path, string, or attrset. Got ${typeOf arg}";
+      in [
+        (mk {
+          input = resolved.paths.store.api;
+          output = ["api"];
+        })
+        (mk ./attrsets.nix)
+        (mk ./debug.nix)
+        (mk ./filesystem.nix)
+        (mk ./lists.nix)
+        (mk ./options.nix)
+        (mk ./strings.nix)
+        (mk ./types.nix)
+        (import ./config)
+      ];
+    });
+  # global = foldl' (acc: name: acc // (scoped.${name}.global or {})) {} [
+  #   "api"
+  #   "attrsets"
+  #   "debug"
+  #   "filesystem"
+  #   "lists"
+  #   "options"
+  #   "strings"
+  #   "types"
+  #   "config"
+  # ];
 in
-  merge global {
-    lib = legacy;
-    "${resolved.name}" = global;
+  libraries
+  // {
+    lib = external;
+    "${resolved.names.lib}" = libraries;
   }

@@ -44,6 +44,7 @@
       inspectAttrs = inspect;
       orEmptyAttrs = orEmpty;
       recursiveUpdate = merge;
+      recursiveAttrs = merge;
       removeAttrPaths = removePaths;
       removeAttrPath = removePath;
     };
