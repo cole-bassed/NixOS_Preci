@@ -1,23 +1,19 @@
-{
-  attrsets,
-  lists,
-  types,
-  filesystem,
-  ...
-}: let
+_: let
   exports = {
     scoped = {
       inherit
-        cat
         concat
         orEmpty
+        quote
         split'
         trim
         ;
-      split = split';
+      startsWith = hasPrefix;
       infix = substring;
       length = stringLength;
       regex = match;
+      split = split';
+      wrap = quote;
     };
 
     global = {
@@ -29,7 +25,7 @@
         substring
         toString
         ;
-      inherit cat;
+      inherit hasPrefix quote;
       joinStrings = concat;
       matchRegex = match;
       orEmptyString = orEmpty;
@@ -38,11 +34,20 @@
     };
   };
 
-  inherit (attrsets) namesOf;
-  inherit (builtins) concatStringsSep split substring match stringLength;
-  inherit (filesystem) readDir readFile readFileType;
-  inherit (lists) head select concatLists sort;
-  inherit (types) isAttrs isList isString lessThan;
+  inherit
+    (builtins)
+    concatStringsSep
+    filter
+    head
+    isAttrs
+    isList
+    isString
+    match
+    replaceStrings
+    split
+    stringLength
+    substring
+    ;
 
   /**
   Concatenate a list of strings with an optional delimiter, safely filtering out null values.
@@ -90,7 +95,7 @@
   */
   concat = arg: let
     exec = delim: parts:
-      concatStringsSep delim (select (part: part != null) parts);
+      concatStringsSep delim (filter (part: part != null) parts);
   in
     if isAttrs arg
     then exec (arg.delim or "") arg.parts
@@ -100,97 +105,12 @@
     then exec "" arg
     else exec "" [];
 
-  /**
-  Read a file, or recursively collect and label all regular files in a directory.
-
-  When given a path to a regular file, returns its contents preceded by a
-  visible path header using the path as provided.
-
-  When given a path to a directory, walks it recursively — sorted
-  lexicographically at each level — and returns each regular file's content
-  preceded by a visible path header using the file's path relative to the
-  given directory.
-
-  Path headers use this format:
-
-  ```nix
-  #========================================
-  #> PATH: relative/or/provided/path.nix
-  #========================================
-
-  Symlinks and unknown filesystem entries are silently skipped.
-
-  # Type
-  ```nix
-  cat :: Path -> String
-  ```
-
-  # Dependencies
-  None
-
-  # Arguments
-  path
-  : A path to a file or directory to read.
-
-  # Examples
-  ```nix
-  cat ./config.nix
-  ```
-  # => "#========================================\n#> PATH: ./config.nix\n#========================================\n\n{ foo = 1; }\n"
-
-  cat ./parts
-  # => "#========================================\n#> PATH: a.nix\n#========================================\n\n<content>\n\n#========================================\n#> PATH: sub/c.nix\n#========================================\n\n<content>"
-  */
-  cat = input: let
-    args =
-      if isAttrs input
-      then input
-      else {
-        root = input;
-        path = input;
-      };
-
-    inherit (args) root path;
-
-    rootStr = toString root;
-
-    pathHeader = pathString: ''
-      #========================================
-      #> PATH: ${pathString}
-      #========================================
-    '';
-
-    relPath = child: let
-      childStr = toString child;
-      start = stringLength rootStr + 1;
-      len = stringLength childStr - start;
-    in
-      substring start len childStr;
-
-    fileBlock = pathString: child: ''
-      ${pathHeader pathString}
-      ${readFile child}
-    '';
-
-    collectFiles = dir: let
-      entries = readDir dir;
-      names = sort lessThan (namesOf entries);
-    in
-      concatLists (map (
-          name: let
-            child = dir + "/${name}";
-          in
-            if entries.${name} == "regular"
-            then [(fileBlock (relPath child) child)]
-            else if entries.${name} == "directory"
-            then collectFiles child
-            else []
-        )
-        names);
+  hasPrefix = prefix: string: let
+    prefixLen = stringLength prefix;
   in
-    if readFileType path == "directory"
-    then concatStringsSep "\n\n" (collectFiles path)
-    else fileBlock (relPath path) path;
+    prefixLen
+    <= stringLength string
+    && substring 0 prefixLen string == prefix;
 
   /**
   Trim leading and trailing whitespace from a string.
@@ -287,6 +207,18 @@
 
     rawSplit = split escapedSep str;
   in
-    select isString rawSplit;
+    filter isString rawSplit;
+
+  quote = value: let
+    quoteOne = item:
+      "\""
+      + replaceStrings ["\\" "\""] ["\\\\" "\\\""] (toString item)
+      + "\"";
+  in
+    if isList value
+    then "[ " + concatStringsSep " " (map quoteOne value) + " ]"
+    else if isString value
+    then quoteOne value
+    else quoteOne value;
 in
   exports
