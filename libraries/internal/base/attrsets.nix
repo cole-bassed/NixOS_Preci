@@ -31,6 +31,7 @@
 
     global = {
       inherit
+        (builtins)
         attrNames
         attrValues
         getAttr
@@ -39,6 +40,7 @@
         isAttrs
         intersectAttrs
         mapAttrs
+        zipAttrsWith
         ;
       asAttrs = as;
       asAttrsIf = asIf;

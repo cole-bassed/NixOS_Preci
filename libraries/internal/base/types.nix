@@ -15,10 +15,10 @@
         isTreefmtLike
         ;
       inherit (builtins) isAttrs isFunction isList isPath isString typeOf;
+      type = builtins.typeOf;
     };
 
     global = {
-      inherit (builtins) lessThan;
       inherit
         isEmpty
         isNotEmpty

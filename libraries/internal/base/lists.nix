@@ -1,33 +1,46 @@
 _: let
   exports = {
-    scoped =
-      {
-        inherit
-          asIf
-          orEmpty
-          unique
-          foldl
-          head
-          tail
-          as
-          sort
-          filter
-          ;
-        first = head;
-        initial = head;
-        remaining = tail;
-        concat = concatLists;
-        isIn = elem;
-        select = filter;
-      }
-      // exports.global;
+    scoped = {
+      inherit
+        (builtins)
+        elem
+        elemAt
+        filter
+        foldl
+        foldl'
+        head
+        length
+        map
+        partition
+        sort
+        tail
+        zipAttrsWith
+        ;
+      inherit as asIf orEmpty unique;
+      maps = builtins.concatMap;
+      at = builtins.elemAt;
+      first = head;
+      initial = head;
+      remaining = tail;
+      concat = concatLists;
+      isIn = elem;
+      select = filter;
+      generate = builtins.genList;
+    };
 
     global = {
-      inherit concatLists foldl foldl' isList;
       asList = as;
       asListIf = asIf;
       orEmptyList = orEmpty;
       uniqueList = unique;
+      listLength = builtins.length;
+      inherit
+        (builtins)
+        concatLists
+        concatMap
+        genList
+        isList
+        ;
     };
   };
 
@@ -37,12 +50,10 @@ _: let
     concatLists
     elem
     filter
-    foldl'
     head
     isAttrs
     isList
     isString
-    sort
     tail
     typeOf
     ;

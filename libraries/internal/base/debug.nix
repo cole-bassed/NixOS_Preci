@@ -6,10 +6,29 @@
   exports = {
     scoped = {
       inherit inspect;
+      inherit (builtins) abort throw;
+      verbose = builtins.traceVerbose;
+      try = builtins.tryEval;
+      seq = builtins.seq;
+      deepSeq = builtins.deepSeq;
     };
 
     global = {
       inspectAttrs = inspect;
+      inherit
+        (builtins)
+        abort
+        addErrorContext
+        break
+        deepSeq
+        getEnv
+        seq
+        throw
+        trace
+        traceVerbose
+        tryEval
+        warn
+        ;
     };
   };
 

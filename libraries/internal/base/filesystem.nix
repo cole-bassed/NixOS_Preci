@@ -1,9 +1,28 @@
 _: let
   exports = {
-    scoped = {};
-    global = {inherit readDir readFile readFileType;};
+    scoped = {
+      ls = builtins.readDir;
+      read = builtins.readFile;
+      type = builtins.readFileType;
+    };
+    global = {
+      inherit
+        (builtins)
+        baseNameOf
+        currentSystem
+        dirOf
+        filterSource
+        findFile
+        path
+        pathExists
+        readDir
+        readFile
+        readFileType
+        storeDir
+        storePath
+        toPath
+        ;
+    };
   };
-
-  inherit (builtins) readDir readFile readFileType;
 in
   exports

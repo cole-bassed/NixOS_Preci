@@ -11,6 +11,7 @@
         cat
         concat
         orEmpty
+        split'
         trim
         ;
       split = split';
@@ -20,9 +21,17 @@
     };
 
     global = {
-      inherit cat substring stringLength;
-      matchRegex = match;
+      inherit
+        (builtins)
+        concatStringsSep
+        replaceStrings
+        stringLength
+        substring
+        toString
+        ;
+      inherit cat;
       joinStrings = concat;
+      matchRegex = match;
       orEmptyString = orEmpty;
       splitString = split';
       trimString = trim;
