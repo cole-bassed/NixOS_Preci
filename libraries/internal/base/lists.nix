@@ -1,8 +1,4 @@
-{
-  attrsets,
-  types,
-  ...
-}: let
+_: let
   exports = {
     scoped =
       {
@@ -35,9 +31,21 @@
     };
   };
 
-  inherit (builtins) concatLists elem filter foldl' head sort tail;
-  inherit (attrsets) namesOf;
-  inherit (types) isAttrs isList isNotEmpty isString typeOf;
+  inherit
+    (builtins)
+    attrNames
+    concatLists
+    elem
+    filter
+    foldl'
+    head
+    isAttrs
+    isList
+    isString
+    sort
+    tail
+    typeOf
+    ;
 
   /**
   Coerce a value into a list.
@@ -84,7 +92,7 @@
     else if isString value
     then [value]
     else if isAttrs value
-    then namesOf value
+    then attrNames value
     else if type == "path"
     then [value]
     else throw "lists.as:= unsupported type: ${type}";
@@ -163,7 +171,7 @@
     ```
   */
   orEmpty = value:
-    if isList value && isNotEmpty value
+    if isList value && value != []
     then value
     else [];
 

@@ -1,63 +1,156 @@
+# let
+#   inherit
+#     (builtins)
+#     attrNames
+#     filter
+#     foldl'
+#     head
+#     isAttrs
+#     listToAttrs
+#     match
+#     readDir
+#     stringLength
+#     substring
+#     ;
+#   home = ./.;
+#   fix = f: let self = f self; in self;
+#   merge = lhs: rhs:
+#     if isAttrs lhs && isAttrs rhs
+#     then
+#       listToAttrs (map
+#         (name: {
+#           inherit name;
+#           value =
+#             if lhs ? ${name} && rhs ? ${name}
+#             then merge lhs.${name} rhs.${name}
+#             else if rhs ? ${name}
+#             then rhs.${name}
+#             else lhs.${name};
+#         })
+#         (attrNames (lhs // rhs)))
+#     else rhs;
+#   hasNixSuffix = name: let
+#     suffix = ".nix";
+#     nameLen = stringLength name;
+#     suffixLen = stringLength suffix;
+#   in
+#     (nameLen >= suffixLen)
+#     && substring (nameLen - suffixLen) suffixLen name == suffix;
+#   dropNixSuffix = name: let
+#     groups = match "^(.*)\\.nix$" name;
+#   in
+#     if groups == null
+#     then name
+#     else head groups;
+#   nameOf = path:
+#     dropNixSuffix (baseNameOf path);
+#   isLibraryFile = name:
+#     hasNixSuffix name
+#     && name != "default.nix"
+#     && name != "bootstrap.nix";
+#   orEmptyAttrs = names:
+#     listToAttrs (map (name: {
+#         inherit name;
+#         value = {};
+#       })
+#       names);
+#   specs =
+#     map
+#     (name: {input = home + "/${name}";})
+#     (filter isLibraryFile (attrNames (readDir home)));
+#   mkDeps = state:
+#     orEmptyAttrs (map (spec: nameOf spec.input) specs)
+#     // removeAttrs state ["__internal"];
+#   libraries = state: spec: let
+#     name = nameOf spec.input;
+#     imported = import spec.input (mkDeps state);
+#     scoped = imported.scoped or imported.global or imported;
+#     global = imported.global or {};
+#     value = merge scoped global;
+#   in
+#     merge state (
+#       {${name} = value;}
+#       # // global
+#       // {}
+#     );
+# in
+#   # builtins
+#   # // foldl' libraries {} specs
+#   fix (_: (foldl' libraries {} specs))
 let
-  bootstrap = import ./bootstrap.nix;
-  inherit (bootstrap) fix merge mkLibs foldl';
+  inherit
+    (builtins)
+    attrNames
+    filter
+    isAttrs
+    listToAttrs
+    head
+    match
+    readDir
+    stringLength
+    substring
+    ;
 
-  scoped = fix (libraries:
-    mkLibs {
-      libraries = merge {inherit bootstrap;} libraries;
-      base = {inherit bootstrap;};
-      specs = [
-        {
-          input = ./attrsets.nix;
-          dependencies = ["lists" "strings" "types"];
-        }
-        {
-          input = ./config.nix;
-          dependencies = ["attrsets" "lists" "strings"];
-        }
-        {
-          input = ./debug.nix;
-          dependencies = ["attrsets" "types"];
-        }
-        {
-          input = ./filesystem.nix;
-          dependencies = ["attrsets" "lists" "strings" "types"];
-        }
-        {
-          input = ./lists.nix;
-          dependencies = ["attrsets" "types"];
-        }
-        {
-          input = ./modules.nix;
-          dependencies = ["attrsets" "lists"];
-        }
-        {
-          input = ./packages.nix;
-          dependencies = ["attrsets"];
-        }
-        {
-          input = ./strings.nix;
-          dependencies = ["attrsets" "filesystem" "lists" "types"];
-        }
-        {
-          input = ./types.nix;
-          dependencies = ["strings"];
-        }
-      ];
-    });
+  home = ./.;
 
-  global = foldl' (acc: name: acc // (scoped.${name}.global or {})) {} [
-    "config"
-    "attrsets"
-    "debug"
-    "filesystem"
-    "lists"
-    "modules"
-    "packages"
-    "strings"
-    "types"
-  ];
+  fix = f: let self = f self; in self;
+
+  merge = lhs: rhs:
+    if isAttrs lhs && isAttrs rhs
+    then
+      listToAttrs (map
+        (name: {
+          inherit name;
+          value =
+            if lhs ? ${name} && rhs ? ${name}
+            then merge lhs.${name} rhs.${name}
+            else if rhs ? ${name}
+            then rhs.${name}
+            else lhs.${name};
+        })
+        (attrNames (lhs // rhs)))
+    else rhs;
+
+  hasNixSuffix = name: let
+    suffix = ".nix";
+    nameLen = stringLength name;
+    suffixLen = stringLength suffix;
+  in
+    nameLen
+    >= suffixLen
+    && substring (nameLen - suffixLen) suffixLen name == suffix;
+
+  dropNixSuffix = name: let
+    groups = match "^(.*)\\.nix$" name;
+  in
+    if groups == null
+    then name
+    else head groups;
+
+  nameOf = path: dropNixSuffix (baseNameOf path);
+
+  isLibraryFile = name:
+    hasNixSuffix name
+    && name != "default.nix"
+    && name != "bootstrap.nix";
+
+  mkLibs = self:
+    listToAttrs (
+      map
+      (
+        spec: let
+          name = nameOf spec.input;
+          imported = import spec.input (removeAttrs self ["__internal"]);
+          scoped = imported.scoped or imported.global or imported;
+          global = imported.global or {};
+          value = merge scoped global;
+        in {inherit name value;}
+      )
+      (
+        map
+        (name: {input = home + "/${name}";})
+        (filter isLibraryFile (attrNames (readDir home)))
+      )
+    );
 in
-  {inherit scoped global;}
-  // scoped
-  // global
+  fix (self: mkLibs self)

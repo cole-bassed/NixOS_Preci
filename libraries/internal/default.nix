@@ -49,79 +49,63 @@
     );
   };
 
-  libraries = recursiveSelf (libraries:
-    mkLibs {
-      libraries =
-        recursiveAttrs
-        (recursiveAttrs external bootstrap)
-        (
-          libraries
-          // {
-            inherit (resolved) defaults names paths;
-            flake = flake;
-            external = external;
-          }
-        );
-
-      specs = let
-        mk = arg: let
-          dependencies = [
-            "api"
-            "attrsets"
-            "config"
-            "debug"
-            "defaults"
-            "environment"
-            "external"
-            "flake"
-            "lists"
-            "names"
-            "options"
-            "paths"
-            "strings"
-            "systems"
-            "types"
-          ];
-        in
-          if isPath arg || isString arg
-          then {
-            input = arg;
-            output = [];
-            inherit dependencies;
-          }
-          else if isAttrs arg
-          then {
-            input = arg.input;
-            output = arg.output or [];
-            dependencies = arg.dependencies or dependencies;
-          }
-          else abort "mk: Expected path, string, or attrset. Got ${typeOf arg}";
-      in [
-        (mk {
-          input = resolved.paths.store.api;
-          output = ["api"];
-        })
-        (mk ./attrsets.nix)
-        (mk ./debug.nix)
-        (mk ./filesystem.nix)
-        (mk ./lists.nix)
-        (mk ./options.nix)
-        (mk ./strings.nix)
-        (mk ./types.nix)
-        (import ./config)
-      ];
-    });
-  # global = foldl' (acc: name: acc // (scoped.${name}.global or {})) {} [
-  #   "api"
-  #   "attrsets"
-  #   "debug"
-  #   "filesystem"
-  #   "lists"
-  #   "options"
-  #   "strings"
-  #   "types"
-  #   "config"
-  # ];
+  libraries = mkLibs {
+    seed =
+      recursiveAttrs
+      (recursiveAttrs external bootstrap)
+      {
+        inherit (resolved) defaults names paths;
+        flake = flake;
+        external = external;
+      };
+    specs = let
+      mk = arg: let
+        dependencies = [
+          "api"
+          "attrsets"
+          "config"
+          "debug"
+          "defaults"
+          "environment"
+          "external"
+          "flake"
+          "lists"
+          "names"
+          "options"
+          "paths"
+          "strings"
+          "systems"
+          "types"
+        ];
+      in
+        if isPath arg || isString arg
+        then {
+          input = arg;
+          output = [];
+          inherit dependencies;
+        }
+        else if isAttrs arg
+        then {
+          input = arg.input;
+          output = arg.output or [];
+          dependencies = arg.dependencies or dependencies;
+        }
+        else abort "mk: Expected path, string, or attrset. Got ${typeOf arg}";
+    in [
+      (mk {
+        input = resolved.paths.store.api;
+        output = ["api"];
+      })
+      (mk ./attrsets.nix)
+      (mk ./debug.nix)
+      (mk ./filesystem.nix)
+      (mk ./lists.nix)
+      (mk ./options.nix)
+      (mk ./strings.nix)
+      (mk ./types.nix)
+      (import ./config)
+    ];
+  };
 in
   libraries
   // {

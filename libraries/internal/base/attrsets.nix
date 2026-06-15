@@ -1,39 +1,45 @@
-{
-  strings,
-  types,
-  lists,
-  ...
-}: let
+{strings, ...}: let
   exports = {
     scoped = {
       inherit
         as
         asIf
         firstOf
-        fromList
-        get
         gets
         gets'
-        has
         inspect
-        is
-        maps
         merge
-        namesOf
+        normalizePaths
         orEmpty
         orEmpty'
         removePath
         removePaths
         select
-        valuesOf
         ;
       filter = select;
       getFirst = firstOf;
       orEmptyNamed = orEmpty';
-      inherit (builtins) isAttrs;
+      fromList = listToAttrs;
+      get = getAttr;
+      has = hasAttr;
+      intersect = intersectAttrs;
+      is = isAttrs;
+      maps = mapAttrs;
+      namesOf = attrNames;
+      valuesOf = attrValues;
     };
 
     global = {
+      inherit
+        attrNames
+        attrValues
+        getAttr
+        hasAttr
+        listToAttrs
+        isAttrs
+        intersectAttrs
+        mapAttrs
+        ;
       asAttrs = as;
       asAttrsIf = asIf;
       filterAttrs = select;
@@ -50,19 +56,28 @@
     };
   };
 
-  inherit (builtins) concatMap head filter foldl' isFunction isAttrs isList isString tail typeOf;
-  namesOf = builtins.attrNames;
-  valuesOf = builtins.attrValues;
-  get = builtins.getAttr;
-  has = builtins.hasAttr;
-  is = builtins.isAttrs;
-  fromList = builtins.listToAttrs;
-  intersect = builtins.intersectAttrs;
-  maps = builtins.mapAttrs;
+  inherit
+    (builtins)
+    attrNames
+    attrValues
+    concatMap
+    filter
+    foldl'
+    getAttr
+    hasAttr
+    head
+    isAttrs
+    isFunction
+    intersectAttrs
+    isList
+    isString
+    listToAttrs
+    mapAttrs
+    tail
+    typeOf
+    ;
 
-  inherit (lists) asList;
   inherit (strings) concat split;
-  inherit (types) isNotEmpty;
 
   /**
   Normalize raw path inputs into consistent lists of split string segments.
@@ -130,8 +145,8 @@
           )
           scopeStrings
         else if isList entry
-        then asList entry
-        else asList (split "." entry)
+        then entry
+        else [(split "." entry)]
     ) (
       if isAttrs args && args ? paths
       then args.paths
@@ -217,13 +232,13 @@
   as = value: let
     type = typeOf value;
   in
-    if is value
+    if isAttrs value
     then value
     else if isString value
     then {${value} = true;}
     else if isList value
     then
-      fromList (
+      listToAttrs (
         map
         (name: {
           inherit name;
@@ -306,7 +321,7 @@
   ```
   */
   select = predicate: set:
-    fromList (
+    listToAttrs (
       map
       (name: {
         inherit name;
@@ -315,7 +330,7 @@
       (
         filter
         (name: predicate name set.${name})
-        (namesOf set)
+        (attrNames set)
       )
     );
 
@@ -350,7 +365,7 @@
   ```
   */
   gets = names: attrs:
-    fromList (
+    listToAttrs (
       map (name: {
         inherit name;
         value = attrs.${name} or {};
@@ -386,8 +401,8 @@
   ```
   */
   gets' = names: attrs:
-    intersect
-    (fromList (map (name: {
+    intersectAttrs
+    (listToAttrs (map (name: {
         inherit name;
         value = null;
       })
@@ -435,8 +450,8 @@
       then "<function>"
       else if isList value
       then map (fn (depth - 1)) value
-      else if is value
-      then maps (_: fn (depth - 1)) value
+      else if isAttrs value
+      then mapAttrs (_: fn (depth - 1)) value
       else if type == "path"
       then "<path>"
       else value;
@@ -477,7 +492,7 @@
   merge = lhs: rhs:
     if isAttrs lhs && isAttrs rhs
     then
-      fromList (
+      listToAttrs (
         map
         (key: {
           name = key;
@@ -486,7 +501,7 @@
             then merge lhs.${key} rhs.${key}
             else rhs.${key} or lhs.${key};
         })
-        (namesOf (lhs // rhs))
+        (attrNames (lhs // rhs))
       )
     else rhs;
 
@@ -525,7 +540,7 @@
   ```
   */
   orEmpty = value:
-    if is value && isNotEmpty value
+    if isAttrs value && value != {}
     then value
     else {};
 
@@ -566,20 +581,20 @@
   ```
   */
   orEmpty' = nameOrArgs:
-    if is nameOrArgs
+    if isAttrs nameOrArgs
     then let
       name = nameOrArgs.name or null;
       set = nameOrArgs.set or null;
     in
       if name == null || set == null
       then throw "attrsets.orEmpty':= expected { name, set; }"
-      else if has name set
-      then {${name} = get name set;}
+      else if hasAttr name set
+      then {${name} = getAttr name set;}
       else {}
     else
       set:
-        if has nameOrArgs set
-        then {${nameOrArgs} = get nameOrArgs set;}
+        if hasAttr nameOrArgs set
+        then {${nameOrArgs} = getAttr nameOrArgs set;}
         else {};
 
   /**
@@ -615,6 +630,6 @@
   firstOf = attrs:
     if attrs == {}
     then null
-    else head (valuesOf attrs);
+    else head (attrValues attrs);
 in
   exports
