@@ -393,7 +393,7 @@
           ]
           else ["#>  ROOT: ${root.local.src}"]
         )
-        ++ ["#>  PATH: ${quote (mkPathParts shownPath)}"]
+        ++ ["#> STEMS: ${quote (mkPathParts shownPath)}"]
         ++ ["#************************************************"]
       );
 
