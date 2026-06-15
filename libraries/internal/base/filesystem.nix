@@ -35,6 +35,7 @@
     attrNames
     concatLists
     concatStringsSep
+    filter
     isAttrs
     isPath
     isString
@@ -69,11 +70,13 @@
         )
       ])
     store;
+
   mkPaths = {
     paths ? {src = ./../../../.;},
     store ? paths.store or paths,
     local ? paths.local.src or paths.local or null,
   }: let
+    _name = "filesystem::mkPaths";
     root = {
       path = store.src or store;
       asStr = toString root.path;
@@ -115,17 +118,29 @@
   in
     assert if isAttrs paths
     then true
-    else throw "mkPaths: 'paths' argument must be an attribute set.";
+    else throw "${_name}: 'paths' argument must be an attribute set.";
     assert if (isPath store || isAttrs store)
     then true
-    else throw "mkPaths: 'store' must be a path literal or an attribute set containing file mappings.";
+    else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
     assert !isAttrs store
     || (store ? src && isPath store.src)
-    || throw "mkPaths: 'store' set is missing a valid path for 'src'.";
+    || throw "${_name}: 'store' set is missing a valid path for 'src'.";
       mapAttrs (name: _: {src = src.${name};} // files.${name}) {
         store = null;
         local = null;
       };
+
+  mkPathParts = path: let
+    pathStr = toString path;
+    clean =
+      if hasPrefix "./" pathStr
+      then substring 2 (-1) pathStr
+      else pathStr;
+  in
+    if pathStr == "."
+    then ["."]
+    else filter (x: x != "") (split "/" clean);
+
   /**
   Read a file, or recursively collect and label all regular files in a directory.
 
@@ -176,8 +191,144 @@
   bat ./config.nix
   ```
   */
+  # bat = input: let
+  #   _name = "filesystem.bat";
+  #   args =
+  #     if isAttrs input
+  #     then input
+  #     else {path = input;};
+
+  #   path = let
+  #     candidate = args.path;
+  #   in
+  #     if
+  #       isPath candidate
+  #       || (isString candidate && substring 0 1 candidate == "/")
+  #       || (isString candidate && substring 0 2 candidate == "./")
+  #       || (isString candidate && substring 0 3 candidate == "../")
+  #       || (isString candidate && substring 0 2 candidate == "~/")
+  #     then candidate
+  #     else
+  #       throw "${_name}: expected `path` to be a path or path-like string, got ${
+  #         typeOf candidate
+  #       }: ${
+  #         toString candidate
+  #       }";
+
+  #   root = let
+  #     candidate = args.root or null;
+  #   in
+  #     if candidate == null
+  #     then {
+  #       store = paths.store.src;
+  #       local = paths.local.src;
+  #     }
+  #     else if isAttrs candidate
+  #     then {
+  #       store =
+  #         if candidate ? store
+  #         then candidate.store
+  #         else if candidate ? local
+  #         then candidate.local
+  #         else throw "${_name}: `root` attrset must have `store` or `local`";
+  #       local =
+  #         if candidate ? local
+  #         then candidate.local
+  #         else if candidate ? store
+  #         then toString candidate.store
+  #         else throw "${_name}: `root` attrset must have `store` or `local`";
+  #     }
+  #     else {
+  #       store = candidate;
+  #       local = toString candidate;
+  #     };
+
+  #   label = args.label or (args.name or null);
+
+  #   toRelativePath = root: path: let
+  #     pathStr = toString path;
+  #     prefix =
+  #       if pathStr == root.local
+  #       then root.local
+  #       else root.local + "/";
+  #   in
+  #     if pathStr == root.local
+  #     then "."
+  #     else "./" + substring (stringLength prefix) (-1) pathStr;
+
+  #   mkPath = path: let
+  #     pathStr = toString path;
+  #     normalizeForParts =
+  #       if substring 0 2 pathStr == "./"
+  #       then substring 2 (-1) pathStr
+  #       else pathStr;
+  #   in
+  #     if pathStr == "."
+  #     then ["."]
+  #     else split "/" normalizeForParts;
+
+  #   mkHeader = shownPath: let
+  #     headerLines =
+  #       []
+  #       ++ ["#************************************************"]
+  #       ++ (
+  #         if root.store != root.local
+  #         then [
+  #           "#> STORE: ${root.store}"
+  #           "#> LOCAL: ${root.local}"
+  #         ]
+  #         else ["#>  ROOT: ${root.local}"]
+  #       )
+  #       ++ ["#>  PATH: ${quote (mkPath shownPath)}"]
+  #       ++ ["#************************************************"];
+  #   in
+  #     concatStringsSep "\n" headerLines;
+
+  #   fileBlock = shown: child:
+  #     mkHeader shown + "\n" + readFile child;
+
+  #   collectFiles = displayRoot: dir: let
+  #     entries = readDir dir;
+  #     names = sort lessThan (attrNames entries);
+  #   in
+  #     concatLists (map
+  #       (name: let
+  #         child = dir + "/${name}";
+  #         shown =
+  #           if displayRoot != null
+  #           then toRelativePath displayRoot child
+  #           else
+  #             toRelativePath {
+  #               local = toString path;
+  #               store = path;
+  #             }
+  #             child;
+  #       in
+  #         if entries.${name} == "regular"
+  #         then [(fileBlock shown child)]
+  #         else if entries.${name} == "directory"
+  #         then collectFiles displayRoot child
+  #         else [])
+  #       names);
+
+  #   shownPath =
+  #     if label != null
+  #     then label
+  #     else if isString path
+  #     then path
+  #     else toRelativePath root path;
+
+  #   displayRoot =
+  #     if readFileType path == "directory"
+  #     then root
+  #     else null;
+  # in
+  #   if readFileType path == "directory"
+  #   then concatStringsSep "\n\n" (collectFiles displayRoot path)
+  #   else fileBlock shownPath path;
   bat = input: let
-    _name = "filesystem.bat";
+    _name = "filesystem::bat";
+
     args =
       if isAttrs input
       then input
@@ -185,89 +336,66 @@
 
     path = let
       candidate = args.path;
+      isValidString =
+        isString candidate
+        && (
+          false
+          || hasPrefix "/" candidate
+          || hasPrefix "./" candidate
+          || hasPrefix "../" candidate
+          || hasPrefix "~/" candidate
+        );
     in
-      if
-        isPath candidate
-        || (isString candidate && substring 0 1 candidate == "/")
-        || (isString candidate && substring 0 2 candidate == "./")
-        || (isString candidate && substring 0 3 candidate == "../")
-        || (isString candidate && substring 0 2 candidate == "~/")
+      if isPath candidate || isValidString
       then candidate
       else
         throw "${_name}: expected `path` to be a path or path-like string, got ${
           typeOf candidate
-        }: ${
-          toString candidate
-        }";
+        }: ${toString candidate}";
 
     root = let
       candidate = args.root or null;
     in
       if candidate == null
-      then {
-        store = paths.store.src;
-        local = paths.local.src;
-      }
-      else if isAttrs candidate
-      then {
-        store =
-          if candidate ? store
-          then candidate.store
-          else if candidate ? local
-          then candidate.local
-          else throw "${_name}: `root` attrset must have `store` or `local`";
-        local =
-          if candidate ? local
-          then candidate.local
-          else if candidate ? store
-          then toString candidate.store
-          else throw "${_name}: `root` attrset must have `store` or `local`";
-      }
-      else {
-        store = candidate;
-        local = toString candidate;
-      };
+      then mkPaths {inherit paths;}
+      else if isAttrs candidate && (candidate ? store || candidate ? local)
+      then
+        mkPaths {
+          store = candidate.store or candidate.local;
+          local = candidate.local or toString candidate.store;
+        }
+      else mkPaths {store = candidate;}; # Single path override
 
     label = args.label or (args.name or null);
 
-    toRelativePath = root: path: let
-      pathStr = toString path;
-      prefix =
-        if pathStr == root.local
-        then root.local
-        else root.local + "/";
+    toRelativePath = activeRoot: targetPath: let
+      targetStr = toString targetPath;
+      baseStr =
+        if hasPrefix activeRoot.store.src targetStr
+        then activeRoot.store.src
+        else activeRoot.local.src;
     in
-      if pathStr == root.local
+      if targetStr == baseStr
       then "."
-      else "./" + substring (stringLength prefix) (-1) pathStr;
+      else if hasPrefix baseStr targetStr
+      then "./" + substring (stringLength baseStr + 1) (-1) targetStr
+      else "./" + targetStr;
 
-    mkPath = path: let
-      pathStr = toString path;
-      normalizeForParts =
-        if substring 0 2 pathStr == "./"
-        then substring 2 (-1) pathStr
-        else pathStr;
-    in
-      if pathStr == "."
-      then ["."]
-      else split "/" normalizeForParts;
-
-    mkHeader = shownPath: let
-      headerLines =
+    mkHeader = shownPath:
+      concatStringsSep "\n" (
         []
         ++ ["#************************************************"]
         ++ (
-          if root.store != root.local
+          if root.store.src != root.local.src
           then [
-            "#> STORE: ${root.store}"
-            "#> LOCAL: ${root.local}"
+            "#> STORE: ${root.store.src}"
+            "#> LOCAL: ${root.local.src}"
           ]
-          else ["#>  ROOT: ${root.local}"]
+          else ["#>  ROOT: ${root.local.src}"]
         )
-        ++ ["#>  PATH: ${quote (mkPath shownPath)}"]
-        ++ ["#************************************************"];
-    in
-      concatStringsSep "\n" headerLines;
+        ++ ["#>  PATH: ${quote (mkPathParts shownPath)}"]
+        ++ ["#************************************************"]
+      );
 
     fileBlock = shown: child:
       mkHeader shown + "\n" + readFile child;
@@ -276,24 +404,20 @@
       entries = readDir dir;
       names = sort lessThan (attrNames entries);
     in
-      concatLists (map
-        (name: let
-          child = dir + "/${name}";
-          shown =
-            if displayRoot != null
-            then toRelativePath displayRoot child
-            else
-              toRelativePath {
-                local = toString path;
-                store = path;
-              }
-              child;
-        in
-          if entries.${name} == "regular"
-          then [(fileBlock shown child)]
-          else if entries.${name} == "directory"
-          then collectFiles displayRoot child
-          else [])
+      concatLists (map (
+          name: let
+            child = dir + "/${name}";
+            shown =
+              if displayRoot != null
+              then toRelativePath displayRoot child
+              else toRelativePath root child;
+          in
+            if entries.${name} == "regular"
+            then [(fileBlock shown child)]
+            else if entries.${name} == "directory"
+            then collectFiles displayRoot child
+            else []
+        )
         names);
 
     shownPath =
