@@ -4,22 +4,20 @@
   path,
   ...
 }: let
-  inherit (bootstrap) attrsets;
-  inherit (attrsets) asIf filter maps orEmpty;
-
+  inherit (bootstrap.attrsets) mapAttrs filterAttrs;
   classified =
-    maps
+    mapAttrs
     (_: input: input.lib)
     inputs.classified.libraries;
 
-  treefmt = orEmpty inputs.normalized.treefmt;
+  treefmt = inputs.normalized.treefmt or {};
 
   normalized =
     (
-      maps
+      mapAttrs
       (_: input: input.lib)
       (
-        filter
+        filterAttrs
         (_: value: value != null && value ? lib)
         inputs.normalized
       )
@@ -84,9 +82,11 @@
           ) ["types"];
         };
     }
-    // asIf (treefmt ? lib) {
-      treefmt = treefmt.lib // {projectRoot = path;};
-    };
+    // (
+      if (treefmt ? lib)
+      then {treefmt = treefmt.lib // {projectRoot = path;};}
+      else {}
+    );
 
   merged =
     normalized.nixpkgs

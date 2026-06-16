@@ -1,4 +1,12 @@
 {
+  bootstrap ?
+    import (
+      paths.store.libraries.bootstrap or (
+        paths.libraries.bootstrap or (
+          paths.bootstrap or ../internal/base
+        )
+      )
+    ) {inherit paths;},
   defaults ? {allowUnfree = true;},
   flake ? {},
   inputs ? {},
@@ -7,21 +15,16 @@
   path ? null,
   paths ? {},
 }: let
-  paths' = {
-    src = paths.src or ../../.;
-    bootstrap = paths.bootstrap or ../internal/base;
-  };
-  bootstrap = import paths'.bootstrap {paths = paths';};
-  inherit (bootstrap.attrsets) merge;
-  inherit (bootstrap.types) isFlakeLike isAttrs;
-  inherit (bootstrap.config) getEnv;
+  inherit (bootstrap.attrsets) recursiveAttrs;
+  inherit (bootstrap.types) isFlakeLike;
+  inherit (builtins) isAttrs getEnv;
 
   args = {
     inherit bootstrap;
     inherit (resolved) inputs;
 
-    defaults = merge defaults (
-      merge {
+    defaults = recursiveAttrs defaults (
+      recursiveAttrs {
         host = let
           env = {
             host = getEnv "HOSTNAME";
@@ -52,8 +55,8 @@
       } (flake.defaults or {})
     );
 
-    names = merge names (
-      merge {
+    names = recursiveAttrs names (
+      recursiveAttrs {
         src =
           if name != null
           then name
@@ -62,8 +65,8 @@
       (flake.names or {})
     );
 
-    paths = merge (merge paths paths') (
-      merge {
+    paths = recursiveAttrs paths (
+      recursiveAttrs {
         store.src =
           if path != null
           then path

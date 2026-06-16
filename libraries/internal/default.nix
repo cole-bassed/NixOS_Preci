@@ -1,33 +1,37 @@
 {
   external ? null,
+  bootstrap ? null,
   flake ? {},
   paths ? {},
   defaults ? {},
   names ? {},
 }: let
-  paths' = {
-    src = paths.src or ../../.;
-    libraries = {
-      bootstrap = paths.libraries.bootstrap or(paths.bootstrap or ./base);
-      external = paths.libraries.external or  (paths.external or ../external);
-      internal = paths.libraries.internal or  (paths.internal or ./.);
-    };
-  };
-  bootstrap = import paths'.libraries.bootstrap {paths = paths';};
-  inherit (bootstrap.attrsets) recursiveAttrs;
-  inherit (bootstrap.config) mkLibs recursiveSelf;
-  inherit (bootstrap.types) isAttrs isPath isString typeOf;
+  bib =
+    if bootstrap != null
+    then bootstrap
+    else
+      import (
+        paths.store.libraries.bootstrap or
+       (paths.bootstrap or ../bootstrap.nix)
+      );
+
+  lib =
+    if external != null
+    then external
+    else
+      import (
+        paths.store.libraries.external or
+        (paths.external or ../external)
+      ) {
+        inherit defaults flake names paths;
+      };
+
+  inherit (bib) recursiveAttrs mkLibs mkPaths;
+  inherit (builtins) isAttrs isPath isString typeOf;
 
   resolved = {
-    external =
-      if external != null
-      then external
-      else
-        import paths'.libraries.external {
-          inherit defaults flake names;
-          paths = recursiveAttrs (paths paths');
-        };
-
+    bootstrap = bib;
+    external = lib;
     flake = resolved.external.flake or flake;
 
     defaults = recursiveAttrs defaults (
@@ -46,16 +50,18 @@
       (resolved.flake.defaults or {})
     );
 
-    paths = recursiveAttrs (recursiveAttrs paths paths') (
-      recursiveAttrs {
-        store = {
-          src = ../../.;
-          api = ../../configuration/api;
-        };
-        local.src = "/etc/nixos";
-      }
-      (resolved.flake.paths or {})
-    );
+    paths = mkPaths {
+      paths = recursiveAttrs paths (
+        recursiveAttrs {
+          store = {
+            src = ../../.;
+            api = ../../configuration/api;
+          };
+          local.src = "/etc/nixos";
+        }
+        (resolved.flake.paths or {})
+      );
+    };
 
     names = recursiveAttrs names (
       recursiveAttrs {
@@ -125,8 +131,33 @@
     ];
   };
 in
-  libraries
+  resolved
+  // libraries
   // {
     lib = external;
     "${resolved.names.lib}" = libraries;
   }
+# removePaths (recursiveAttrs external internal) [
+#   {
+#     scopes = [
+#       "lib"
+#       "lists"
+#       "modules"
+#     ];
+#     items = [
+#       "applyModuleArgsIfFunction"
+#       "collectModules"
+#       "dischargeProperties"
+#       "evalOptionValue"
+#       "fold"
+#       "isInOldestRelease"
+#       "mergeModules'"
+#       "mergeModules"
+#       "mkAliasOptionModuleMD"
+#       "mkFixStrictness"
+#       "nixpkgsVersion"
+#       "pushDownProperties"
+#       "unifyModuleSyntax"
+#     ];
+#   }
+# ]
