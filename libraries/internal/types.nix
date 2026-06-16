@@ -6,17 +6,39 @@
   ...
 }: let
   exports = {
-    scoped = {inherit isFunction';};
+    scoped = {
+      # inherit
+      #   (builtins)
+      #   isAttrs
+      #   isBool
+      #   isFloat
+      #   isInt
+      #   isList
+      #   isPath
+      #   isString
+      #   typeOf
+      #   ;
+      type = builtins.typeOf;
+      inherit isFunction';
+    };
     global = {
       inherit
+        hasLib
+        hasModules
+        hasOverlays
         isEmpty
-        isNotEmpty
-        isFunction'
-        isNull
-        isNotNull
         isEnabled
+        isFunction'
+        isFlakeLike
+        isHomeManagerLike
+        isNixDarwinLike
+        isNixpkgsInfrastructure
+        isNixpkgsLike
+        isNotEmpty
+        isNotNull
+        isNull
+        isTreefmtLike
         ;
-      isFunctionSafe = isFunction';
     };
   };
 
@@ -24,7 +46,6 @@
   inherit (lists) head tail isList optionals reverseList;
   inherit (strings) concatStrings stringLength stringToCharacters;
   inherit (types) isAttrs isBool isString;
-  inherit (builtins) isFunction;
 
   /**
   Determine if a module, feature, or configuration target is enabled.
@@ -85,7 +106,9 @@
   Strict check for callables, safely handling standard primitive functions
   and Nix attribute set functors without accidentally evaluating them.
   */
-  isFunction' = value:
+  isFunction' = value: let
+    inherit (builtins) isFunction;
+  in
     isFunction value
     || (isAttrs value && value ? __functor && isFunction value.__functor);
 
@@ -109,17 +132,25 @@
   /**
   Check if a value is considered "empty" for defaulting purposes.
 
-  # Emptiness Rules
+  # Rules
   - `null`:             always empty
   - Strings:            empty when `""` or whitespace-only
   - Lists:              empty when `[]`
   - Attrsets:           empty when `{}`
   - Numbers, booleans, paths, functions: **never** empty
+  - Functions: unsupported and cause an error
 
   # Type
   ```nix
   isEmpty :: a -> Bool
   ```
+
+  # Dependencies
+  - strings.trim
+
+  # Arguments
+  value
+  : The value to test.
 
   # Examples
   ```nix
@@ -159,6 +190,13 @@
   isNotEmpty :: a -> Bool
   ```
 
+  # Dependencies
+  - types.isEmpty
+
+  # Arguments
+  value
+  : The value to test.
+
   # Examples
   ```nix
   isNotEmpty "hello"  # => true
@@ -166,11 +204,183 @@
   isNotEmpty false    # => true
   isNotEmpty null     # => false
   isNotEmpty ""       # => false
+  isNotEmpty []       # => false
 
   # Common use in filters
   validItems = filter isNotEmpty rawList;
   ```
   */
   isNotEmpty = value: !isEmpty value;
+
+  /**
+  Return whether an input exposes a `lib` attribute.
+
+  # Type
+
+  ```nix
+  hasLib :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasLib = input:
+    input ? lib;
+
+  /**
+  Return whether an input exposes any recognized module namespace.
+
+  # Type
+
+  ```nix
+  hasModules :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasModules = input:
+    input ? nixosModules
+    || input ? darwinModules
+    || input ? homeModules
+    || input ? homeManagerModules;
+
+  /**
+  Return whether an input exposes overlays.
+
+  # Type
+
+  ```nix
+  hasOverlays :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasOverlays = input:
+    input ? overlays;
+
+  /**
+  Return whether an input summary should be treated as flake-like.
+
+  # Type
+
+  ```nix
+  isFlakeLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - types.isNotEmpty
+  */
+  isFlakeLike = inputs:
+    isNotEmpty (inputs.classified.modules or {})
+    || isNotEmpty (inputs.classified.overlays or {})
+    || isNotEmpty (inputs.normalized.nixpkgs or {});
+
+  /**
+  Return whether an input looks like a nixpkgs-style input.
+
+  # Type
+
+  ```nix
+  isNixpkgsLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isNixpkgsLike = input:
+    input ? legacyPackages
+    && input ? lib
+    && !(input ? __functor);
+
+  /**
+  Return whether an input looks like nix-darwin.
+
+  # Type
+
+  ```nix
+  isNixDarwinLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isNixDarwinLike = input:
+    input ? darwinModules
+    && input ? lib
+    && !(input ? legacyPackages)
+    && !(input ? nixosModules)
+    && !(input ? homeModules)
+    && !(input ? homeManagerModules);
+
+  /**
+  Return whether an input looks like home-manager.
+
+  # Type
+
+  ```nix
+  isHomeManagerLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isHomeManagerLike = input:
+    input ? nixosModules
+    && input ? darwinModules
+    && input ? legacyPackages
+    && input ? lib
+    && input ? flakeModules
+    && !(input ? homeModules);
+
+  /**
+  Return whether an input looks like treefmt-nix.
+
+  # Type
+
+  ```nix
+  isTreefmtLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - flakes.hasModules
+  - flakes.hasOverlays
+  */
+  isTreefmtLike = input:
+    input ? lib
+    && input.lib ? evalModule
+    && input ? flakeModule
+    && !(input ? legacyPackages)
+    && !(hasModules input)
+    && !(hasOverlays input);
+
+  /**
+  Return whether an input is nixpkgs-like infrastructure only.
+
+  # Type
+
+  ```nix
+  isNixpkgsInfrastructure :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - flakes.isNixpkgsLike
+  - flakes.hasModules
+  - flakes.hasOverlays
+  */
+  isNixpkgsInfrastructure = input:
+    isNixpkgsLike input
+    && !(hasModules input)
+    && !(hasOverlays input);
 in
   exports

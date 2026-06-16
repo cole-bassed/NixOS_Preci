@@ -41,9 +41,10 @@
           debug =
             debug
             // {
-              inherit (builtins) tryEval;
+              inherit (builtins) seq tryEval;
               inherit (asserts) assertMsg;
               inherit (trivial) deepSeq;
+              seqRecursive = trivial.deepSeq;
             };
         }
         // {
@@ -61,12 +62,12 @@
             });
         }
         // {
-          types =
+          types = removeAttrs (
             types
             // {
               inherit (filesystem) isPath;
               inherit (attrsets) isAttrs isDerivation;
-              inherit (trivial) isBool isFloat isFunction;
+              inherit (trivial) isBool isFloat isFunction isInOldestRelease;
               inherit
                 (strings)
                 isConvertibleWithToString
@@ -78,7 +79,9 @@
                 isValidPosixName
                 typeOf
                 ;
-            };
+              type = strings.typeOf;
+            }
+          ) ["types"];
         };
     }
     // asIf (treefmt ? lib) {

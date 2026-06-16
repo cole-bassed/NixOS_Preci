@@ -97,28 +97,28 @@
   Return whether a value is not empty according to `isEmpty`.
 
   # Type
-
   ```nix
   isNotEmpty :: a -> Bool
   ```
 
   # Dependencies
-
   - types.isEmpty
 
   # Arguments
-
   value
   : The value to test.
 
   # Examples
-
   ```nix
-  isNotEmpty "hello"
-  # => true
+  isNotEmpty "hello"  # => true
+  isNotEmpty 0        # => true
+  isNotEmpty false    # => true
+  isNotEmpty null     # => false
+  isNotEmpty ""       # => false
+  isNotEmpty []       # => false
 
-  isNotEmpty []
-  # => false
+  # Common use in filters
+  validItems = filter isNotEmpty rawList;
   ```
   */
   isNotEmpty = value: !isEmpty value;

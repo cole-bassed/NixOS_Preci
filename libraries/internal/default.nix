@@ -1,17 +1,35 @@
 {
-  bootstrap ? import ./base,
-  external ? import ../external {},
+  external ? null,
+  flake ? {},
   paths ? {},
   defaults ? {},
   names ? {},
 }: let
+  paths' = {
+    src = paths.src or ../../.;
+    libraries = {
+      bootstrap = paths.libraries.bootstrap or(paths.bootstrap or ./base);
+      external = paths.libraries.external or  (paths.external or ../external);
+      internal = paths.libraries.internal or  (paths.internal or ./.);
+    };
+  };
+  bootstrap = import paths'.libraries.bootstrap {paths = paths';};
   inherit (bootstrap.attrsets) recursiveAttrs;
   inherit (bootstrap.config) mkLibs recursiveSelf;
   inherit (bootstrap.types) isAttrs isPath isString typeOf;
 
-  flake = external.flake or {};
-
   resolved = {
+    external =
+      if external != null
+      then external
+      else
+        import paths'.libraries.external {
+          inherit defaults flake names;
+          paths = recursiveAttrs (paths paths');
+        };
+
+    flake = resolved.external.flake or flake;
+
     defaults = recursiveAttrs defaults (
       recursiveAttrs {
         host = "ExampleHost";
@@ -25,10 +43,10 @@
         ];
         tags = ["core" "home"];
       }
-      (flake.defaults or {})
+      (resolved.flake.defaults or {})
     );
 
-    paths = recursiveAttrs paths (
+    paths = recursiveAttrs (recursiveAttrs paths paths') (
       recursiveAttrs {
         store = {
           src = ../../.;
@@ -36,7 +54,7 @@
         };
         local.src = "/etc/nixos";
       }
-      (flake.paths or {})
+      (resolved.flake.paths or {})
     );
 
     names = recursiveAttrs names (
@@ -45,7 +63,7 @@
         lib = "lix";
         top = "_";
       }
-      (flake.names or {})
+      (resolved.flake.names or {})
     );
   };
 
@@ -55,8 +73,8 @@
       (recursiveAttrs external bootstrap)
       {
         inherit (resolved) defaults names paths;
-        flake = flake;
-        external = external;
+        flake = resolved.flake;
+        external = resolved.external;
       };
     specs = let
       mk = arg: let

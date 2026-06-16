@@ -1,13 +1,17 @@
 {
-  bootstrap ? import ../internal/base,
   defaults ? {allowUnfree = true;},
   flake ? {},
   inputs ? {},
   name ? null,
   names ? {src = "dots";},
   path ? null,
-  paths ? {src = ../../.;},
+  paths ? {},
 }: let
+  paths' = {
+    src = paths.src or ../../.;
+    bootstrap = paths.bootstrap or ../internal/base;
+  };
+  bootstrap = import paths'.bootstrap {paths = paths';};
   inherit (bootstrap.attrsets) merge;
   inherit (bootstrap.types) isFlakeLike isAttrs;
   inherit (bootstrap.config) getEnv;
@@ -58,7 +62,7 @@
       (flake.names or {})
     );
 
-    paths = merge paths (
+    paths = merge (merge paths paths') (
       merge {
         store.src =
           if path != null
