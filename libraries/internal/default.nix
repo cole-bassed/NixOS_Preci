@@ -87,5 +87,8 @@
   libraries = mkLibs {
     home = ./.;
     inherit seed excludes extra;
+    enableAliases = false;
+    enableExtras = true;
   };
-in {inherit excludes extra libraries seed;}
+in
+  libraries

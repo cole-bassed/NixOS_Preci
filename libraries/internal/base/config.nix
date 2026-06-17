@@ -1,213 +1,86 @@
 {
   attrsets,
   filesystem,
-  lists,
-  strings,
   ...
 }: let
   exports = {
     global = {
-      inherit mkLib mkLibs;
-      fixedPoint = fix;
+      inherit mkLibrary;
+      mkFixedPoint = fix;
       recursiveSelf = fix;
+    };
+    scoped = {
+      inherit fix mkLibrary;
       inherit (filesystem) mkPaths;
     };
-    scoped = {inherit fix stem nest mkLib mkLibs;};
   };
 
-  inherit
-    (builtins)
-    attrNames
-    attrValues
-    elem
-    filter
-    foldl'
-    isAttrs
-    listToAttrs
-    mapAttrs
-    pathExists
-    readDir
-    stringLength
-    substring
-    ;
-  inherit (attrsets) merge;
-  inherit (lists) head asList tail;
-  inherit (strings) matchRegex;
+  inherit (builtins) attrValues foldl listToAttrs mapAttrs;
+  inherit (attrsets) asAttrsIf recursiveAttrs;
+  inherit (filesystem) getSpecs;
 
-  fix = fn: let
-    self = fn self;
-  in
-    self;
+  fix = fn: let self = fn self; in self;
 
-  stem = path: let
-    name = baseNameOf (toString path);
-    groups = matchRegex "^(.*)\\.nix$" name;
-  in
-    if groups == null
-    then name
-    else head groups;
-
-  nest = path: value:
-    if path == []
-    then value
-    else {${head path} = nest (tail path) value;};
-
-  mkLib = {
-    input,
-    output ? [(stem input)],
-    args ? {},
-  }: let
-    imported = import input args;
-    scoped =
-      if imported ? scoped
-      then imported.scoped
-      else if imported ? global
-      then {}
-      else imported;
-    global = imported.global or {};
-    value = merge global scoped;
-  in
-    {
-      __raw = imported;
-      __scoped = scoped;
-      __global = global;
-      __value = value;
-    }
-    // (nest (asList output) value);
-
-  mkLibs = {
-    home,
+  mkLibrary = {
+    base,
     excludes ? ["default"],
-    seed ? {},
     extra ? {},
     enableExtras ? true,
-    enableAliases ? false,
+    enableAliases ? true,
   }: let
-    recursiveAttrs = lhs: rhs:
-      if isAttrs lhs && isAttrs rhs
-      then
-        listToAttrs (
-          map
-          (name: {
-            inherit name;
-            value =
-              if lhs ? ${name} && rhs ? ${name}
-              then recursiveAttrs lhs.${name} rhs.${name}
-              else if rhs ? ${name}
-              then rhs.${name}
-              else lhs.${name};
-          })
-          (attrNames (lhs // rhs))
-        )
-      else rhs;
-
-    hasNixSuffix = name: let
-      suffix = ".nix";
-      nameLen = stringLength name;
-      suffixLen = stringLength suffix;
-    in
-      nameLen
-      >= suffixLen
-      && substring (nameLen - suffixLen) suffixLen name == suffix;
-
-    dropNixSuffix = name: let
-      groups = matchRegex "^(.*)\\.nix$" name;
-    in
-      if groups == null
-      then name
-      else head groups;
-
-    normalizeNix = name:
-      if hasNixSuffix name
-      then dropNixSuffix name
-      else name;
-
-    nameOf = path: dropNixSuffix (baseNameOf (toString path));
-
-    normalizedExcludes = map normalizeNix excludes;
-    entries = readDir home;
-
-    isIncluded = name:
-      !(elem (normalizeNix name) normalizedExcludes);
-
-    specs =
-      map
-      (name: let
-        kind = entries.${name};
-      in
-        if kind == "regular" && hasNixSuffix name
-        then {input = home + "/${name}";}
-        else {input = home + "/${name}/default.nix";})
-      (
-        filter
-        (name:
-          isIncluded name
-          && (
-            (entries.${name} == "regular" && hasNixSuffix name)
-            || (entries.${name}
-              == "directory"
-              && pathExists (home + "/${name}/default.nix"))
-          ))
-        (attrNames entries)
-      );
-
     clean = attrs:
       removeAttrs attrs [
-        "__flat"
-        "__globals"
-        "__global"
-        "__scoped"
-        "__value"
-        "__raw"
+        "flat"
+        "global"
+        "scoped"
+        "value"
+        "raw"
       ];
 
-    libraries = fix (self: let
-      scope = recursiveAttrs (clean (mapAttrs (_: arg: arg.__value) self)) seed;
+    normalize = spec: let
+      global = spec.global or {};
+      scoped =
+        if spec ? scoped
+        then spec.scoped
+        else if spec ? global
+        then {}
+        else spec;
+      value = recursiveAttrs global scoped;
+    in {
+      inherit global scoped value;
+      raw = spec;
+    };
+
+    modules = fix (self: let
+      scope = clean (mapAttrs (_: lib: lib.value) self);
     in
       listToAttrs (
         map
-        (spec: let
-          name = nameOf spec.input;
-          imported = import spec.input scope;
-          global = imported.global or {};
-          scoped =
-            imported.scoped or (
-              if imported ? global
-              then {}
-              else imported
-            );
-        in {
-          inherit name;
-          value = {
-            __raw = imported;
-            __global = global;
-            __scoped = scoped;
-            __value = recursiveAttrs global scoped;
-          };
+        (spec: {
+          name = spec.name;
+          value = normalize (spec.input scope);
         })
-        specs
+        (getSpecs {inherit base excludes;})
       ));
 
-    scoped =
-      mapAttrs (_: mod: mod.__value) libraries;
+    scoped = mapAttrs (_: mod: mod.value) modules;
 
     global =
-      foldl'
-      (acc: mod: recursiveAttrs acc mod.__global)
+      foldl
+      (acc: mod: recursiveAttrs acc mod.global)
       {}
-      (attrValues libraries);
+      (attrValues modules);
+
+    merged =
+      recursiveAttrs
+      (asAttrsIf enableAliases global)
+      scoped;
+
+    charged =
+      recursiveAttrs
+      (asAttrsIf enableExtras extra)
+      merged;
   in
-    recursiveAttrs (
-      if enableExtras
-      then extra
-      else {}
-    ) (
-      recursiveAttrs (
-        if enableAliases
-        then global
-        else {}
-      )
-      scoped
-    );
+    charged;
 in
   exports

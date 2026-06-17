@@ -6,27 +6,42 @@
 }: let
   exports = {
     scoped = {
-      inherit bat mkPaths toPathList;
+      inherit
+        bat
+        mkPaths
+        toPathList
+        stem
+        nest
+        getSpecs
+        dropNixSuffix
+        normalizeNix
+        isNixFile
+        isDirectory
+        isFile
+        isNixPath
+        ;
       cat = readFile;
       ls = readDir;
       type = readFileType;
+      inherit
+        (builtins)
+        filterSource
+        findFile
+        storeDir
+        storePath
+        toPath
+        ;
     };
     global = {
       inherit
-        (builtins)
         baseNameOf
-        currentSystem
         dirOf
-        filterSource
-        findFile
         path
+        resolveDefaultNix
         pathExists
         readDir
         readFile
         readFileType
-        storeDir
-        storePath
-        toPath
         ;
     };
   };
@@ -36,22 +51,28 @@
     attrNames
     concatLists
     concatStringsSep
+    elemAt
     filter
+    head
+    elem
     isAttrs
     isPath
     isString
     lessThan
     mapAttrs
+    match
     path
+    pathExists
     readDir
     readFile
     readFileType
     sort
     stringLength
     substring
+    tail
     typeOf
     ;
-  inherit (strings) hasPrefix quote split;
+  inherit (strings) hasPrefix hasSuffix hasNixSuffix quote matchRegex split;
   inherit (attrsets) filterAttrs;
 
   /**
@@ -224,6 +245,19 @@
         store = null;
         local = null;
       };
+
+  stem = path: let
+    name = baseNameOf (toString path);
+    groups = matchRegex "^(.*)\\.nix$" name;
+  in
+    if groups == null
+    then name
+    else head groups;
+
+  nest = path: value:
+    if path == []
+    then value
+    else {${head path} = nest (tail path) value;};
 
   /**
   Split a path or path-like string into its individual components.
@@ -446,5 +480,87 @@
     if readFileType path == "directory"
     then concatStringsSep "\n\n" (collectFiles displayRoot path)
     else fileBlock shownPath path;
+
+  dropNixSuffix = name: let
+    groups = matchRegex "^(.*)\\.nix$" name;
+  in
+    if groups == null
+    then name
+    else head groups;
+
+  normalizeNix = name:
+    if hasNixSuffix name
+    then dropNixSuffix name
+    else name;
+
+  pathType = path:
+    if pathExists path
+    then let
+      matches = match "^(.*)/([^/]+)$" (toString path);
+    in
+      if matches == null
+      then "unknown"
+      else let
+        parentPath = /. + (elemAt matches 0);
+        baseName = elemAt matches 1;
+        entries = readDir parentPath;
+      in
+        entries.${baseName} or "unknown"
+    else null;
+
+  isDirectory = path:
+    pathType path == "directory";
+
+  isFile = path:
+    pathType path == "regular";
+
+  isNixFile = path: let
+    pathString = toString path;
+  in
+    hasSuffix ".nix" pathString;
+
+  resolveDefaultNix = path:
+    if isDirectory path
+    then path + "/default.nix"
+    else if isString path && hasSuffix "/" path
+    then path + "default.nix"
+    else path;
+
+  isNixPath = path: let
+    resolvedPath = resolveDefaultNix path;
+  in
+    isFile resolvedPath && isNixFile resolvedPath;
+
+  getSpecs = {
+    base,
+    excludes ? ["default"],
+  }: let
+    _name = "filesystem::getSpecs";
+    names = attrNames (readDir base);
+
+    isExcluded = name:
+      elem (normalizeNix name) excludes;
+
+    toCandidate = name:
+      base + "/${name}";
+  in
+    if isDirectory base
+    then
+      map
+      (name: {
+        name = normalizeNix name;
+        input = resolveDefaultNix (toCandidate name);
+      })
+      (
+        filter
+        (
+          name:
+            isExcluded name
+            == false
+            && isNixPath (toCandidate name)
+        )
+        names
+      )
+    else throw "${_name}: expected a directory path, got ${toString base}";
 in
   exports

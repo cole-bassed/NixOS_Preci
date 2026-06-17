@@ -20,7 +20,7 @@
     import (
       paths.store.libraries.internal or
       (paths.libraries.internal or
-        (paths.internal or ./internal/base))
+        (paths.internal or ./internal))
     ) {
       inherit bootstrap external;
       inherit (external) flake defaults names paths;

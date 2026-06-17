@@ -497,12 +497,14 @@
     then
       listToAttrs (
         map
-        (key: {
-          name = key;
+        (name: {
+          inherit name;
           value =
-            if lhs ? ${key} && rhs ? ${key}
-            then merge lhs.${key} rhs.${key}
-            else rhs.${key} or lhs.${key};
+            if lhs ? ${name} && rhs ? ${name}
+            then merge lhs.${name} rhs.${name}
+            else if rhs ? ${name}
+            then rhs.${name}
+            else lhs.${name};
         })
         (attrNames (lhs // rhs))
       )
