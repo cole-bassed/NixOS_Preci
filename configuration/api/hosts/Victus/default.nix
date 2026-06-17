@@ -7,7 +7,7 @@ in {
   stateVersion = "25.05";
   system = "${arch}-${os}";
   class = "nixos";
-  id = "d2c1db8e"; # > head -c8 /etc/machine-id'
+  id = "d2c1db8e";
 
   paths = {
     src = "/home/craole/Downloads/public/dotDots";

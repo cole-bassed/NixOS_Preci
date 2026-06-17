@@ -7,12 +7,12 @@ in {
   # SYSTEM IDENTITY
   # ---------------------------------------------------------
   name = "ExampleHost";
-  id = "deadbeef"; # Valid 8-character hexadecimal ID template
+  id = "deadbeef"; # Valid 8-character hexadecimal ID template  #> head -c8 /etc/machine-id'
   type = "laptop"; # Alternatives: desktop, server
   class = "nixos";
   system = "x86_64-linux"; # Alternatives: aarch64-linux, x86_64-darwin
   stateVersion = "26.05";
-  paths.src = "/home/${admin}/.dots";
+  paths.src = "/home/${admin}/dotsfiles";
 
   # ---------------------------------------------------------
   # LOCALIZATION
@@ -35,7 +35,7 @@ in {
       primary = true;
       autoLogin = true;
     };
-    guest = {enabled = true;};
+    # guest = {enabled = false;};
   };
 
   # ---------------------------------------------------------

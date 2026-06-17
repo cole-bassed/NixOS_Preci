@@ -1,4 +1,11 @@
-{
+let
+  admin = "craole";
+in {
+  nixpkgs.hostPlatform = "x86_64-linux";
+
+  # ---------------------------------------------------------
+  # SYSTEM IDENTITY
+  # ---------------------------------------------------------{
   imports = [./hardware-configuration.nix];
   disabledModules = [];
 
@@ -12,7 +19,7 @@
   class = "nixos";
   system = "x86_64-linux";
   stateVersion = "25.11";
-  paths.src = "/home/craole/.dots";
+  paths.src = "/home/${admin}/.dots";
 
   # ---------------------------------------------------------
   # LOCALIZATION

@@ -6,7 +6,6 @@ _: let
         elem
         elemAt
         filter
-        foldl
         foldl'
         head
         length
@@ -16,7 +15,7 @@ _: let
         tail
         zipAttrsWith
         ;
-      inherit as asIf orEmpty unique;
+      inherit as asIf foldl orEmpty unique;
       maps = builtins.concatMap;
       at = builtins.elemAt;
       first = head;
@@ -186,6 +185,22 @@ _: let
     then value
     else [];
 
+  foldl = input: let
+    exec = fn: initial: list: let
+      recurse = accumulated: remaining:
+        if remaining == []
+        then accumulated
+        else let
+          item = head remaining;
+        in
+          recurse (fn accumulated item) (tail remaining);
+    in
+      recurse initial list;
+  in
+    if isAttrs input
+    then exec input.fn input.initial input.list
+    else fn: initial: list: exec fn initial list;
+
   /**
   Deduplicate a list while preserving first occurrence order.
 
@@ -211,31 +226,18 @@ _: let
   # => [ 1 2 3 ]
   ```
   */
-  unique = list:
-    if list == []
-    then []
-    else
-      [(head list)]
-      ++ unique (
-        filter
-        (value: value != (head list))
-        (tail list)
-      );
-
-  foldl = input: let
-    exec = fn: initial: list: let
-      recurse = accumulated: remaining:
-        if remaining == []
-        then accumulated
-        else let
-          item = head remaining;
-        in
-          recurse (fn accumulated item) (tail remaining);
-    in
-      recurse initial list;
+  unique = list: let
+    exec = seen: rest:
+      if rest == []
+      then []
+      else let
+        x = head rest;
+        xs = tail rest;
+      in
+        if elem x seen
+        then exec seen xs
+        else [x] ++ exec (seen ++ [x]) xs;
   in
-    if isAttrs input
-    then exec input.fn input.initial input.list
-    else fn: initial: list: exec fn initial list;
+    exec [] list;
 in
   exports

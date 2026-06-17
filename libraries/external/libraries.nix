@@ -33,6 +33,7 @@
             filesystem
             // {
               inherit (trivial) pathExists;
+              # inherit (builtins) path;
             };
         }
         // {

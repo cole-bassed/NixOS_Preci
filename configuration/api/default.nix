@@ -1,18 +1,14 @@
 {
   attrsets,
   lists,
-  config,
+  ingestion,
+  users,
   ...
 }: let
-  exports = {
-    scoped = {inherit getUsers;};
-    global = {inherit hosts users;};
-  };
-
   inherit (attrsets) attrNames mapAttrs;
   inherit (lists) elemAt filter length;
-  # inherit (modules) getUsers;
-  inherit (config) collectNamed getUsers;
+  inherit (users) getUsers;
+  inherit (ingestion) collectNamedSpecs;
 
   # ---------------------------------------------------------------------------
   # TODO: Allow flat files (e.g., example.nix) alongside directories.
@@ -22,7 +18,7 @@
   # via (base + "/${name}"); if it is a "directory", use the current logic.
   # ---------------------------------------------------------------------------
   collectSpecs = tags: base:
-    collectNamed {
+    collectNamedSpecs {
       inherit base tags;
       rekey = true;
       args = {inherit attrsets;};
@@ -32,8 +28,6 @@
     hosts = collectSpecs "core" ./hosts;
     users = collectSpecs "home" ./users;
   };
-
-  # ── user resolution ────────────────────────────────────────────────────────
 
   resolveUsers = host: let
     hostPath = "api/hosts/${host.name}";
@@ -92,14 +86,11 @@
     };
   in
     resolved // {inherit primary;};
-
-  # ── top-level outputs ──────────────────────────────────────────────────────
-
+in {
   hosts =
     mapAttrs
     (_: host: host // {users = resolveUsers host;})
     specs.hosts;
 
   inherit (specs) users;
-in
-  exports
+}

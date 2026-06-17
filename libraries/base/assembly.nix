@@ -1,26 +1,21 @@
 {
   attrsets,
+  trivial,
   filesystem,
   ...
 }: let
   exports = {
-    global = {
-      inherit mkLibrary;
-      mkLibs = mkLibrary;
-      mkFixedPoint = fix;
-      recursiveSelf = fix;
-    };
     scoped = {
-      inherit fix mkLibrary;
+      mkLibs = mkLibrary;
       inherit (filesystem) mkPaths;
     };
+    global = {inherit mkLibrary;};
   };
 
   inherit (builtins) attrValues foldl' mapAttrs;
   inherit (attrsets) asAttrsIf recursiveAttrs;
   inherit (filesystem) getSpecs;
-
-  fix = fn: let self = fn self; in self;
+  inherit (trivial) fix;
 
   mkLibrary = {
     base,

@@ -7,11 +7,11 @@
   ...
 }: let
   exports = {
-    scoped = {inherit entrypoint entrypoints mkPaths mkUserPaths;};
-    global = {inherit entrypoint entrypoints mkPaths mkUserPaths;};
+    scoped = {inherit entrypoint entrypoints mapStoreToLocal mkPaths mkUserDefaults;};
+    global = {inherit entrypoint entrypoints mkPaths mkUserDefaults;};
   };
 
-  inherit (lists) head optionals;
+  inherit (lists) head;
   inherit (attrsets) mapAttrs filterAttrs;
   inherit (strings) stringLength substring hasPrefix;
   inherit (types) isAttrs isPath isString;
@@ -50,15 +50,15 @@
 
   # Type
   ```nix
-  classify :: { store :: Path; local :: String } -> (Path|String) -> AttrSet
+  classify :: { storeSrc :: Path; localSrc :: String } -> (Path|String) -> AttrSet
   ```
   */
   classify = {
-    store,
-    local,
+    storeSrc,
+    localSrc,
   }: value: let
-    storeAsStr = toString store;
-    localAsStr = toString local;
+    storeAsStr = toString storeSrc;
+    localAsStr = toString localSrc;
     stemFrom = root: substring (stringLength root) (-1) (toString value);
   in
     if isPath value || isUnder storeAsStr value
@@ -105,7 +105,7 @@
   Note: `mkPaths` has no concept of "users" -- it only classifies and
   rebases path-like values it's handed. Deriving defaults like `pictures`
   or `downloads` from a user record is a separate policy concern; see
-  `mkUserPaths` below, which produces a plain attrset you can merge into
+  `mkUserDefaults` below, which produces a plain attrset you can merge into
   `local` before calling this function.
 
   # Type
@@ -195,45 +195,52 @@
   }: let
     _name = "filesystem::mkPaths";
 
-    args = {
-      store = store.src or store;
-      local =
-        if local == null
-        then toString args.store
-        else if isAttrs local
-        then local.src
+    storeSrc = store.src or store;
+
+    # Normalize `local` to its `src` string up front. This is the bit that
+    # was previously only handled in the *default-argument* fallback and
+    # silently skipped whenever `local` was passed explicitly as an
+    # attrset -- which is exactly what broke `environment.nix`'s `mkSrc`.
+    localSrc =
+      if local == null
+      then toString storeSrc
+      else if isAttrs local
+      then local.src
         or (throw "${_name}: 'local' attrset is missing a 'src' string.")
-        else local;
-    };
+      else local;
 
     src = {
       store = path {
-        path = args.store;
+        path = storeSrc;
         name = "source";
       };
-      local = toString args.local;
+      local = toString localSrc;
     };
 
+    # Strip `src` always; additionally strip whichever key `meta.usedKey`
+    # names (the key actually used to derive `src`, e.g. "home" or "dots")
+    # -- but only that one. Any other key, even if named `home` or `dots`,
+    # survives as a genuine extra. `meta` itself is never part of `local`,
+    # so there is nothing to scrub for *it* -- it cannot leak into the
+    # output because it was never classified in the first place.
     extrasOf = value:
       if isAttrs value
       then
         removeAttrs value (
           ["src"]
           ++ (
-            optionals
-            (meta ? usedKey && value ? ${meta.usedKey})
-            [meta.usedKey]
+            if meta ? usedKey && value ? ${meta.usedKey}
+            then [meta.usedKey]
+            else []
           )
-          # TODO: Remove after testing
-          # ++ (
-          #   if meta ? usedKey && value ? ${meta.usedKey}
-          #   then [meta.usedKey]
-          #   else []
-          # )
         )
       else {};
 
-    define = classify {inherit (args) store local;};
+    define = classify {inherit storeSrc localSrc;};
+
+    # Classify every extra from both sides into one merged map, keyed by
+    # name. Local wins on key collisions, since `//` is right-biased and
+    # local is the more specific, user-facing override.
     classified =
       mapAttrs (_: define) (extrasOf store)
       // mapAttrs (_: define) (extrasOf local);
@@ -246,7 +253,6 @@
 
     rebased = entries.store // entries.relative;
   in
-    #TODO: Use debug.withContext
     assert if isAttrs store || isPath store
     then true
     else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
@@ -272,7 +278,7 @@
 
   This is deliberately separate from `mkPaths`, which has no concept of
   "what a user is" -- it only classifies and rebases path-like values
-  against known roots. `mkUserPaths` is the policy layer that decides
+  against known roots. `mkUserDefaults` is the policy layer that decides
   what a sensible default folder layout looks like for a given home
   directory; `mkPaths` remains the mechanism layer that doesn't care where
   those defaults came from once they're plain strings. Merge the result
@@ -281,7 +287,7 @@
 
   # Type
   ```nix
-  mkUserPaths :: { user :: { home :: String; ... }; overrides :: AttrSet? } -> AttrSet
+  mkUserDefaults :: { user :: { home :: String; ... }; overrides :: AttrSet? } -> AttrSet
   ```
 
   # Arguments
@@ -302,7 +308,7 @@
 
   # Examples
   ```nix
-  mkUserPaths { user = { home = "/home/craole"; }; }
+  mkUserDefaults { user = { home = "/home/craole"; }; }
   # => {
   #   downloads = "/home/craole/Downloads";
   #   pictures  = "/home/craole/Pictures";
@@ -311,18 +317,18 @@
   #   videos    = "/home/craole/Videos";
   # }
 
-  mkUserPaths {
+  mkUserDefaults {
     user = { home = "/home/craole"; };
     overrides.downloads = "/mnt/data/Downloads";
   }
   # => { downloads = "/mnt/data/Downloads"; pictures = "/home/craole/Pictures"; ... }
   ```
   */
-  mkUserPaths = {
+  mkUserDefaults = {
     user,
     overrides ? {},
   }: let
-    _name = "filesystem::mkUserPaths";
+    _name = "filesystem::mkUserDefaults";
     home =
       user.home
       or (throw "${_name}: 'user' is missing a 'home' string.");

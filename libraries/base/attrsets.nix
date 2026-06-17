@@ -1,4 +1,8 @@
-{strings, ...}: let
+{
+  strings,
+  lists,
+  ...
+}: let
   exports = {
     scoped = {
       inherit
@@ -81,6 +85,7 @@
     ;
 
   inherit (strings) concat split;
+  inherit (lists) unique;
 
   /**
   Normalize raw path inputs into consistent lists of split string segments.
@@ -495,8 +500,7 @@
   merge = lhs: rhs:
     if isAttrs lhs && isAttrs rhs
     then
-      listToAttrs (
-        map
+      listToAttrs (map
         (name: {
           inherit name;
           value =
@@ -506,8 +510,7 @@
             then rhs.${name}
             else lhs.${name};
         })
-        (attrNames (lhs // rhs))
-      )
+        (unique (attrNames lhs ++ attrNames rhs)))
     else rhs;
 
   /**

@@ -5,6 +5,7 @@
   attrsets,
   external,
   flake,
+  filesystem,
   strings,
   paths,
   names,
@@ -12,7 +13,7 @@
   ...
 }: let
   exports = {
-    scoped = {inherit source mkCdAliases mkVariables;};
+    scoped = {inherit source mkCdAliases mkVariables mkPaths mkUserPaths;};
     global = {
       inherit mkCdAliases;
       mkSrc = source;
@@ -20,10 +21,11 @@
     };
   };
 
+  inherit (filesystem) mkPaths mkUserPaths;
+  inherit (attrsets) getAttr hasAttr foldlAttrs recursiveUpdate;
   inherit (debug) expect;
-  inherit (types) isAttrs isString;
-  inherit (attrsets) foldlAttrs recursiveUpdate;
   inherit (strings) concat toUpper;
+  inherit (types) isAttrs isString;
 
   defaultHost = api.hosts.${defaults.host};
 
@@ -74,36 +76,75 @@
       };
     };
 
+    # Resolve which key supplies the host's flake checkout path, and
+    # remember *which* key it was (`usedKey`) so `mkPaths` can exclude only
+    # that one from the local extras -- without blacklisting `dots`/`home`
+    # by name, since a host may legitimately use either as a genuine extra
+    # (e.g. `home` meaning "primary user's home directory") when it wasn't
+    # also the key chosen here to resolve `src`.
+    hostPaths = checked.host.paths or {};
+    resolution =
+      if hostPaths ? src
+      then {
+        usedKey = "src";
+        value = hostPaths.src;
+      }
+      else if hostPaths ? dots
+      then {
+        usedKey = "dots";
+        value = hostPaths.dots;
+      }
+      else if hostPaths ? home
+      then {
+        usedKey = "home";
+        value = hostPaths.home;
+      }
+      else if checked.host ? dots
+      then {
+        usedKey = null;
+        value = checked.host.dots;
+      }
+      else if checked.host ? home
+      then {
+        usedKey = null;
+        value = checked.host.home;
+      }
+      else {
+        usedKey = null;
+        value = paths.local.src;
+      };
+
+    # The primary user, if the host defines one, supplies sane defaults
+    # for standard folders (Downloads, Pictures, ...) via `mkUserPaths`.
+    # These sit at the *lowest* precedence in the merge below -- a global
+    # `paths.local` default, or an explicit host override, still wins.
+    primaryUser =
+      ((checked.host.users or {}).primary or {}).value or null;
+    userDefaults =
+      if primaryUser != null
+      then mkUserPaths {user = primaryUser;}
+      else {};
+
     args =
       (
-        if builtins.hasAttr names.src external
-        then builtins.getAttr names.src external
+        if hasAttr names.src external
+        then getAttr names.src external
         else {}
       )
       // {
         name = flake.names.src or names.src;
         inherit names defaults host external;
-        paths = {
-          local = let
-            src =
-              checked.host.paths.src or (
-                checked.host.paths.dots or (
-                  checked.host.paths.home or (
-                    checked.host.dots or (
-                      checked.host.home or paths.local.src
-                    )
-                  )
-                )
-              );
-          in
-            recursiveUpdate paths.local (
-              recursiveUpdate {inherit src;} (checked.host.paths or {})
-            );
-          store = recursiveUpdate (
-            paths.store or {
-              src = flake.paths.src or paths.src;
-            }
-          ) (checked.overrides.paths or {});
+        paths = mkPaths {
+          store = paths.store;
+          local =
+            recursiveUpdate
+            (recursiveUpdate userDefaults paths.local)
+            hostPaths
+            // {src = resolution.value;};
+          meta =
+            if resolution.usedKey != null
+            then {inherit (resolution) usedKey;}
+            else {};
         };
       };
 

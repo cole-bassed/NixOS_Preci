@@ -18,11 +18,8 @@
       configurations = mkConfigurations;
       systems = mkConfigurations;
       flake = mkFlake;
-      inherit mkConfigurations mkFlake;
     };
-    global = {
-      inherit mkFlake mkConfigurations;
-    };
+    global = {inherit mkFlake mkConfigurations;};
   };
 
   inherit (external.flake.modules) mkMods;

@@ -1,12 +1,13 @@
 {
+  _,
   debug,
   lists,
   strings,
-  types,
   ...
 }: let
+  types = _.types or {};
   exports = {
-    scoped = {inherit isFunction';};
+    scoped = _.recursiveAttrs types {inherit isFunction';};
     global = {
       inherit
         hasLib

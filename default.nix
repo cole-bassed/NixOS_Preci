@@ -18,7 +18,13 @@
       secrets = ./configuration/secrets;
       libraries = ./libraries;
     };
-    local.src = "/etc/nixos";
+    local = {
+      src = "/home/craole/Downloads/public/dotDots";
+      pictures = "/home/craole/Pictures";
+      downloads = "/home/craole/Downloads";
+      dots = "/home/craole/dots";
+      # local.src = "/etc/nixos";
+    };
   };
 
   defaults.host = let
@@ -41,4 +47,4 @@
     {inherit defaults flake names paths;};
 in
   libraries
-# libraries.mkSrc {inherit libraries;}
+# libraries.config.mkSrc {inherit libraries;}

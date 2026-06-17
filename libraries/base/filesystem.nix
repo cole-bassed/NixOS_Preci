@@ -28,18 +28,19 @@
         storeDir
         storePath
         toPath
-        ;
-    };
-    global = {
-      inherit
         baseNameOf
         dirOf
         path
-        resolveDefaultNix
         pathExists
         readDir
         readFile
         readFileType
+        ;
+    };
+    global = {
+      inherit
+        mkPaths
+        resolveDefaultNix
         ;
     };
   };
@@ -70,7 +71,7 @@
     tail
     typeOf
     ;
-  inherit (strings) hasPrefix hasSuffix trim quote matchRegex split;
+  inherit (strings) hasPrefix hasSuffix quote matchRegex split;
   inherit (attrsets) filterAttrs;
 
   /**

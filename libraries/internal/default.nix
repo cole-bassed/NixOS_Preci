@@ -34,7 +34,7 @@
   inherit (bootstrap'.attrsets) merge;
   inherit (bootstrap'.config) mkLibrary mkPaths;
 
-  seed =
+  _ =
     merge
     (merge external' bootstrap')
     {
@@ -85,7 +85,7 @@
   extra = merge external' bootstrap';
 in
   mkLibrary {
-    inherit seed excludes extra;
+    inherit _ excludes extra;
     base = ./.;
     enableAliases = false;
     enableExtras = false;

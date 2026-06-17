@@ -31,6 +31,7 @@
       merge = mergeUnique;
       orderedOf = toOrdered;
       parsedOf = parseOrdered;
+      # inherit mapAttrs;
     };
     global = {
       inspectAttr = inspect;
