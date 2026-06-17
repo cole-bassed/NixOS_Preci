@@ -87,7 +87,7 @@
     }
     // (nest (asList output) value);
 
-  mkLibsOLD = {
+  mkLibs = {
     specs,
     prefix ? [],
     base ? {},

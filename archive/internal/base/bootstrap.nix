@@ -3,8 +3,6 @@
   home,
   excludes ? ["default"],
   extra ? {},
-  enableExtras ? true,
-  enableAliases ? true,
 }: let
   inherit
     (builtins)
@@ -119,23 +117,9 @@
   scoped = mapAttrs (_: mod: mod.__value) libraries;
 
   global =
-    if enableAliases
-    then
-      foldl'
-      (acc: mod: recursiveAttrs acc mod.__global)
-      {}
-      (attrValues libraries)
-    else {};
+    foldl'
+    (acc: mod: recursiveAttrs acc mod.__global)
+    {}
+    (attrValues libraries);
 in
-  recursiveAttrs (
-    if enableExtras
-    then extra
-    else {}
-  ) (
-    recursiveAttrs (
-      if enableAliases
-      then global
-      else {}
-    )
-    scoped
-  )
+  recursiveAttrs extra (recursiveAttrs global scoped)

@@ -1,6 +1,5 @@
 {
   attrsets,
-  filesystem,
   lists,
   strings,
   ...
@@ -10,7 +9,6 @@
       inherit mkLib mkLibs;
       fixedPoint = fix;
       recursiveSelf = fix;
-      inherit (filesystem) mkPaths;
     };
     scoped = {inherit fix stem nest mkLib mkLibs;};
   };
@@ -78,10 +76,7 @@
   mkLibs = {
     home,
     excludes ? ["default"],
-    seed ? {},
     extra ? {},
-    enableExtras ? true,
-    enableAliases ? false,
   }: let
     recursiveAttrs = lhs: rhs:
       if isAttrs lhs && isAttrs rhs
@@ -162,20 +157,20 @@
       ];
 
     libraries = fix (self: let
-      scope = recursiveAttrs (clean (mapAttrs (_: arg: arg.__value) self)) seed;
+      scope = clean (mapAttrs (_: v: v.__value) self);
     in
       listToAttrs (
         map
         (spec: let
           name = nameOf spec.input;
-          imported = import spec.input scope;
+          imported = import spec.input (extra // scope);
           global = imported.global or {};
           scoped =
-            imported.scoped or (
-              if imported ? global
-              then {}
-              else imported
-            );
+            if imported ? scoped
+            then imported.scoped
+            else if imported ? global
+            then {}
+            else imported;
         in {
           inherit name;
           value = {
@@ -197,17 +192,6 @@
       {}
       (attrValues libraries);
   in
-    recursiveAttrs (
-      if enableExtras
-      then extra
-      else {}
-    ) (
-      recursiveAttrs (
-        if enableAliases
-        then global
-        else {}
-      )
-      scoped
-    );
+    recursiveAttrs extra (recursiveAttrs global scoped);
 in
   exports
