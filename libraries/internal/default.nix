@@ -32,7 +32,7 @@
   flake' = external'.flake or flake;
 
   inherit (bootstrap'.attrsets) merge;
-  inherit (bootstrap'.config) mkLibs mkPaths;
+  inherit (bootstrap'.config) mkLibrary mkPaths;
 
   seed =
     merge
@@ -81,14 +81,12 @@
       );
     };
 
-  excludes = ["default" "base"];
+  excludes = ["default" "base" "bootstrap"];
   extra = merge external' bootstrap';
-
-  libraries = mkLibs {
-    home = ./.;
-    inherit seed excludes extra;
-    enableAliases = false;
-    enableExtras = true;
-  };
 in
-  libraries
+  mkLibrary {
+    inherit seed excludes extra;
+    base = ./.;
+    enableAliases = false;
+    enableExtras = false;
+  }

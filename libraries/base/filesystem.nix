@@ -13,8 +13,6 @@
         stem
         nest
         getSpecs
-        dropNixSuffix
-        normalizeNix
         isNixFile
         isDirectory
         isFile
@@ -72,7 +70,7 @@
     tail
     typeOf
     ;
-  inherit (strings) hasPrefix hasSuffix hasNixSuffix quote matchRegex split;
+  inherit (strings) hasPrefix hasSuffix trim quote matchRegex split;
   inherit (attrsets) filterAttrs;
 
   /**
@@ -481,18 +479,6 @@
     then concatStringsSep "\n\n" (collectFiles displayRoot path)
     else fileBlock shownPath path;
 
-  dropNixSuffix = name: let
-    groups = matchRegex "^(.*)\\.nix$" name;
-  in
-    if groups == null
-    then name
-    else head groups;
-
-  normalizeNix = name:
-    if hasNixSuffix name
-    then dropNixSuffix name
-    else name;
-
   pathType = path:
     if pathExists path
     then let
@@ -531,36 +517,81 @@
   in
     isFile resolvedPath && isNixFile resolvedPath;
 
+  # getSpecs = {
+  #   base,
+  #   excludes ? ["default"],
+  # }: let
+  #   _name = "filesystem::getSpecs";
+  #   names = attrNames (readDir base);
+
+  #   normalize = name:
+  #     if hasSuffix ".nix" name
+  #     then
+  #       trim {
+  #         mode = "end";
+  #         pattern = ".nix";
+  #         value = name;
+  #       }
+  #     else name;
+
+  #   isExcluded = name:
+  #     elem (normalize name) excludes;
+
+  #   toCandidate = name:
+  #     base + "/${name}";
+  # in
+  #   if isDirectory base
+  #   then
+  #     map
+  #     (name: {
+  #       name = normalize name;
+  #       input = resolveDefaultNix (toCandidate name);
+  #     })
+  #     (
+  #       filter
+  #       (name: (isExcluded name == false) && isNixPath (toCandidate name))
+  #       names
+  #     )
+  #   else throw "${_name}: expected a directory path, got ${toString base}";
+
   getSpecs = {
     base,
     excludes ? ["default"],
+    depth ? 2,
   }: let
-    _name = "filesystem::getSpecs";
-    names = attrNames (readDir base);
+    _name = "filesystem::getSpecsRecursive";
 
-    isExcluded = name:
-      elem (normalizeNix name) excludes;
-
-    toCandidate = name:
-      base + "/${name}";
+    scan = dir: d: let
+      names = attrNames (readDir dir);
+      normalizeName = name: let
+        suffix = ".nix";
+        nameLen = stringLength name;
+        suffixLen = stringLength suffix;
+      in
+        if hasSuffix suffix name
+        then substring 0 (nameLen - suffixLen) name
+        else name;
+      isIncluded = name: !(elem (normalizeName name) excludes);
+      toCandidate = name: dir + "/${name}";
+    in
+      if d == 0
+      then []
+      else
+        concatLists (map (
+            name:
+              if isIncluded name && isNixPath (toCandidate name)
+              then [
+                {
+                  name = normalizeName name;
+                  input = resolveDefaultNix (toCandidate name);
+                }
+              ]
+              else if isDirectory (toCandidate name)
+              then scan (toCandidate name) (d - 1)
+              else []
+          )
+          names);
   in
-    if isDirectory base
-    then
-      map
-      (name: {
-        name = normalizeNix name;
-        input = resolveDefaultNix (toCandidate name);
-      })
-      (
-        filter
-        (
-          name:
-            isExcluded name
-            == false
-            && isNixPath (toCandidate name)
-        )
-        names
-      )
-    else throw "${_name}: expected a directory path, got ${toString base}";
+    scan base depth;
 in
   exports

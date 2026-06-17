@@ -7,7 +7,7 @@
   bootstrap = import (
     paths.store.libraries.bootstrap or
       (paths.libraries.bootstrap or
-        (paths.bootstrap or ./internal/base))
+        (paths.bootstrap or ./base))
   ) {inherit paths;};
 
   external = import (

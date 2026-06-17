@@ -50,8 +50,8 @@ _: let
     (builtins)
     concatStringsSep
     elem
+    elemAt
     filter
-    head
     isAttrs
     isList
     isString
@@ -184,11 +184,6 @@ _: let
       then input
       else throw "${_name}: ${_arg} must be a string, got ${typeOf input}";
 
-    # When called as: trim mode: value
-    # We treat arg as mode, and pattern/value as deferred.
-    maybeCurriedMode = arg;
-
-    # Private execution: pattern-aware trim
     exec = mode: pattern: value: let
       mode' = let
         string = assertString "mode" mode;
@@ -199,70 +194,44 @@ _: let
         string = assertString "value" value;
       in {inherit string;};
 
-      # Default pattern to whitespace if not provided
       pattern' =
         if isString pattern && pattern != ""
         then pattern
         else "[[:space:]]";
 
-      # For "all", we'll do edge trim + collapse internal
       trimmedStart =
-        if mode' == "start" || mode' == "both" || mode' == "all"
-        then
-          # Remove leading occurrences of pattern
-          let
-            regex = "${pattern'}*";
-            result = match "^${regex}(.*)$" value'.string;
-          in
-            if result == null
-            then value'.string
-            else head result
+        if mode'.string == "start" || mode'.string == "both" || mode'.string == "all"
+        then let
+          result = match "^(${pattern'})*(.*)$" value'.string;
+        in
+          if result == null
+          then value'.string
+          else elemAt result 1
         else value'.string;
 
       trimmedEnd =
-        if mode' == "end" || mode' == "both" || mode' == "all"
+        if mode'.string == "end" || mode'.string == "both" || mode'.string == "all"
         then let
-          regex = "(.*)${pattern'}*$";
-          result = match regex trimmedStart;
+          result = match "^(.*)(${pattern'})*$" trimmedStart;
         in
           if result == null
           then trimmedStart
-          else head result
+          else elemAt result 0
         else trimmedStart;
-
-      collapsed =
-        if mode' == "all"
-        then let
-          regex = "${pattern'}+";
-          result = replaceStrings [regex] [pattern'] trimmedEnd;
-          # Collapse to single space if pattern is whitespace
-          normalized =
-            if pattern' == "[[:space:]]"
-            then replaceStrings ["  "] [" "] (replaceStrings ["   "] ["  "] result)
-            else result;
-        in
-          normalized
-        else trimmedEnd;
     in
       if mode'.isValid
-      then collapsed
+      then trimmedEnd
       else throw "${_name}: mode must be one of ${concat ", " (map quote modes)}";
   in
     if isAttrs arg
-    then exec arg.mode (arg.pattern or "[[:space:]]") arg.value
-    else if isString maybeCurriedMode
-    then
-      # trim mode: value
-      value: exec maybeCurriedMode "[[:space:]]" value
-    else
-      # trim mode: pattern: value
-      pattern: value: exec maybeCurriedMode pattern value;
+    then exec (arg.mode or "both") (arg.pattern or "[[:space:]]") arg.value
+    else pattern: value: exec arg pattern value;
 
   trimStart = trim "start";
   trimEnd = trim "end";
   trimBoth = trim "both";
   trimAll = trim "all";
-  trim' = value: trim "both" value;
+  trim' = value: trimBoth "[[:space:]]" value;
 
   /**
   Return a non-empty string as-is, otherwise return `""`.

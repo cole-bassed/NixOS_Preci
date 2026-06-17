@@ -6,6 +6,7 @@
   exports = {
     global = {
       inherit mkLibrary;
+      mkLibs = mkLibrary;
       mkFixedPoint = fix;
       recursiveSelf = fix;
     };
@@ -15,7 +16,7 @@
     };
   };
 
-  inherit (builtins) attrValues foldl listToAttrs mapAttrs;
+  inherit (builtins) attrValues foldl' mapAttrs;
   inherit (attrsets) asAttrsIf recursiveAttrs;
   inherit (filesystem) getSpecs;
 
@@ -24,6 +25,7 @@
   mkLibrary = {
     base,
     excludes ? ["default"],
+    seed ? {},
     extra ? {},
     enableExtras ? true,
     enableAliases ? true,
@@ -52,13 +54,18 @@
     };
 
     modules = fix (self: let
-      scope = clean (mapAttrs (_: lib: lib.value) self);
+      scope =
+        recursiveAttrs
+        seed
+        (clean (mapAttrs (_: lib: lib.value) self));
     in
-      listToAttrs (
+      foldl'
+      recursiveAttrs
+      {}
+      (
         map
         (spec: {
-          name = spec.name;
-          value = normalize (spec.input scope);
+          ${spec.name} = normalize (import spec.input scope);
         })
         (getSpecs {inherit base excludes;})
       ));
@@ -66,7 +73,7 @@
     scoped = mapAttrs (_: mod: mod.value) modules;
 
     global =
-      foldl
+      foldl'
       (acc: mod: recursiveAttrs acc mod.global)
       {}
       (attrValues modules);
