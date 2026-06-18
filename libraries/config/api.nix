@@ -1,22 +1,33 @@
 {
   attrsets,
   lists,
+  paths,
   ingestion,
-  users,
   ...
 }: let
-  inherit (attrsets) attrNames mapAttrs;
+  exports = {
+    scoped = {
+      inherit hosts users;
+      admins = getAdmins;
+      normalUsers = getNormal;
+    };
+    global = {
+      hostSpecs = hosts;
+      userSpecs = users;
+      getAdminUsers = getAdmins;
+      getNormalUsers = getNormal;
+    };
+  };
+  inherit (attrsets) attrNames genAttrs filterAttrs mapAttrs;
   inherit (lists) elemAt filter length;
-  inherit (users) getUsers;
   inherit (ingestion) collectNamedSpecs;
 
-  # ---------------------------------------------------------------------------
-  # TODO: Allow flat files (e.g., example.nix) alongside directories.
-  # Currently, readDirAttrs/importModule drops flat files or expects a directory.
-  # FIX NEEDED: Modify `readDirAttrs` or wrap this block to check if an entry is
-  # a "regular" file ending in ".nix". If it is a file, import it directly
-  # via (base + "/${name}"); if it is a "directory", use the current logic.
-  # ---------------------------------------------------------------------------
+  api = let
+    base = paths.store.api or paths.api or ../../configuration/api;
+    hosts = base + "/hosts";
+    users = base + "users";
+  in {inherit hosts users;};
+
   collectSpecs = tags: base:
     collectNamedSpecs {
       inherit base tags;
@@ -25,9 +36,79 @@
     };
 
   specs = {
-    hosts = collectSpecs "core" ./hosts;
-    users = collectSpecs "home" ./users;
+    hosts = collectSpecs "core" api.hosts;
+    users = collectSpecs "home" api.users;
   };
+
+  getUsers = spec: let
+    mkGroup = attrs: let
+      names = attrNames attrs;
+      values = mapAttrs (name: user:
+        user
+        // {
+          inherit name;
+          home = user.home or "/home/${name}";
+          description = user.description or name;
+        })
+      attrs;
+      count = length names;
+    in {inherit names values count;};
+
+    filterByStatus = status: attrs:
+      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
+
+    filterByRole = wantedRole: attrs:
+      filterAttrs (
+        _: u: let
+          role = u.role or "";
+          isNormal = role == "" || role == "user" || role == "normal";
+        in
+          if wantedRole == "normal"
+          then isNormal
+          else role == wantedRole
+      )
+      attrs;
+
+    mkStatusIndex = attrs:
+      genAttrs ["enabled" "disabled"] (status: let
+        subset = filterByStatus status attrs;
+      in
+        (mkGroup subset) // {byRole = mkRoleIndex subset;});
+
+    mkRoleIndex = attrs:
+      genAttrs ["normal" "administrator" "service" "guest"] (role: let
+        subset = filterByRole role attrs;
+      in
+        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
+
+    users = mapAttrs (_: u:
+      {
+        role = "user";
+        enable = true;
+      }
+      // u)
+    spec;
+  in
+    (mkGroup users)
+    // {
+      byStatus = mkStatusIndex users;
+      byRole = mkRoleIndex users;
+    };
+
+  getAdmins = host:
+    (
+      if host.users ? values
+      then host.users
+      else getUsers host.users
+    ).byRole.administrator.values;
+
+  getNormal = host:
+    filterAttrs (_: user: (user.role or "") != "service")
+    (
+      if host.users ? values
+      then host.users
+      else getUsers host.users
+    ).values;
 
   resolveUsers = host: let
     hostPath = "api/hosts/${host.name}";
@@ -86,11 +167,12 @@
     };
   in
     resolved // {inherit primary;};
-in {
+
   hosts =
     mapAttrs
     (_: host: host // {users = resolveUsers host;})
     specs.hosts;
 
   inherit (specs) users;
-}
+in
+  exports

@@ -1,3 +1,10 @@
+# ---------------------------------------------------------------------------
+# TODO: Allow flat files (e.g., example.nix) alongside directories.
+# Currently, readDirAttrs/importModule drops flat files or expects a directory.
+# FIX NEEDED: Modify `readDirAttrs` or wrap this block to check if an entry is
+# a "regular" file ending in ".nix". If it is a file, import it directly
+# via (base + "/${name}"); if it is a "directory", use the current logic.
+# ---------------------------------------------------------------------------
 {
   attrsets,
   defaults,
