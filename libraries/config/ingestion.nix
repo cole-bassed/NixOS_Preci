@@ -16,7 +16,7 @@
       collectNamed = collectNamedSpecs;
       importAttrs = readDirAttrs;
       resolve = resolveEntrypoint;
-      inherit getUsers getAdminsUsers getNonServiceUsers;
+      # inherit getUsers getAdminsUsers getNonServiceUsers;
     };
     global = {
       inherit
