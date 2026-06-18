@@ -1,13 +1,12 @@
 {
-  _,
   attrsets,
+  lists,
   debug,
   types,
   ...
 }: let
-  lists = _.lists or {};
   exports = {
-    scoped = _.recursiveAttrs lists {
+    scoped = {
       inherit asList nthOr orNull orDefault orEmpty;
       atOr = nthOr;
       has = has';

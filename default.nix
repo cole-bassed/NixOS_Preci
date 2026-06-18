@@ -18,13 +18,6 @@
       secrets = ./configuration/secrets;
       libraries = ./libraries;
     };
-    local = {
-      src = "/home/craole/Downloads/public/dotDots";
-      pictures = "/home/craole/Pictures";
-      downloads = "/home/craole/Downloads";
-      dots = "/home/craole/dots";
-      # local.src = "/etc/nixos";
-    };
   };
 
   defaults.host = let

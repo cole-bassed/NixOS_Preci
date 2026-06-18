@@ -13,7 +13,7 @@
   };
 
   inherit (builtins) attrValues foldl' mapAttrs;
-  inherit (attrsets) asAttrsIf recursiveAttrs;
+  inherit (attrsets) recursiveAttrs;
   inherit (filesystem) getSpecs;
   inherit (trivial) fix;
 
@@ -22,8 +22,6 @@
     excludes ? ["default"],
     seed ? {},
     extra ? {},
-    enableExtras ? true,
-    enableAliases ? true,
   }: let
     clean = attrs:
       removeAttrs attrs [
@@ -73,16 +71,8 @@
       {}
       (attrValues modules);
 
-    merged =
-      recursiveAttrs
-      (asAttrsIf enableAliases global)
-      scoped;
-
-    charged =
-      recursiveAttrs
-      (asAttrsIf enableExtras extra)
-      merged;
-  in
-    charged;
+    merged = recursiveAttrs global scoped;
+    seeded = recursiveAttrs (recursiveAttrs seed extra) merged;
+  in {inherit global scoped merged seeded;};
 in
   exports

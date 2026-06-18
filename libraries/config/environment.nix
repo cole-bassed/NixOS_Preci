@@ -22,7 +22,7 @@
   };
 
   inherit (filesystem) mkPaths mkUserPaths;
-  inherit (attrsets) getAttr hasAttr foldlAttrs recursiveUpdate;
+  inherit (attrsets) foldlAttrs optionalAttrs recursiveUpdate;
   inherit (debug) expect;
   inherit (strings) concat toUpper;
   inherit (types) isAttrs isString;
@@ -76,12 +76,6 @@
       };
     };
 
-    # Resolve which key supplies the host's flake checkout path, and
-    # remember *which* key it was (`usedKey`) so `mkPaths` can exclude only
-    # that one from the local extras -- without blacklisting `dots`/`home`
-    # by name, since a host may legitimately use either as a genuine extra
-    # (e.g. `home` meaning "primary user's home directory") when it wasn't
-    # also the key chosen here to resolve `src`.
     hostPaths = checked.host.paths or {};
     resolution =
       if hostPaths ? src
@@ -114,39 +108,39 @@
         value = paths.local.src;
       };
 
-    # The primary user, if the host defines one, supplies sane defaults
-    # for standard folders (Downloads, Pictures, ...) via `mkUserPaths`.
-    # These sit at the *lowest* precedence in the merge below -- a global
-    # `paths.local` default, or an explicit host override, still wins.
     primaryUser =
       ((checked.host.users or {}).primary or {}).value or null;
+
     userDefaults =
-      if primaryUser != null
-      then mkUserPaths {user = primaryUser;}
-      else {};
+      optionalAttrs
+      (primaryUser != null)
+      (mkUserPaths {user = primaryUser;});
 
     args =
-      (
-        if hasAttr names.src external
-        then getAttr names.src external
-        else {}
-      )
-      // {
+      # (
+      #   optionalAttrs
+      #   (hasAttr names.src external)
+      #   (getAttr names.src external)
+      # ) //
+      {
         name = flake.names.src or names.src;
-        inherit names defaults host external;
+        inherit names defaults libraries host;
         paths = mkPaths {
           store = paths.store;
           local =
-            recursiveUpdate
-            (recursiveUpdate userDefaults paths.local)
-            hostPaths
+            (
+              recursiveUpdate
+              (recursiveUpdate userDefaults paths.local)
+              hostPaths
+            )
             // {src = resolution.value;};
           meta =
             if resolution.usedKey != null
             then {inherit (resolution) usedKey;}
             else {};
         };
-      };
+      }
+      // external;
 
     libs = {${names.lib} = checked.overrides.libraries or libraries;};
     src = recursiveUpdate args checked.overrides // libs;

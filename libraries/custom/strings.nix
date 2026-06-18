@@ -1,13 +1,12 @@
 {
-  _,
   debug,
   lists,
+  strings,
   types,
   ...
 }: let
-  strings = _.strings or {};
   exports = {
-    scoped = _.recursiveAttrs strings {
+    scoped = {
       inherit
         _applyStr
         _normalizeSymbols

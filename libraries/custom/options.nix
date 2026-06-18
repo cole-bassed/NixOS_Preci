@@ -1,13 +1,12 @@
 {
-  _,
   attrsets,
   lists,
+  options,
   types,
   ...
 }: let
-  options = _.options or {};
   exports = {
-    scoped = _.recursiveAttrs options {
+    scoped = {
       inherit
         mkEnable
         mkCfg
