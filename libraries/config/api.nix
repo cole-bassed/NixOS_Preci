@@ -25,7 +25,7 @@
   api = let
     base = paths.store.api or paths.api or ../../configuration/api;
     hosts = base + "/hosts";
-    users = base + "users";
+    users = base + "/users";
   in {inherit hosts users;};
 
   collectSpecs = tags: base:

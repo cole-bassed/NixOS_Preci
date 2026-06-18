@@ -58,9 +58,7 @@
         };
           optionalAttrs (isAttrs value) (removeAttrs value ["enable"]);
 
-      resolved = {
-        paths = mkPaths base;
-      };
+      resolved = {paths = mkPaths base;};
 
       enabled =
         filterAttrs (

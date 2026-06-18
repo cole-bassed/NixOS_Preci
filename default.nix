@@ -1,7 +1,7 @@
 {flake ? {}, ...}: let
   names = {
     src = "dots";
-    top = "dots";
+    top = "_";
     lib = "lix";
   };
 
@@ -39,5 +39,4 @@
     import paths.store.libraries
     {inherit defaults flake names paths;};
 in
-  libraries
-# libraries.config.mkSrc {inherit libraries;}
+  libraries.seeded.mkSrc {inherit libraries;}

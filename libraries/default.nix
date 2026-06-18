@@ -1,4 +1,3 @@
-# TODO: Create a version of mkSrc in the bootstrap, so that it's available at all levels.
 {
   defaults ? {},
   flake ? {},
@@ -6,14 +5,17 @@
   paths ? {},
 }: let
   shared = let
+    # TODO: Create a version of mkSrc in the bootstrap, so that it's available at all levels.
     base =
       paths.store.libraries.shared or
       (paths.libraries.shared or
         (paths.shared or ./shared));
     seed = {inherit paths;};
   in
-    (import base {inherit paths;}).mkLibrary {inherit base seed;};
-  inherit (shared.seeded) mkLibrary recursiveAttrs recursiveSelf removeAttrPaths;
+    (import base {inherit paths;}).mkLibrary {
+      inherit base seed;
+    };
+  inherit (shared.seeded) mkLibrary recursiveAttrs removeAttrPaths;
 
   legacy = mkLibrary {
     base = ./import;
@@ -66,40 +68,12 @@
       };
   };
 
-  # api = let
-  #   seed = custom.seeded;
-  #   base =
-  #     seed.paths.store.api or (
-  #       paths.store.api or (
-  #         paths.api or ../configuration/api
-  #       )
-  #     );
-  # in
-  #   mkLibrary {inherit base seed;};
+  config = mkLibrary {
+    seed = custom.seeded;
+    base = ./config;
+  };
 
-  # config = let
-  #   seed = api.seeded // {inherit api;};
-  #   base = ./config;
-  # in
-  #   mkLibrary {inherit base seed;};
-
-  # config = recursiveSelf (
-  #   self: let
-  #     seed = recursiveAttrs custom.seeded {inherit api;};
-  #     base = ./config;
-  #     config = mkLibrary {inherit base seed;};
-  #     api = import (
-  #       seed.paths.store.api or (
-  #         paths.store.api or (
-  #           paths.api or ../configuration/api
-  #         )
-  #       )
-  #     ) (recursiveAttrs seed config.seeded);
-  #   in
-  #     recursiveAttrs config {inherit api;}
-  # );
-
-  seeded = removeAttrPaths custom.seeded [
+  seeded = removeAttrPaths config.seeded [
     {
       scopes = [
         "lib"
@@ -124,7 +98,7 @@
     }
   ];
 in {
-  inherit shared legacy custom seeded;
+  inherit shared legacy custom config seeded;
   lib = legacy.seeded.nixpkgs;
   ${names.lib or "lix"} = seeded;
 }

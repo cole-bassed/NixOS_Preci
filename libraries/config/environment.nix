@@ -3,7 +3,6 @@
   debug,
   types,
   attrsets,
-  external,
   flake,
   filesystem,
   strings,
@@ -13,10 +12,10 @@
   ...
 }: let
   exports = {
-    scoped = {inherit source mkCdAliases mkVariables mkPaths mkUserPaths;};
+    scoped = {inherit mkSrc mkCdAliases mkVariables mkPaths mkUserPaths;};
     global = {
-      inherit mkCdAliases;
-      mkSrc = source;
+      inherit mkCdAliases mkSrc;
+      mkSource = mkSrc;
       mkEnvVars = mkVariables;
     };
   };
@@ -53,12 +52,12 @@
   overrides
   : Explicit framework and configuration adjustments to overlay on the defaults.
   */
-  source = {
+  mkSrc = {
     host ? defaultHost,
     libraries ? {},
     overrides ? {},
   }: let
-    _name = "config.environment.mkSrc";
+    _name = "environment::mkSrc";
 
     checked = {
       host = expect {
@@ -116,41 +115,79 @@
       (primaryUser != null)
       (mkUserPaths {user = primaryUser;});
 
-    args =
-      # (
-      #   optionalAttrs
-      #   (hasAttr names.src external)
-      #   (getAttr names.src external)
-      # ) //
-      {
-        name = flake.names.src or names.src;
-        inherit names defaults libraries host;
-        paths = mkPaths {
-          store = paths.store;
-          local =
-            (
-              recursiveUpdate
-              (recursiveUpdate userDefaults paths.local)
-              hostPaths
-            )
-            // {src = resolution.value;};
-          meta =
-            if resolution.usedKey != null
-            then {inherit (resolution) usedKey;}
-            else {};
-        };
-      }
-      // external;
+    commonArgs = {
+      inherit names defaults host;
+      paths = mkPaths {
+        store = paths.store;
+        local =
+          (
+            recursiveUpdate
+            (recursiveUpdate userDefaults paths.local)
+            hostPaths
+          )
+          // {src = resolution.value;};
+        meta =
+          optionalAttrs
+          (resolution.usedKey != null)
+          {inherit (resolution) usedKey;};
+      };
+    };
 
-    libs = {${names.lib} = checked.overrides.libraries or libraries;};
-    src = recursiveUpdate args checked.overrides // libs;
+    flakeArgs = {
+      name = flake.name or flake.names.src or names.src or "dots";
+      defaults = flake.defaults or {};
+      paths = flake.paths or {};
+      names = flake.names or {};
+    };
+
+    libraryArgs = let
+      raw = checked.overrides.libraries or libraries;
+      name = raw.name or names.lib or "lix";
+      custom =
+        if raw ? ${name} && raw ? seeded
+        then raw
+        else {${name} = raw;};
+      lib = raw.lib or custom.${name}.lib or custom.${name};
+    in {
+      libraries = removeAttrs (custom // {inherit lib name;}) ["lib" name];
+      "${name}" = (custom.seeded) // custom;
+      inherit name lib;
+    };
+
+    src =
+      {
+        defaults =
+          recursiveUpdate
+          defaults
+          (flakeArgs.defaults or {});
+        names = recursiveUpdate names {
+          src = flakeArgs.name;
+          lib = libraryArgs.name;
+        };
+        paths =
+          recursiveUpdate
+          (recursiveUpdate flakeArgs.paths paths)
+          (
+            mkPaths {
+              store = paths.store;
+              local =
+                (
+                  recursiveUpdate
+                  (recursiveUpdate userDefaults paths.local)
+                  hostPaths
+                )
+                // {src = resolution.value;};
+              meta =
+                optionalAttrs
+                (resolution.usedKey != null)
+                {inherit (resolution) usedKey;};
+            }
+          );
+      }
+      // optionalAttrs (flake != {}) {flake = flakeArgs;}
+      // removeAttrs libraryArgs ["name"];
   in
-    src
-    // {
-      inherit src;
-      ${args.name} = src;
-    }
-    // libs;
+    src // {${src.names.src} = src;};
 
   /**
   Flatten structured attribute paths downwards into a standard uppercase

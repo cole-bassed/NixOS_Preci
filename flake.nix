@@ -4,7 +4,8 @@
   outputs = inputs: let
     defaults = {
       allowUnfree = true;
-      nixpkgs = inputs.nixCore;
+      nixpkgs = "nixCore";
+      # nixpkgs = inputs.nixCore;
       excludes = let
         core = [
           "nixCore"
@@ -19,14 +20,17 @@
     };
 
     src = import ./. {flake = {inherit defaults inputs;};};
-  in {inherit src;};
-  # // src.lix.mkFlake
-  # src {
-  #   configurations = true;
-  #   utilities = true;
-  #   devShells = true;
-  #   templates = true;
-  # };
+  in
+    {inherit src;}
+    // src.lix.mkFlake {
+      base = src;
+      mods = {
+        configurations = true;
+        utilities = true;
+        devShells = true;
+        templates = true;
+      };
+    };
 
   inputs = {
     #~@ Core/Nix Infrastructure
