@@ -1,6 +1,6 @@
 {
   attrsets,
-  # environment,
+  environment,
   ingestion,
   lists,
   strings,
@@ -42,7 +42,7 @@
     optionalAttrs
     orEmpty
     ;
-  # inherit (environment) mkVariables mkCdAliases;
+  inherit (environment) mkVariables mkCdAliases;
   inherit (lists) asList concatMap length;
   inherit (ingestion) collectNamedSpecs;
   inherit (strings) concat;

@@ -66,38 +66,38 @@
       };
   };
 
-  api = let
-    seed = custom.seeded;
-    base =
-      seed.paths.store.api or (
-        paths.store.api or (
-          paths.api or ../configuration/api
-        )
-      );
-  in
-    mkLibrary {inherit base seed;};
-
-  config = let
-    seed = api.seeded // {inherit api;};
-    base = ./config;
-  in
-    mkLibrary {inherit base seed;};
-
-  # config = recursiveSelf (
-  #   self: let
-  #     seed = recursiveAttrs custom.seeded {inherit api;};
-  #     base = ./config;
-  #     config = mkLibrary {inherit base seed;};
-  #     api = import (
-  #       seed.paths.store.api or (
-  #         paths.store.api or (
-  #           paths.api or ../configuration/api
-  #         )
+  # api = let
+  #   seed = custom.seeded;
+  #   base =
+  #     seed.paths.store.api or (
+  #       paths.store.api or (
+  #         paths.api or ../configuration/api
   #       )
-  #     ) (recursiveAttrs seed config);
-  #   in
-  #     recursiveAttrs config {inherit api;}
-  # );
+  #     );
+  # in
+  #   mkLibrary {inherit base seed;};
+
+  # config = let
+  #   seed = api.seeded // {inherit api;};
+  #   base = ./config;
+  # in
+  #   mkLibrary {inherit base seed;};
+
+  config = recursiveSelf (
+    self: let
+      seed = recursiveAttrs custom.seeded {inherit api;};
+      base = ./config;
+      config = mkLibrary {inherit base seed;};
+      api = import (
+        seed.paths.store.api or (
+          paths.store.api or (
+            paths.api or ../configuration/api
+          )
+        )
+      ) (recursiveAttrs seed config.seeded);
+    in
+      recursiveAttrs config {inherit api;}
+  );
 
   seeded = removeAttrPaths config.seeded [
     {
