@@ -24,9 +24,9 @@
   inherit (lists) filter concatLists head sort optionals;
   inherit (comparison) lessThan;
   inherit (attrsets) attrNames mapAttrs filterAttrs;
-  inherit (strings) split' concatStringsSep stringLength substring hasPrefix;
+  inherit (strings) split' concatStringsSep quote stringLength substring hasPrefix;
   inherit (types) isAttrs isPath isString typeOf;
-  inherit (filesystem) path readDir readFileType;
+  inherit (filesystem) path readDir readFile readFileType;
 
   /**
   Boundary-safe prefix check: true if `value` is exactly `root`, or sits

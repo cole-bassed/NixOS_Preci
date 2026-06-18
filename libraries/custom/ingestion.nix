@@ -16,6 +16,7 @@
       collectNamed = collectNamedSpecs;
       importAttrs = readDirAttrs;
       resolve = resolveEntrypoint;
+      inherit getUsers getAdminsUsers getNonServiceUsers;
     };
     global = {
       inherit
@@ -30,9 +31,9 @@
     };
   };
 
-  inherit (attrsets) filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (attrsets) attrNames filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asList any concatMap elem findFirst;
+  inherit (lists) asList any concatMap elem findFirst length;
   inherit (strings) hasSuffix removeSuffix;
   inherit (types) isFunction;
 
@@ -179,7 +180,6 @@
       raw
     else raw;
 
-  # STREAMLINED: Stripped of profile logic layouts. Purely evaluates modules.
   importAll = args @ {
     base,
     excludes ? pathExcludes,
@@ -206,5 +206,75 @@
       // {
         inherit base excludes tags extraArgs includeFiles;
       });
+
+  getUsers = spec: let
+    mkGroup = attrs: let
+      names = attrNames attrs;
+      values = mapAttrs (name: user:
+        user
+        // {
+          inherit name;
+          home = user.home or "/home/${name}";
+          description = user.description or name;
+        })
+      attrs;
+      count = length names;
+    in {inherit names values count;};
+
+    filterByStatus = status: attrs:
+      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
+
+    filterByRole = wantedRole: attrs:
+      filterAttrs (
+        _: u: let
+          role = u.role or "";
+          isNormal = role == "" || role == "user" || role == "normal";
+        in
+          if wantedRole == "normal"
+          then isNormal
+          else role == wantedRole
+      )
+      attrs;
+
+    mkStatusIndex = attrs:
+      genAttrs ["enabled" "disabled"] (status: let
+        subset = filterByStatus status attrs;
+      in
+        (mkGroup subset) // {byRole = mkRoleIndex subset;});
+
+    mkRoleIndex = attrs:
+      genAttrs ["normal" "administrator" "service" "guest"] (role: let
+        subset = filterByRole role attrs;
+      in
+        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
+
+    users = mapAttrs (_: u:
+      {
+        role = "user";
+        enable = true;
+      }
+      // u)
+    spec;
+  in
+    (mkGroup users)
+    // {
+      byStatus = mkStatusIndex users;
+      byRole = mkRoleIndex users;
+    };
+
+  getAdminsUsers = host:
+    (
+      if host.users ? values
+      then host.users
+      else getUsers host.users
+    ).byRole.administrator.values;
+
+  getNonServiceUsers = host:
+    filterAttrs (_: user: (user.role or "") != "service")
+    (
+      if host.users ? values
+      then host.users
+      else getUsers host.users
+    ).values;
 in
   exports

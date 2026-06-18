@@ -7,8 +7,7 @@
 }: let
   inherit (attrsets) attrNames mapAttrs;
   inherit (lists) elemAt filter length;
-  inherit (users) getUsers;
-  inherit (ingestion) collectNamedSpecs;
+  inherit (ingestion) collectNamedSpecs getUsers;
 
   # ---------------------------------------------------------------------------
   # TODO: Allow flat files (e.g., example.nix) alongside directories.
