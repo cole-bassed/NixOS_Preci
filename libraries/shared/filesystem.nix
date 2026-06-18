@@ -1,15 +1,11 @@
 {
   attrsets,
-  paths,
   strings,
   ...
 }: let
   exports = {
     scoped = {
       inherit
-        bat
-        mkPaths
-        toPathList
         stem
         nest
         getSpecs
@@ -49,15 +45,12 @@
     (builtins)
     attrNames
     concatLists
-    concatStringsSep
     elemAt
-    filter
     head
     elem
     isAttrs
     isPath
     isString
-    lessThan
     mapAttrs
     match
     path
@@ -65,13 +58,11 @@
     readDir
     readFile
     readFileType
-    sort
     stringLength
     substring
     tail
-    typeOf
     ;
-  inherit (strings) hasPrefix hasSuffix quote matchRegex split;
+  inherit (strings) hasPrefix hasSuffix matchRegex;
   inherit (attrsets) filterAttrs;
 
   /**
@@ -258,228 +249,6 @@
     then value
     else {${head path} = nest (tail path) value;};
 
-  /**
-  Split a path or path-like string into its individual components.
-
-  Strips a leading `./` prefix before splitting. The special input `"."` returns
-  `["."]` rather than an empty list.
-
-  # Type
-  ```nix
-  toPathList :: Path   -> [String]
-  toPathList :: String -> [String]
-  ```
-
-  # Arguments
-  path
-  : A Nix path literal or a string. Recognised string forms: `"."`,
-    `"./rel/path"`, `"rel/path"`, `"/abs/path"`.
-
-  # Examples
-  ```nix
-  toPathList ./lib/util.nix   # => [ "lib" "util.nix" ]
-  toPathList "."              # => [ "." ]
-  toPathList "/abs/path"      # => [ "abs" "path" ]
-  toPathList "./foo/bar/baz"  # => [ "foo" "bar" "baz" ]
-  ```
-  */
-  toPathList = path: let
-    pathStr = toString path;
-    clean =
-      if hasPrefix "./" pathStr
-      then substring 2 (-1) pathStr
-      else pathStr;
-  in
-    if pathStr == "."
-    then ["."]
-    else filter (x: x != "") (split "/" clean);
-
-  /**
-  Read a file, or recursively collect and label all regular files in a directory.
-
-  # Behavior
-  - Single file:
-    - If `label` is provided, it is shown directly.
-    - Else if the input `path` is a string, it is shown directly.
-    - Else if `root` is provided, the file is shown relative to `root`.
-    - Else the absolute/normalised Nix path string is shown.
-  - Directory:
-    - Walks recursively in lexicographic order.
-    - If `root` is provided, every file is shown relative to `root`.
-    - Else every file is shown relative to the walked directory.
-
-  Path headers use this format:
-
-  ```
-  #************************************************
-  #> STORE: /nix/store/…-source
-  #> LOCAL: /path/to/flake
-  #> STEMS: [ "relative" "path" "parts" "file.nix" ]
-  #************************************************
-  ```
-
-  When store and local roots are identical, a single `#> ROOT:` line is shown
-  instead of the `STORE` / `LOCAL` pair.
-
-  Symlinks and unknown filesystem entries are silently skipped.
-
-  # Type
-  ```nix
-  bat :: Path -> String
-  bat :: String -> String
-  bat :: {
-    path       :: Path | String;
-    root      ?: Path | String | { store :: Path; local :: Path | String };
-    label     ?: String;
-    name      ?: String;   # alias for label
-  } -> String
-  ```
-
-  # Arguments
-  path
-  : A path literal or path-like string pointing to a file or directory.
-    Accepted string prefixes: `/`, `./`, `../`, `~/`.
-
-  root
-  : Override the root used to compute relative labels and the header.
-    Accepts a path literal, a `{ store, local }` pair, or anything accepted
-    by `mkPaths`. Defaults to the module-level `paths`.
-
-  label
-  : Explicit label shown in the path header instead of the computed relative
-    path. Also accepted as `name`.
-
-  # Examples
-  ```nix
-  # Single file — short form
-  bat ./config.nix
-
-  # Whole directory
-  bat ./lib
-
-  # Explicit label
-  bat { path = ./src/main.nix; label = "main entry point"; }
-
-  # Custom root so headers are relative to ./src
-  bat { path = ./src/util.nix; root = ./src; }
-
-  # Store/local root pair
-  bat {
-    path = ./src/util.nix;
-    root = { store = ./.; local = "/home/user/project"; };
-  }
-  ```
-  */
-  bat = input: let
-    _name = "filesystem::bat";
-
-    args =
-      if isAttrs input
-      then input
-      else {path = input;};
-
-    path = let
-      candidate = args.path;
-      isValidString =
-        isString candidate
-        && (
-          false
-          || hasPrefix "/" candidate
-          || hasPrefix "./" candidate
-          || hasPrefix "../" candidate
-          || hasPrefix "~/" candidate
-        );
-    in
-      if isPath candidate || isValidString
-      then candidate
-      else
-        throw "${_name}: expected `path` to be a path or path-like string, got ${
-          typeOf candidate
-        }: ${toString candidate}";
-
-    root = let
-      candidate = args.root or null;
-    in
-      if candidate == null
-      then mkPaths {inherit paths;}
-      else if isAttrs candidate && (candidate ? store || candidate ? local)
-      then
-        mkPaths {
-          store = candidate.store or candidate.local;
-          local = candidate.local or toString candidate.store;
-        }
-      else mkPaths {store = candidate;};
-
-    label = args.label or (args.name or null);
-
-    toRelativePath = activeRoot: targetPath: let
-      targetStr = toString targetPath;
-      baseStr =
-        if hasPrefix activeRoot.store.src targetStr
-        then activeRoot.store.src
-        else activeRoot.local.src;
-    in
-      if targetStr == baseStr
-      then "."
-      else if hasPrefix baseStr targetStr
-      then "./" + substring (stringLength baseStr + 1) (-1) targetStr
-      else "./" + targetStr;
-
-    mkHeader = shownPath:
-      concatStringsSep "\n" (
-        []
-        ++ ["#************************************************"]
-        ++ (
-          if root.store.src != root.local.src
-          then [
-            "#> STORE: ${root.store.src}"
-            "#> LOCAL: ${root.local.src}"
-          ]
-          else ["#>  ROOT: ${root.local.src}"]
-        )
-        ++ ["#> STEMS: ${quote (toPathList shownPath)}"]
-        ++ ["#************************************************"]
-      );
-
-    fileBlock = shown: child:
-      mkHeader shown + "\n" + readFile child;
-
-    collectFiles = displayRoot: dir: let
-      entries = readDir dir;
-      names = sort lessThan (attrNames entries);
-    in
-      concatLists (map (
-          name: let
-            child = dir + "/${name}";
-            shown =
-              if displayRoot != null
-              then toRelativePath displayRoot child
-              else toRelativePath root child;
-          in
-            if entries.${name} == "regular"
-            then [(fileBlock shown child)]
-            else if entries.${name} == "directory"
-            then collectFiles displayRoot child
-            else []
-        )
-        names);
-
-    shownPath =
-      if label != null
-      then label
-      else if isString path
-      then path
-      else toRelativePath root path;
-
-    displayRoot =
-      if readFileType path == "directory"
-      then root
-      else null;
-  in
-    if readFileType path == "directory"
-    then concatStringsSep "\n\n" (collectFiles displayRoot path)
-    else fileBlock shownPath path;
-
   pathType = path:
     if pathExists path
     then let
@@ -560,8 +329,7 @@
     excludes ? ["default"],
     depth ? 2,
   }: let
-    _name = "filesystem::getSpecsRecursive";
-
+    # _name = "filesystem::getSpecsRecursive";
     scan = dir: d: let
       names = attrNames (readDir dir);
       normalizeName = name: let

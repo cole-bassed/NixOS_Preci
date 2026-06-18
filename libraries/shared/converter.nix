@@ -1,17 +1,17 @@
 _: let
   exports = {
     scoped = {
-      from = {
-        json = builtins.fromJSON;
-        toml = builtins.fromTOML;
+      from = with builtins; {
+        json = fromJSON;
+        toml = fromTOML;
       };
 
-      to = {
-        json = builtins.toJSON;
-        xml = builtins.toXML;
-        file = builtins.toFile;
-        string = builtins.toString;
-        path = builtins.toPath;
+      to = with builtins; {
+        json = toJSON;
+        xml = toXML;
+        file = toFile;
+        string = toString;
+        path = toPath;
       };
     };
 
