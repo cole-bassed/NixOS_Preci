@@ -10,7 +10,7 @@
       all = classified // normalized;
       default = orEmpty normalized.nixpkgs;
     };
-    global = {flakes.packages = normalized;};
+    # global = {flakes.packages = normalized;};
   };
   excluded = excludes.packages or []; # TODO: Incorporate this
   inherit (bootstrap) inputs getPackages;

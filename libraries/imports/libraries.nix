@@ -10,7 +10,6 @@
       inherit classified normalized excluded;
       default = merged;
     };
-    global = {flakes.overlays = normalized;};
   };
 
   inherit (bootstrap) inputs;

@@ -15,13 +15,13 @@
     (import base).mkLibrary {inherit base;};
   inherit (shared.charged) mkLibrary recursiveAttrs removeAttrPaths;
 
-  charged =
+  bootstrap =
     shared.charged
     // {
       flake =
         recursiveAttrs {
-          name = charged.names.src or charged.defaults.names.src;
-          path = charged.paths.store.src or paths.src or ../.;
+          name = bootstrap.names.src or bootstrap.defaults.names.src;
+          path = bootstrap.paths.store.src or paths.src or ../.;
         }
         flake;
 
@@ -44,7 +44,7 @@
               "flake.nix"
             ]
             ++ (paths.excludes or [])
-            ++ (charged.defaults.excludes.paths or []);
+            ++ (bootstrap.defaults.excludes.paths or []);
         } (
           recursiveAttrs
           excludes
@@ -52,7 +52,7 @@
         );
 
       paths = recursiveAttrs {
-        excludes = charged.excludes.paths;
+        excludes = bootstrap.excludes.paths;
         store = {
           src = ../.;
           api = ../configuration/api;
@@ -71,16 +71,24 @@
     base = paths.store.libraries.global or
       (paths.libraries.global or
         (paths.global or ./imports));
-    bootstrap = import (base + "/bootstrap.nix") charged;
-    seed = charged // {inherit bootstrap;};
-    excludes = charged.excludes.paths;
   in
-    mkLibrary {inherit base excludes seed;};
+    mkLibrary {
+      inherit base;
+      seed =
+        bootstrap
+        // {
+          bootstrap = import (base + "/bootstrap.nix") bootstrap;
+        };
+      excludes = bootstrap.excludes.paths;
+    };
+  flakes = with global.domains; {
+    enabled = types.isFlakeLike inputs;
+    inherit overlays modules libraries packages inputs;
+    args = flake;
+  };
   # custom = mkLibrary {
   #   base = ./custom;
   #   seed = let
-  #     bootstrap = shared.seeded;
-  #     external = global.seeded;
   #     flake' = external.seeded.flake or {};
   #   in
   #     recursiveAttrs
@@ -118,38 +126,41 @@
   #   seed = custom.seeded;
   #   base = ./config;
   # };
-  # seeded = removeAttrPaths config.seeded [
-  #   {
-  #     scopes = [
-  #       "lib"
-  #       "lists"
-  #       "modules"
-  #     ];
-  #     items = [
-  #       "applyModuleArgsIfFunction"
-  #       "collectModules"
-  #       "dischargeProperties"
-  #       "evalOptionValue"
-  #       "fold"
-  #       "isInOldestRelease"
-  #       "mergeModules'"
-  #       "mergeModules"
-  #       "mkAliasOptionModuleMD"
-  #       "mkFixStrictness"
-  #       "nixpkgsVersion"
-  #       "pushDownProperties"
-  #       "unifyModuleSyntax"
-  #     ];
-  #   }
-  # ];
+
+  charged = removeAttrPaths global.charged [
+    {
+      scopes = [
+        "lib"
+        "lists"
+        "modules"
+      ];
+      items = [
+        "applyModuleArgsIfFunction"
+        "bootstrap"
+        "collectModules"
+        "dischargeProperties"
+        "evalOptionValue"
+        "fold"
+        "isInOldestRelease"
+        "mergeModules'"
+        "mergeModules"
+        "mkAliasOptionModuleMD"
+        "mkFixStrictness"
+        "nixpkgsVersion"
+        "pushDownProperties"
+        "unifyModuleSyntax"
+      ];
+    }
+  ];
 in {
   inherit
     shared
     global
     # custom
     # config
-    # seeded
+    charged
     ;
+  flake = flakes;
   # lib = global.seeded.nixpkgs;
   # ${names.lib or "lix"} = seeded;
 }

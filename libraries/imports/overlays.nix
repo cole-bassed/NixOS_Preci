@@ -11,7 +11,7 @@
       all = classified // normalized;
       default = normalized;
     };
-    global = {flakes.overlays = normalized;};
+    # global = {flakes.overlays = normalized;};
   };
 
   inherit (bootstrap) inputs preferDefaultModules;

@@ -15,12 +15,12 @@
       all = classified // normalized;
       default = normalized;
     };
-    global = {
-      flakes = {
-        modules = normalized;
-        inherit mkModules collectModules preferDefaultModules;
-      };
-    };
+    # global = {
+    #   flakes = {
+    #     modules = normalized;
+    #     inherit mkModules collectModules preferDefaultModules;
+    #   };
+    # };
   };
   inherit (bootstrap) inputs collectModules preferDefaultModules;
   inherit (attrsets) attrNames filterAttrs isAttrs;
