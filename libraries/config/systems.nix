@@ -3,9 +3,10 @@
   debug,
   attrsets,
   lists,
-  external,
+  # nixpkgs,
+  # nix-darwin,
   types,
-  flake,
+  flakes,
   strings,
   defaults,
   ...
@@ -53,9 +54,10 @@
         }}], got ${class}'';
       context = "parsing system builder from class";
     };
+    with flakes.libraries.default;
       if class == "nixos"
-      then external.nixpkgs.nixosSystem
-      else external.nix-darwin.darwinSystem;
+      then nixpkgs.nixosSystem or {}
+      else nix-darwin.darwinSystem or {};
 
   supported = {extra ? []}:
     unique (
@@ -69,12 +71,12 @@
       if isFunction arg
       then {fn = arg;}
       else arg;
-    packages = opts.packages or flake.packages.default;
+    packages = opts.packages or flakes.packages.default;
     extra = opts.extra or [];
   in
     genAttrs
     (supported {inherit extra;})
     (system: opts.fn packages.${system});
-  # TODO: add kind (get via parsing input or pkgs.stdenv.hostPaltform) and getOrDefault (via kind or builtins.currentSystem or most common system from api hosts)
+  # TODO: add kind (get via parsing input or pkgs.stdenv.hostPlatform) and getOrDefault (via kind or builtins.currentSystem or most common system from api hosts)
 in
   exports

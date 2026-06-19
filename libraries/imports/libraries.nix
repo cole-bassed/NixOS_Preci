@@ -91,6 +91,7 @@
                 ;
               type = strings.typeOf;
             }
+            // bootstrap.types
           ) ["types"];
         };
     }

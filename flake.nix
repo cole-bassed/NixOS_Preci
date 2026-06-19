@@ -19,15 +19,15 @@
     src = import ./. {flake = {inherit nixpkgs excludes defaults inputs;};};
   in
     {inherit src;}
-    # // src.${src.names.lib}.mkFlake {
-    #   base = src;
-    #   mods = {
-    #     configurations = true;
-    #     utilities = true;
-    #     devShells = true;
-    #     templates = true;
-    #   };
-    # }
+    // src.${src.names.lib}.mkFlake {
+      base = src;
+      mods = {
+        # configurations = false;
+        utilities = true;
+        devShells = true;
+        templates = true;
+      };
+    }
     // {};
 
   inputs = {

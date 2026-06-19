@@ -34,9 +34,7 @@ let
           value =
             if lhs ? ${name} && rhs ? ${name}
             then recursiveAttrs lhs.${name} rhs.${name}
-            else if rhs ? ${name}
-            then rhs.${name}
-            else lhs.${name};
+            else rhs.${name} or lhs.${name};
         })
         (attrNames (lhs // rhs))
       )
@@ -95,31 +93,27 @@ let
   clean = attrs: removeAttrs attrs ["__value" "__global" "__scoped"];
 
   collectGlobals = exported:
-    if exported ? global
-    then exported.global
-    else if exported ? scoped
-    then {}
-    else if isAttrs exported
-    then
-      foldl'
-      recursiveAttrs
-      {}
-      (map
-        (name: let
-          value = exported.${name};
-        in
-          if isAttrs value && value ? global
-          then value.global
-          else {})
-        (attrNames exported))
-    else {};
+    exported.global or (
+      if exported ? scoped
+      then {}
+      else if isAttrs exported
+      then
+        foldl'
+        recursiveAttrs
+        {}
+        (map
+          (name: let
+            value = exported.${name};
+          in
+            if isAttrs value && value ? global
+            then value.global
+            else {})
+          (attrNames exported))
+      else {}
+    );
 
   collectScoped = exported:
-    if exported ? scoped
-    then exported.scoped
-    else if exported ? global
-    then exported.global
-    else exported;
+    exported.scoped or (exported.global or exported);
 
   libraries = recursiveSelf (self: let
     scope = clean (mapAttrs (_: v: v.__value) self);

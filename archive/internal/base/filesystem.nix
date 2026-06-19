@@ -163,7 +163,7 @@
 
     src = {
       store = path {
-        path = root.path;
+        inherit (root) path;
         name = "source";
       };
       local =
@@ -207,8 +207,8 @@
       store = mapAttrs (_: stem: src.store + stem) stems;
       local =
         mapAttrs (_: stem: src.local + stem) stems
-        // mapAttrs (_: value: toString value) absolute
-        // mapAttrs (_: value: toString value) localExtras;
+        // mapAttrs (_: toString) absolute
+        // mapAttrs (_: toString) localExtras;
     };
   in
     assert if isAttrs paths
@@ -394,8 +394,7 @@
 
     mkHeader = shownPath:
       concatStringsSep "\n" (
-        []
-        ++ ["#************************************************"]
+        ["#************************************************"]
         ++ (
           if root.store.src != root.local.src
           then [

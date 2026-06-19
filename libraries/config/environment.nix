@@ -1,14 +1,16 @@
 {
   api,
   debug,
+  bootstrap,
   types,
   attrsets,
-  flake,
+  flakes,
   filesystem,
   strings,
   paths,
   names,
   defaults,
+  excludes,
   ...
 }: let
   exports = {
@@ -54,7 +56,7 @@
   */
   mkSrc = {
     host ? defaultHost,
-    libraries ? {},
+    libraries ? bootstrap,
     overrides ? {},
   }: let
     _name = "environment::mkSrc";
@@ -115,61 +117,65 @@
       (primaryUser != null)
       (mkUserPaths {user = primaryUser;});
 
-    commonArgs = {
-      inherit names defaults host;
-      paths = mkPaths {
-        store = paths.store;
-        local =
-          (
-            recursiveUpdate
-            (recursiveUpdate userDefaults paths.local)
-            hostPaths
-          )
-          // {src = resolution.value;};
-        meta =
-          optionalAttrs
-          (resolution.usedKey != null)
-          {inherit (resolution) usedKey;};
+    args = let
+      common = {
+        inherit names defaults excludes host;
+        paths = mkPaths {
+          inherit (paths) store;
+          local =
+            (
+              recursiveUpdate
+              (recursiveUpdate userDefaults paths.local)
+              hostPaths
+            )
+            // {src = resolution.value;};
+          meta =
+            optionalAttrs
+            (resolution.usedKey != null)
+            {inherit (resolution) usedKey;};
+        };
       };
-    };
-
-    flakeArgs = {
-      name = flake.name or flake.names.src or names.src or "dots";
-      defaults = flake.defaults or {};
-      paths = flake.paths or {};
-      names = flake.names or {};
-    };
-
-    libraryArgs = let
-      raw = checked.overrides.libraries or libraries;
-      name = raw.name or names.lib or "lix";
-      custom =
-        if raw ? ${name} && raw ? seeded
-        then raw
-        else {${name} = raw;};
-      lib = raw.lib or custom.${name}.lib or custom.${name};
-    in {
-      libraries = removeAttrs (custom // {inherit lib name;}) ["lib" name];
-      "${name}" = (custom.seeded) // custom;
-      inherit name lib;
-    };
-
+      flake = recursiveUpdate flakes.args {
+        name =
+          flakes.args.name or (
+            flake.names.src or (
+              names.src or "dots"
+            )
+          );
+        path = flakes.paths.src or paths.store.src or null;
+      };
+      library = let
+        raw = checked.overrides.libraries or libraries;
+        name = raw.name or names.lib or "lix";
+        custom =
+          raw.charged or raw;
+        lib =
+          if raw ? global
+          then raw.global.charged
+          else custom;
+      in {
+        libraries = removeAttrs (custom // {inherit raw lib name;}) ["lib" name];
+        "${name}" = custom;
+        inherit name lib;
+      };
+    in {inherit common flake library;};
     src =
       {
+        excludes = recursiveUpdate excludes (flakes.args.exckudes or {});
         defaults =
           recursiveUpdate
           defaults
-          (flakeArgs.defaults or {});
+          (args.flake.defaults or {});
         names = recursiveUpdate names {
-          src = flakeArgs.name;
-          lib = libraryArgs.name;
+          src = args.flake.name;
+          lib = args.library.name;
         };
         paths =
           recursiveUpdate
-          (recursiveUpdate flakeArgs.paths paths)
+          (recursiveUpdate (args.flake.paths or {}) paths)
           (
             mkPaths {
-              store = paths.store;
+              inherit (paths) store;
               local =
                 (
                   recursiveUpdate
@@ -184,8 +190,8 @@
             }
           );
       }
-      // optionalAttrs (flake != {}) {flake = flakeArgs;}
-      // removeAttrs libraryArgs ["name"];
+      // optionalAttrs (args.flake.enable or false) {inherit (args) flake;}
+      // removeAttrs args.library ["name"];
   in
     src // {${src.names.src} = src;};
 

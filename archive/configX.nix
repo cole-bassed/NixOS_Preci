@@ -221,7 +221,7 @@
             (base
               // {
                 top = base.names.top or (names.top or "dots");
-                args = normalise (mods.configurations);
+                args = normalise mods.configurations;
               });
         in
           assemble.configurations base {

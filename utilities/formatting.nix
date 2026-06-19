@@ -1,6 +1,6 @@
 {lix, ...}: let
   inherit (lix.treefmt) evalModule projectRoot;
-  inherit (lix.config) forEachSystem;
+  inherit (lix.systems) forEachSystem;
 
   evalFor = pkgs:
     evalModule pkgs {

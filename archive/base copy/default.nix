@@ -27,9 +27,7 @@
           value =
             if lhs ? ${name} && rhs ? ${name}
             then recursiveAttrs lhs.${name} rhs.${name}
-            else if rhs ? ${name}
-            then rhs.${name}
-            else lhs.${name};
+            else rhs.${name} or lhs.${name};
         })
         (attrNames (lhs // rhs)))
     else rhs;

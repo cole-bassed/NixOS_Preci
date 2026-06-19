@@ -82,52 +82,27 @@
       excludes = bootstrap.excludes.paths;
     };
   flakes = with global.domains; {
-    enabled = types.isFlakeLike inputs;
     inherit overlays modules libraries packages inputs;
-    args = flake;
+    args = flake // {enable = libraries.default.types.isFlakeLike inputs;};
   };
-  # custom = mkLibrary {
-  #   base = ./custom;
-  #   seed = let
-  #     flake' = external.seeded.flake or {};
-  #   in
-  #     recursiveAttrs
-  #     (recursiveAttrs bootstrap external)
-  #     {
-  #       inherit bootstrap external;
-  #       flake = flake';
-  #       defaults = recursiveAttrs {
-  #         host = "ExampleHost";
-  #         excludes.paths = [
-  #           "archive"
-  #           "backup"
-  #           "review"
-  #           "temp"
-  #           "default.nix"
-  #           "flake.nix"
-  #         ];
-  #         tags = ["core" "home"];
-  #       } (recursiveAttrs defaults (flake'.defaults or {}));
-  #       paths = recursiveAttrs {
-  #         store = {
-  #           src = ../.;
-  #           api = ../configuration/api;
-  #         };
-  #         local.src = "/etc/nixos";
-  #       } (recursiveAttrs paths (flake'.paths or {}));
-  #       names = recursiveAttrs {
-  #         src = "dots";
-  #         lib = "lix";
-  #         top = "_";
-  #       } (recursiveAttrs names (flake'.names or {}));
-  #     };
-  # };
-  # config = mkLibrary {
-  #   seed = custom.seeded;
-  #   base = ./config;
-  # };
 
-  charged = removeAttrPaths global.charged [
+  custom = mkLibrary {
+    base = ./custom;
+    seed =
+      recursiveAttrs
+      global.charged
+      (
+        recursiveAttrs
+        global.charged.libraries.default
+        {inherit flakes;}
+      );
+  };
+  config = mkLibrary {
+    seed = custom.charged // {bootstrap = custom.charged;};
+    base = ./config;
+  };
+
+  charged = removeAttrPaths config.charged [
     {
       scopes = [
         "lib"
@@ -156,8 +131,8 @@ in {
   inherit
     shared
     global
-    # custom
-    # config
+    custom
+    config
     charged
     ;
   flake = flakes;

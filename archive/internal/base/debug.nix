@@ -9,8 +9,8 @@
       inherit (builtins) abort throw;
       verbose = builtins.traceVerbose;
       try = builtins.tryEval;
-      seq = builtins.seq;
-      deepSeq = builtins.deepSeq;
+      inherit (builtins) seq;
+      inherit (builtins) deepSeq;
     };
 
     global = {

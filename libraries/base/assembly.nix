@@ -35,11 +35,11 @@
     normalize = spec: let
       global = spec.global or {};
       scoped =
-        if spec ? scoped
-        then spec.scoped
-        else if spec ? global
-        then {}
-        else spec;
+        spec.scoped or (
+          if spec ? global
+          then {}
+          else spec
+        );
       value = recursiveAttrs global scoped;
     in {
       inherit global scoped value;

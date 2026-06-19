@@ -18,7 +18,7 @@
     resolved = {
       inherit top dom mod;
       lib = lix;
-      host = host // {users = cfg.users;};
+      host = host // {inherit (cfg) users;};
       base = mod;
     };
     inherit (cfg) enable;

@@ -1,4 +1,4 @@
-{{
+{
   external ? null,
   bootstrap ? null,
   flake ? {},
@@ -90,4 +90,3 @@ in
     enableAliases = false;
     enableExtras = false;
   }
-}

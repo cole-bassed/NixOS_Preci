@@ -131,7 +131,7 @@
       else [spec];
 
     flattenSpecs = specs: concat (map flattenSpec specs);
-  in let
+
     prefixed = map (spec: spec // {prefix = prefix ++ (spec.prefix or []);}) (flattenSpecs specs);
     result =
       foldl' mkOne {

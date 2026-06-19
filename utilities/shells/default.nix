@@ -1,5 +1,5 @@
 {lix, ...}: let
-  inherit (lix.config) forEachSystem;
+  inherit (lix.systems) forEachSystem;
 in {
   devShells = forEachSystem (pkgs: {
     default = pkgs.mkShell {

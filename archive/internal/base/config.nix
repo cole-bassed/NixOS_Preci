@@ -57,11 +57,11 @@
   }: let
     imported = import input args;
     scoped =
-      if imported ? scoped
-      then imported.scoped
-      else if imported ? global
-      then {}
-      else imported;
+      imported.scoped or (
+        if imported ? global
+        then {}
+        else imported
+      );
     global = imported.global or {};
     value = merge global scoped;
   in
@@ -88,9 +88,7 @@
             value =
               if lhs ? ${name} && rhs ? ${name}
               then recursiveAttrs lhs.${name} rhs.${name}
-              else if rhs ? ${name}
-              then rhs.${name}
-              else lhs.${name};
+              else rhs.${name} or lhs.${name};
           })
           (attrNames (lhs // rhs))
         )
@@ -166,11 +164,11 @@
           imported = import spec.input (extra // scope);
           global = imported.global or {};
           scoped =
-            if imported ? scoped
-            then imported.scoped
-            else if imported ? global
-            then {}
-            else imported;
+            imported.scoped or (
+              if imported ? global
+              then {}
+              else imported
+            );
         in {
           inherit name;
           value = {

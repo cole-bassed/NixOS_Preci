@@ -79,8 +79,8 @@
       (recursiveAttrs external bootstrap)
       {
         inherit (resolved) defaults names paths;
-        flake = resolved.flake;
-        external = resolved.external;
+        inherit (resolved) flake;
+        inherit (resolved) external;
       };
     specs = let
       mk = arg: let
@@ -110,7 +110,7 @@
         }
         else if isAttrs arg
         then {
-          input = arg.input;
+          inherit (arg) input;
           output = arg.output or [];
           dependencies = arg.dependencies or dependencies;
         }
@@ -161,3 +161,4 @@ in
 #     ];
 #   }
 # ]
+

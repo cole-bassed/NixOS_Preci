@@ -534,8 +534,7 @@
 
     mkHeader = shownPath:
       concatStringsSep "\n" (
-        []
-        ++ ["#************************************************"]
+        ["#************************************************"]
         ++ (
           if root.store.src != root.local.src
           then [

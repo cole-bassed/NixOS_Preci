@@ -507,9 +507,7 @@
           value =
             if lhs ? ${name} && rhs ? ${name}
             then merge lhs.${name} rhs.${name}
-            else if rhs ? ${name}
-            then rhs.${name}
-            else lhs.${name};
+            else rhs.${name} or lhs.${name};
         })
         (unique (attrNames lhs ++ attrNames rhs)))
     else rhs;
