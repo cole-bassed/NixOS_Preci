@@ -10,7 +10,7 @@
     global = {flakes.overlays = normalized;};
   };
 
-  inherit (bootstrap) inputs preferDefault;
+  inherit (bootstrap) inputs preferDefaultModules;
   inherit (lists) concatLists elem;
   inherit (attrsets) filterAttrs mapAttrs attrValues;
 
@@ -28,6 +28,6 @@
 
   normalized =
     concatLists
-    (map preferDefault (attrValues classified));
+    (map preferDefaultModules (attrValues classified));
 in
   exports
