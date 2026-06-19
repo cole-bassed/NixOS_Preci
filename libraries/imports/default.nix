@@ -9,17 +9,17 @@
   exports =
     {
       inputs = {inherit raw classified normalized;};
-      types = checks;
-      inherit collectModules preferDefaultModules;
+      inherit types;
     }
-    // checks;
-  checks = {
+    // types;
+  types = {
     inherit
       collectModules
-      preferDefaultModules
       getPackages
-      hasLib
-      hasModules
+      hasLibraries
+      hasFlakeModules
+      hasCoreModules
+      hasHomeModules
       hasOverlays
       isFlakeLike
       isHomeManagerLike
@@ -65,12 +65,23 @@
         else rhs
     );
 
-  firstAttrOf =
+  firstOf =
     attrsets.firstOf or (
-      attrs:
-        if attrs == {}
+      set:
+        if set == {}
         then null
-        else head (attrValues attrs)
+        else head (attrValues set)
+    );
+
+  defaultOrAllValues =
+    attrsets.defaultOrAllValues or (
+      set:
+        if isAttrs set
+        then
+          if set ? default
+          then [set.default]
+          else attrValues set
+        else []
     );
 
   raw =
@@ -95,7 +106,7 @@
       filterAttrs
       (
         input: value:
-          hasModules value
+          hasFlakeModules value
           && !(isNixpkgsLike value)
         # && input != "nixHM"
       )
@@ -108,7 +119,7 @@
       (_: value: value ? packages && !(isNixpkgsLike value))
       raw;
 
-    libraries = filterAttrs (_: hasLib) raw;
+    libraries = filterAttrs (_: hasLibraries) raw;
     infrastructure = filterAttrs (_: isNixpkgsInfrastructure) raw;
   };
 
@@ -118,43 +129,22 @@
       if flake ? nixpkgs
       then
         if isString (flake.nixpkgs or {})
-        then inputs.${flake.nixpkgs}
+        then let name = flake.nixpkgs; in inputs.${name} // {inherit name;}
         else flake.nixpkgs
       else if defaults ? nixpkgs
       then
         if isString defaults.nixpkgs
-        then inputs.${defaults.nixpkgs}
+        then let name = defaults.nixpkgs; in inputs.${name} // {inherit name;}
         else defaults.nixpkgs
-      else firstAttrOf classified.nixpkgs;
+      else firstOf classified.nixpkgs;
 
-    nix-darwin = firstAttrOf classified.nix-darwin;
-    home-manager = firstAttrOf classified.home-manager;
-    treefmt = firstAttrOf classified.treefmt;
+    nix-darwin = firstOf classified.nix-darwin;
+    home-manager = firstOf classified.home-manager;
+    treefmt = firstOf classified.treefmt;
   };
 
   inherit (attrsets) getAttr hasAttr maps orEmpty attrValues;
   inherit (lists) asIf concat unique;
-
-  /**
-  Prefer a module set's `default` entry when present.
-
-  If `modules.default` exists, returns a singleton list containing only that
-  module. Otherwise returns all attribute values of the module set.
-
-  # Type
-
-  ```nix
-  preferDefault :: AttrSet -> List
-  ```
-
-  # Dependencies
-
-  None
-  */
-  preferDefaultModules = modules:
-    if modules ? default
-    then [modules.default]
-    else attrValues modules;
 
   /**
   Collect modules of a given type from a set of flake inputs.
@@ -199,7 +189,7 @@
                   then input.homeModules
                   else input.homeManagerModules or {};
               in
-                preferDefaultModules mods
+                defaultOrAllValues mods
             )
             modules
           )
@@ -212,7 +202,7 @@
               _: input:
                 asIf
                 (hasAttr moduleAttr input)
-                (preferDefaultModules (getAttr moduleAttr input))
+                (defaultOrAllValues (getAttr moduleAttr input))
             )
             modules
           )
@@ -260,14 +250,14 @@
   # Type
 
   ```nix
-  hasLib :: AttrSet -> Bool
+  hasLibraries :: AttrSet -> Bool
   ```
 
   # Dependencies
 
   None
   */
-  hasLib = input:
+  hasLibraries = input:
     input ? lib;
 
   /**
@@ -276,18 +266,19 @@
   # Type
 
   ```nix
-  hasModules :: AttrSet -> Bool
+  hasFlakeModules :: AttrSet -> Bool
   ```
 
   # Dependencies
 
   None
   */
-  hasModules = input:
-    input ? nixosModules
-    || input ? darwinModules
-    || input ? homeModules
-    || input ? homeManagerModules;
+  hasFlakeModules = input:
+    hasCoreModules input || hasHomeModules input;
+  hasCoreModules = input:
+    input ? nixosModules || input ? darwinModules;
+  hasHomeModules = input:
+    input ? homeModules || input ? homeManagerModules;
 
   /**
   Return whether an input exposes overlays.
@@ -390,7 +381,7 @@
 
   # Dependencies
 
-  - flakes.hasModules
+  - flakes.hasFlakeModules
   - flakes.hasOverlays
   */
   isTreefmtLike = input:
@@ -398,7 +389,7 @@
     && input.lib ? evalModule
     && input ? flakeModule
     && !(input ? legacyPackages)
-    && !(hasModules input)
+    && !(hasFlakeModules input)
     && !(hasOverlays input);
 
   /**
@@ -413,12 +404,12 @@
   # Dependencies
 
   - flakes.isNixpkgsLike
-  - flakes.hasModules
+  - flakes.hasFlakeModules
   - flakes.hasOverlays
   */
   isNixpkgsInfrastructure = input:
     isNixpkgsLike input
-    && !(hasModules input)
+    && !(hasFlakeModules input)
     && !(hasOverlays input);
 in
   exports

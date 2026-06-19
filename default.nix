@@ -40,4 +40,4 @@
     {inherit defaults flake names paths;};
 in
   # libraries
-  libraries.charged.mkSrc {inherit libraries;}
+  libraries.merged.mkSrc {inherit libraries;}

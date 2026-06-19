@@ -8,21 +8,35 @@
 }: let
   exports = {
     scoped = {
-      inherit classified normalized mkModules excluded;
-      mkMods = mkModules;
-      preferDefault = preferDefaultModules;
-      collect = collectModules;
-      all = classified // normalized;
+      inherit
+        classified
+        normalized
+        excluded
+        ;
+      hasFlake = hasFlakeModules;
+      hasHome = hasHomeModules;
+      hasCore = hasCoreModules;
+      mkFlake = mkModules;
+      collectFlake = collectModules;
+      merged = classified // normalized;
       default = normalized;
     };
-    # global = {
-    #   flakes = {
-    #     modules = normalized;
-    #     inherit mkModules collectModules preferDefaultModules;
-    #   };
-    # };
+    global = {
+      inherit hasFlakeModules;
+      mkFlakeModules = mkModules;
+      hasFlakeCoreModules = hasCoreModules;
+      hasFlakeHomeModules = hasHomeModules;
+      collectFlakeModules = collectModules;
+    };
   };
-  inherit (bootstrap) inputs collectModules preferDefaultModules;
+  inherit
+    (bootstrap)
+    inputs
+    collectModules
+    hasFlakeModules
+    hasHomeModules
+    hasCoreModules
+    ;
   inherit (attrsets) attrNames filterAttrs isAttrs;
   inherit (lists) asListIf elem;
 

@@ -3,23 +3,16 @@
 
   outputs = inputs: let
     nixpkgs = "nixCore";
-    excludes = let
-      core = [
-        "nixCore"
-        "nixLegacy"
-        "nixDarwin"
-        "nixEdge"
-      ];
-    in {
+    core = ["nixCore" "nixLegacy" "nixDarwin" "nixEdge"];
+    excludes = {
       modules = core ++ ["treeFormatter" "treefmt"];
       overlays = core ++ ["nixHM" "home-manager"];
     };
     defaults = {allowUnfree = true;};
-
-    src = import ./. {flake = {inherit nixpkgs excludes defaults inputs;};};
+    src = import ./. {flake = {inherit defaults excludes inputs nixpkgs;};};
   in
     {inherit src;}
-    // src.${src.names.lib}.mkFlake {
+    // src.${src.libraries.name}.mkFlake {
       base = src;
       mods = {
         configuration = true;

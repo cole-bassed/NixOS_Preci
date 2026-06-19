@@ -3,7 +3,7 @@
   debug,
   attrsets,
   lists,
-  flakes,
+  flake,
   types,
   paths,
   names,
@@ -22,7 +22,7 @@
     global = {inherit mkFlake mkConfiguration;};
   };
 
-  inherit (flakes.modules) mkModules;
+  mkFlakeModules = flake.modules.mkFlakeModules or null;
   inherit
     (attrsets)
     attrNames
@@ -153,7 +153,7 @@
         in {
           inherit class specialArgs;
           modules =
-            (mkModules class)
+            (mkFlakeModules class)
             ++ (src.modules.core or [])
             ++ (host.imports or [])
             ++ [
@@ -164,7 +164,7 @@
                     delim = "-";
                     parts = [src.name "backup"];
                   };
-                  sharedModules = (mkModules "home") ++ (src.modules.home or []);
+                  sharedModules = (mkFlakeModules "home") ++ (src.modules.home or []);
                   useGlobalPkgs = true;
                   useUserPackages = true;
                 };

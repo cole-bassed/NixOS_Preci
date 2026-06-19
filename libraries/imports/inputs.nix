@@ -1,12 +1,19 @@
 {bootstrap, ...}: let
   exports = {
-    scoped = {
-      inherit (bootstrap.inputs) classified normalized;
-      enable = isFlake;
-    };
-    # global = {flakes = {inherit (bootstrap) inputs;};};
+    scoped =
+      {
+        inherit
+          (inputs)
+          raw
+          classified
+          normalized
+          ;
+        enable = types.isFlakeLike inputs;
+      }
+      // types;
+    global = types;
   };
   inherit (bootstrap) inputs;
-  isFlake = bootstrap.isFlakeLike inputs;
+  types = {inherit (bootstrap) isFlakeLike isHomeManagerLike isNixDarwinLike isNixpkgsInfrastructure isNixpkgsLike isTreefmtLike;};
 in
   exports

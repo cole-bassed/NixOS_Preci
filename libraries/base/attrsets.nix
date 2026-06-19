@@ -18,19 +18,23 @@
         orEmpty'
         removePath
         removePaths
+        preferDefaultValues
+        preferDefault
         select
         ;
+      defaultOrAll = preferDefault;
+      defaultOrAllValues = preferDefaultValues;
       filter = select;
-      head = firstOf;
-      getFirst = firstOf;
-      orEmptyNamed = orEmpty';
       fromList = listToAttrs;
       get = getAttr;
+      getFirst = firstOf;
       has = hasAttr;
+      head = firstOf;
       intersect = intersectAttrs;
       is = isAttrs;
       maps = mapAttrs;
       namesOf = attrNames;
+      orEmptyNamed = orEmpty';
       valuesOf = attrValues;
     };
 
@@ -47,7 +51,8 @@
         mapAttrs
         zipAttrsWith
         ;
-
+      defaultOrAllAttrs = preferDefault;
+      defaultOrAllValues = preferDefaultValues;
       asAttrs = as;
       asAttrsIf = asIf;
       filterAttrs = select;
@@ -638,5 +643,33 @@
     if attrs == {}
     then null
     else head (attrValues attrs);
+
+  /**
+  Prefer a module set's `default` entry when present.
+
+  If `modules.default` exists, returns a singleton list containing only that
+  module. Otherwise returns all attribute values of the module set.
+
+  # Type
+
+  ```nix
+  preferDefault :: AttrSet -> List
+  ```
+
+  # Dependencies
+  None
+  */
+  preferDefault = set:
+    if isAttrs set
+    then set.default or set
+    else {};
+
+  preferDefaultValues = set:
+    if isAttrs set
+    then
+      if set ? default
+      then [set.default]
+      else attrValues set
+    else [];
 in
   exports

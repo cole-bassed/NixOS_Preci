@@ -6,13 +6,13 @@
 }: let
   exports = {
     scoped = {
-      inherit classified normalized excluded;
-      all = classified // normalized;
+      inherit classified normalized excluded getPackages;
+      merged = classified // normalized;
       default = orEmpty normalized.nixpkgs;
     };
-    # global = {flakes.packages = normalized;};
+    global = {getFlakePackages = getPackages;};
   };
-  excluded = excludes.packages or []; # TODO: Incorporate this
+  excluded = excludes.packages or []; # TODO: Implement this
   inherit (bootstrap) inputs getPackages;
   inherit (attrsets) asIf maps orEmpty;
 

@@ -1,10 +1,9 @@
 {
   api,
   debug,
-  bootstrap,
   types,
   attrsets,
-  flakes,
+  flake,
   filesystem,
   strings,
   paths,
@@ -56,7 +55,7 @@
   */
   mkSrc = {
     host ? defaultHost,
-    libraries ? bootstrap,
+    libraries ? {},
     overrides ? {},
   }: let
     _name = "environment::mkSrc";
@@ -117,83 +116,74 @@
       (primaryUser != null)
       (mkUserPaths {user = primaryUser;});
 
-    args = let
-      common = {
-        inherit names defaults excludes host;
-        paths = mkPaths {
-          inherit (paths) store;
-          local =
-            (
-              recursiveUpdate
-              (recursiveUpdate userDefaults paths.local)
-              hostPaths
-            )
-            // {src = resolution.value;};
-          meta =
-            optionalAttrs
-            (resolution.usedKey != null)
-            {inherit (resolution) usedKey;};
+    paths' = mkPaths {
+      inherit (paths) store;
+      local =
+        (
+          recursiveUpdate
+          (recursiveUpdate userDefaults paths.local)
+          hostPaths
+        )
+        // {src = resolution.value;};
+      meta =
+        optionalAttrs
+        (resolution.usedKey != null)
+        {inherit (resolution) usedKey;};
+    };
+
+    flake' = recursiveUpdate flake {
+      name =
+        flake.name or (
+          flake.names.src or (
+            names.src or "dots"
+          )
+        );
+      path = flake.path or flake.paths.src or paths'.store.src or null;
+    };
+
+    libraries' = let
+      raw = checked.overrides.libraries or libraries;
+      name = raw.name or names.lib or "lix";
+      custom = raw.${name} or raw.merged or raw;
+      lib = raw.lib or raw.global.charged or custom;
+    in {
+      libraries =
+        raw
+        // {
+          inherit lib name;
+          "${name}" = custom;
         };
-      };
-      flake = recursiveUpdate flakes.args {
-        name =
-          flakes.args.name or (
-            flake.names.src or (
-              names.src or "dots"
-            )
-          );
-        path = flakes.paths.src or paths.store.src or null;
-      };
-      library = let
-        raw = checked.overrides.libraries or libraries;
-        name = raw.name or names.lib or "lix";
-        custom =
-          raw.charged or raw;
-        lib =
-          if raw ? global
-          then raw.global.charged
-          else custom;
-      in {
-        libraries = removeAttrs (custom // {inherit raw lib name;}) ["lib" name];
-        "${name}" = custom;
-        inherit name lib;
-      };
-    in {inherit common flake library;};
-    src =
-      {
-        excludes = recursiveUpdate excludes (flakes.args.exckudes or {});
+      "${name}" = custom;
+    };
+
+    args =
+      (
+        optionalAttrs
+        (flake.enable or false)
+        {flake = flake';}
+      )
+      // libraries'
+      // {
+        inherit host;
+        paths = paths';
+
         defaults =
           recursiveUpdate
           defaults
-          (args.flake.defaults or {});
+          (flake'.defaults or {});
+
         names = recursiveUpdate names {
-          src = args.flake.name;
-          lib = args.library.name;
+          src = flake'.name;
+          lib = args.libraries.name;
         };
-        paths =
+
+        excludes =
           recursiveUpdate
-          (recursiveUpdate (args.flake.paths or {}) paths)
-          (
-            mkPaths {
-              inherit (paths) store;
-              local =
-                (
-                  recursiveUpdate
-                  (recursiveUpdate userDefaults paths.local)
-                  hostPaths
-                )
-                // {src = resolution.value;};
-              meta =
-                optionalAttrs
-                (resolution.usedKey != null)
-                {inherit (resolution) usedKey;};
-            }
-          );
-      }
-      // optionalAttrs (args.flake.enable or false) {inherit (args) flake;}
-      // removeAttrs args.library ["name"];
+          excludes
+          (flake'.excludes or {});
+      };
   in
-    src // {${src.names.src} = src;};
+    args // {${args.names.src} = args;};
 
   /**
   Flatten structured attribute paths downwards into a standard uppercase

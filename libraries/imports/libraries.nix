@@ -7,12 +7,12 @@
 }: let
   exports = {
     scoped = {
-      inherit classified normalized excluded;
+      inherit classified normalized excluded hasLibraries merged;
       default = merged;
     };
+    global = {inherit hasLibraries;};
   };
-
-  inherit (bootstrap) inputs;
+  inherit (bootstrap) inputs hasLibraries;
   inherit (attrsets) asAttrsIf mapAttrs filterAttrs;
 
   excluded = excludes.libraries or [];

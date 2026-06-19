@@ -7,16 +7,16 @@
 }: let
   exports = {
     scoped = {
-      inherit classified normalized excluded;
-      all = classified // normalized;
+      inherit classified normalized excluded hasOverlays;
+      merged = classified // normalized;
       default = normalized;
     };
-    # global = {flakes.overlays = normalized;};
+    global = {inherit hasOverlays;};
   };
 
-  inherit (bootstrap) inputs preferDefaultModules;
+  inherit (bootstrap) hasOverlays inputs;
   inherit (lists) concatLists elem;
-  inherit (attrsets) filterAttrs mapAttrs attrValues;
+  inherit (attrsets) defaultOrAllValues filterAttrs mapAttrs attrValues;
 
   excluded = excludes.overlays or [];
 
@@ -32,6 +32,6 @@
 
   normalized =
     concatLists
-    (map preferDefaultModules (attrValues classified));
+    (map defaultOrAllValues (attrValues classified));
 in
   exports

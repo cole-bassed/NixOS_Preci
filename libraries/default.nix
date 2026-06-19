@@ -13,25 +13,25 @@
         (paths.shared or ./base));
   in
     (import base).mkLibrary {inherit base;};
-  inherit (shared.charged) mkLibrary recursiveAttrs removeAttrPaths;
+  inherit (shared.charged) mkLibrary recursiveUpdate removeAttrPaths;
 
   bootstrap =
     shared.charged
     // {
       flake =
-        recursiveAttrs {
+        recursiveUpdate {
           name = bootstrap.names.src or bootstrap.defaults.names.src;
           path = bootstrap.paths.store.src or paths.src or ../.;
         }
         flake;
 
-      defaults = recursiveAttrs {
+      defaults = recursiveUpdate {
         host = "ExampleHost";
         tags = ["core" "home"];
-      } (recursiveAttrs defaults (flake.defaults or {}));
+      } (recursiveUpdate defaults (flake.defaults or {}));
 
       excludes =
-        recursiveAttrs {
+        recursiveUpdate {
           paths =
             [
               "archive"
@@ -46,25 +46,25 @@
             ++ (paths.excludes or [])
             ++ (bootstrap.defaults.excludes.paths or []);
         } (
-          recursiveAttrs
+          recursiveUpdate
           excludes
           (flake.excludes or (flake.defaults.excludes or {}))
         );
 
-      paths = recursiveAttrs {
+      paths = recursiveUpdate {
         excludes = bootstrap.excludes.paths;
         store = {
           src = ../.;
           api = ../configuration/api;
         };
         local.src = "/etc/nixos";
-      } (recursiveAttrs paths (flake.paths or {}));
+      } (recursiveUpdate paths (flake.paths or {}));
 
-      names = recursiveAttrs {
+      names = recursiveUpdate {
         src = "dots";
         lib = "lix";
         top = "_";
-      } (recursiveAttrs names (flake.names or {}));
+      } (recursiveUpdate names (flake.names or {}));
     };
 
   global = let
@@ -83,26 +83,41 @@
     };
   flakes = with global.domains; {
     inherit overlays modules libraries packages inputs;
-    args = flake // {enable = libraries.default.types.isFlakeLike inputs;};
+    enable = libraries.default.types.isFlakeLike inputs;
+    nixpkgs = inputs.normalized.nixpkgs or {};
+  };
+  global' = recursiveUpdate global {
+    charged.flake =
+      recursiveUpdate
+      (global.charged.flake or {})
+      flakes;
+    charged.flakes =
+      recursiveUpdate
+      (global.charged.flakes or {})
+      (flakes // global.aliases);
+    domains.libraries.merged.flakes =
+      recursiveUpdate
+      (global.domains.libraries.merged.flakes or {})
+      (flakes // global.aliases);
+    domains.libraries.default.flakes =
+      recursiveUpdate
+      (global.domains.libraries.default.flakes or {})
+      (flakes // global.aliases);
   };
 
   custom = mkLibrary {
     base = ./custom;
     seed =
-      recursiveAttrs
-      global.charged
+      recursiveUpdate
+      global'.charged
       (
-        recursiveAttrs
-        global.charged.libraries.default
+        recursiveUpdate
+        global'.charged.libraries.default
         {inherit flakes;}
       );
   };
-  config = mkLibrary {
-    seed = custom.charged // {bootstrap = custom.charged;};
-    base = ./config;
-  };
 
-  charged = removeAttrPaths config.charged [
+  cleaned = removeAttrPaths custom.charged [
     {
       scopes = [
         "lib"
@@ -127,15 +142,42 @@
       ];
     }
   ];
+
+  config = mkLibrary {
+    seed = recursiveUpdate cleaned {
+      lib = global.charged.libraries.merged;
+      ${names.lib or "lix"} = cleaned;
+    };
+    base = ./config;
+  };
+  config' = recursiveUpdate global {
+    charged.flake =
+      recursiveUpdate
+      (global.charged.flake or {})
+      flakes;
+    charged.flakes =
+      recursiveUpdate
+      (global.charged.flakes or {})
+      (flakes // global.aliases);
+    domains.libraries.merged.flakes =
+      recursiveUpdate
+      (global.domains.libraries.merged.flakes or {})
+      (flakes // global.aliases);
+    domains.libraries.default.flakes =
+      recursiveUpdate
+      (global.domains.libraries.default.flakes or {})
+      (flakes // global.aliases);
+  };
+
+  merged = config'.charged;
 in {
   inherit
-    shared
-    global
-    custom
     config
-    charged
+    custom
+    shared
+    merged
     ;
-  flake = flakes;
-  # lib = global.seeded.nixpkgs;
-  # ${names.lib or "lix"} = seeded;
+  global = global';
+  lib = global.charged.libraries.merged;
+  ${names.lib or "lix"} = merged;
 }
