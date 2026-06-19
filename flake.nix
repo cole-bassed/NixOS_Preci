@@ -22,9 +22,9 @@
     // src.${src.names.lib}.mkFlake {
       base = src;
       mods = {
-        configurations = true;
+        configuration = true;
         utilities = true;
-        devShells = true;
+        shells = true;
         templates = true;
       };
     }

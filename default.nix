@@ -13,7 +13,7 @@
       documentation = ./documentation;
       configuration = ./configuration;
       templates = ./templates;
-      devShells = ./utilities/shells;
+      shells = ./development;
       utilities = ./utilities;
       secrets = ./configuration/secrets;
       libraries = ./libraries;

@@ -99,7 +99,7 @@
               inherit base;
               args = {
                 modules = let
-                  collected = import resolved.paths.configuration (
+                  collected = import resolved.paths.store.configuration (
                     recursiveUpdate base {
                       top = base.names.top or (names.top or "dots");
                       args = normalize configuration;
@@ -119,7 +119,7 @@
     else mods: exec arg mods;
 
   mkConfiguration = arg: let
-    _name = "config.assembly.mkConfigurations";
+    _name = "config.assembly.mkConfiguration";
     exec = base: args: let
       extraArgs =
         recursiveUpdate (expect {
