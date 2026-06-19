@@ -8,8 +8,7 @@
   exports = {
     scoped = {
       inherit classified normalized excluded;
-      all = merged;
-      default = normalized;
+      default = merged;
     };
     global = {flakes.overlays = normalized;};
   };
