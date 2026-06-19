@@ -11,7 +11,7 @@
       api = ./configuration/api;
       dbg = ./debug;
       documentation = ./documentation;
-      configurations = ./configuration/modules;
+      configuration = ./configuration;
       templates = ./templates;
       devShells = ./utilities/shells;
       utilities = ./utilities;
