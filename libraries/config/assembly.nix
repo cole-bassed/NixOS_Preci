@@ -15,15 +15,25 @@
 }: let
   exports = {
     scoped = {
-      configurations = mkConfigurations;
-      systems = mkConfigurations;
-      flake = mkFlake;
+      configure = mkConfiguration;
+      systems = mkConfiguration;
+      assemble = mkFlake;
     };
-    global = {inherit mkFlake mkConfigurations;};
+    global = {inherit mkFlake mkConfiguration;};
   };
 
   inherit (flakes.modules) mkModules;
-  inherit (attrsets) namesOf filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs recursiveUpdate;
+  inherit
+    (attrsets)
+    attrNames
+    filterAttrs
+    genAttrs
+    mapAttrs
+    mapAttrsToList
+    mergeAttrsList
+    optionalAttrs
+    recursiveUpdate
+    ;
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (lists) elem foldl' groupBy;
@@ -69,7 +79,7 @@
               message = "'${name}' is not a known path in paths.store";
               context = "resolving path for '${name}' in assemble";
             };
-              (name != "configurations") && (isEnabled value)
+              (name != "configuration") && (isEnabled value)
         )
         mods;
     in
@@ -82,17 +92,17 @@
       )
       // (
         let
-          configurations = mods.configurations or false;
+          configuration = mods.configuration or false;
         in
-          optionalAttrs (isEnabled configurations) (
-            mkConfigurations {
+          optionalAttrs (isEnabled configuration) (
+            mkConfiguration {
               inherit base;
               args = {
                 modules = let
-                  collected = import resolved.paths.configurations (
+                  collected = import resolved.paths.configuration (
                     recursiveUpdate base {
                       top = base.names.top or (names.top or "dots");
-                      args = normalize configurations;
+                      args = normalize configuration;
                     }
                   );
                 in {
@@ -108,7 +118,7 @@
     then exec arg.base arg.mods
     else mods: exec arg mods;
 
-  mkConfigurations = arg: let
+  mkConfiguration = arg: let
     _name = "config.assembly.mkConfigurations";
     exec = base: args: let
       extraArgs =
@@ -185,7 +195,7 @@
               );
             }
         )
-        (groupBy (name: resolved.${name}.class) (namesOf resolved))
+        (groupBy (name: resolved.${name}.class) (attrNames resolved))
       );
   in
     if isAttrs arg && arg ? base
