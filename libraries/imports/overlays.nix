@@ -6,7 +6,11 @@
   ...
 }: let
   exports = {
-    scoped = {inherit classified normalized excluded;};
+    scoped = {
+      inherit classified normalized excluded;
+      all = classified // normalized;
+      default = normalized;
+    };
     global = {flakes.overlays = normalized;};
   };
 
