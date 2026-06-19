@@ -1,10 +1,23 @@
 {
   bootstrap,
-  inputs,
-  path,
+  attrsets,
+  paths,
+  excludes,
   ...
 }: let
-  inherit (bootstrap.attrsets) mapAttrs filterAttrs;
+  exports = {
+    scoped = {
+      inherit classified normalized excluded;
+      all = merged;
+      default = normalized;
+    };
+    global = {flakes.overlays = normalized;};
+  };
+
+  inherit (bootstrap) inputs;
+  inherit (attrsets) asAttrsIf mapAttrs filterAttrs;
+
+  excluded = excludes.libraries or [];
   classified =
     mapAttrs
     (_: input: input.lib)
@@ -84,17 +97,14 @@
         };
     }
     // (
-      if (treefmt ? lib)
-      then {treefmt = treefmt.lib // {projectRoot = path;};}
-      else {}
+      asAttrsIf
+      (treefmt ? lib)
+      {treefmt = treefmt.lib // {projectRoot = paths.store.src;};}
     );
 
   merged =
     normalized.nixpkgs
     // classified
     // normalized;
-in {
-  inherit classified normalized merged;
-  scoped = normalized;
-  global = merged;
-}
+in
+  exports
