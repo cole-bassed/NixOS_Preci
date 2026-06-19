@@ -6,18 +6,19 @@
   exports = {
     scoped = {
       inherit
-        collect
-        preferDefault
+        collectModules
+        preferDefaultModules
+        getPackages
         ;
     };
 
     global = {
-      collectModules = collect;
-      preferDefaultModules = preferDefault;
+      # collectModules = collect;
+      # preferDefaultModules = preferDefault;
     };
   };
 
-  inherit (attrsets) get has maps valuesOf;
+  inherit (attrsets) getAttr hasAttr maps orEmpty attrValues;
   inherit (lists) asIf concat unique;
 
   /**
@@ -36,10 +37,10 @@
 
   None
   */
-  preferDefault = modules:
+  preferDefaultModules = modules:
     if modules ? default
     then [modules.default]
-    else valuesOf modules;
+    else attrValues modules;
 
   /**
   Collect modules of a given type from a set of flake inputs.
@@ -61,7 +62,7 @@
   - lists.unique
   - modules.preferDefault
   */
-  collect = type: modules: let
+  collectModules = type: modules: let
     moduleAttr =
       if type == "nixos"
       then "nixosModules"
@@ -75,34 +76,68 @@
       if type == "home"
       then
         concat (
-          valuesOf (
+          attrValues (
             maps
             (
               _: input: let
                 mods =
-                  if has "homeModules" input
+                  if hasAttr "homeModules" input
                   then input.homeModules
                   else input.homeManagerModules or {};
               in
-                preferDefault mods
+                preferDefaultModules mods
             )
             modules
           )
         )
       else
         concat (
-          valuesOf (
+          attrValues (
             maps
             (
               _: input:
                 asIf
-                (has moduleAttr input)
-                (preferDefault (get moduleAttr input))
+                (hasAttr moduleAttr input)
+                (preferDefaultModules (getAttr moduleAttr input))
             )
             modules
           )
         );
   in
     unique rawCollected;
+
+  /**
+  Normalize package exports from a flake-like input.
+
+  Supports both `legacyPackages` and `packages` layouts and always returns
+  an attrset. When both exist, `packages` is merged over `legacyPackages`.
+
+  # Type
+
+  ```nix
+  getPackages :: AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+
+  - attrsets.orEmpty
+
+  # Arguments
+
+  input
+  : The flake-like input to inspect.
+
+  # Examples
+
+  ```nix
+  getPackages { packages.x86_64-linux.hello = {}; }
+  # => { x86_64-linux.hello = {}; }
+  ```
+  */
+  getPackages = input: let
+    value = orEmpty input;
+  in
+    orEmpty (value.legacyPackages or {})
+    // orEmpty (value.packages or {});
 in
   exports

@@ -36,6 +36,7 @@
             [
               "archive"
               "backup"
+              "bootstrap"
               "review" # TODO: Doesn't work at directory level
               "temp"
               "default"
@@ -67,10 +68,12 @@
     };
 
   global = let
-    base = ./imports;
-    inputs = import (base + "/inputs.nix") charged;
-    seed = charged // {inherit inputs;};
-    excludes = charged.excludes.paths ++ ["inputs"];
+    base = paths.store.libraries.global or
+      (paths.libraries.global or
+        (paths.global or ./imports));
+    bootstrap = import (base + "/bootstrap.nix") charged;
+    seed = charged // {inherit bootstrap;};
+    excludes = charged.excludes.paths;
   in
     mkLibrary {inherit base excludes seed;};
   # custom = mkLibrary {

@@ -1,12 +1,16 @@
 {
-  inputs,
+  bootstrap,
   attrsets,
-  modules,
   lists,
   excludes,
   ...
 }: let
-  inherit (modules) preferDefault;
+  exports = {
+    scoped = {inherit classified normalized excluded;};
+    global = {flakes.overlays = normalized;};
+  };
+
+  inherit (bootstrap) inputs preferDefault;
   inherit (lists) concatLists elem;
   inherit (attrsets) filterAttrs mapAttrs attrValues;
 
@@ -22,11 +26,8 @@
     (_: value: value != {})
     (mapAttrs (_: input: input.overlays or {}) raw);
 
-  normalized = {};
-in {
-  inherit raw classified normalized excluded;
-
-  merged =
+  normalized =
     concatLists
-    (map preferDefault (attrValues (classified // normalized)));
-}
+    (map preferDefault (attrValues classified));
+in
+  exports

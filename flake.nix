@@ -2,24 +2,21 @@
   description = "Configuration Flake";
 
   outputs = inputs: let
-    defaults = {
-      allowUnfree = true;
-      nixpkgs = "nixCore";
-      # nixpkgs = inputs.nixCore;
-      excludes = let
-        core = [
-          "nixCore"
-          "nixLegacy"
-          "nixDarwin"
-          "nixEdge"
-        ];
-      in {
-        modules = core ++ ["treeFormatter" "treefmt"];
-        overlays = core ++ ["nixHM" "home-manager"];
-      };
+    nixpkgs = "nixCore";
+    excludes = let
+      core = [
+        "nixCore"
+        "nixLegacy"
+        "nixDarwin"
+        "nixEdge"
+      ];
+    in {
+      modules = core ++ ["treeFormatter" "treefmt"];
+      overlays = core ++ ["nixHM" "home-manager"];
     };
+    defaults = {allowUnfree = true;};
 
-    src = import ./. {flake = {inherit defaults inputs;};};
+    src = import ./. {flake = {inherit nixpkgs excludes defaults inputs;};};
   in
     {inherit src;}
     # // src.${src.names.lib}.mkFlake {
