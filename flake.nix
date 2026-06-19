@@ -22,7 +22,7 @@
     src = import ./. {flake = {inherit defaults inputs;};};
   in
     {inherit src;}
-    # // src.lix.mkFlake {
+    # // src.${src.names.lib}.mkFlake {
     #   base = src;
     #   mods = {
     #     configurations = true;
