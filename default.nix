@@ -39,4 +39,5 @@
     import paths.store.libraries
     {inherit defaults flake names paths;};
 in
-  libraries.seeded.mkSrc {inherit libraries;}
+  libraries
+# libraries.seeded.mkSrc {inherit libraries;}

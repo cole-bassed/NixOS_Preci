@@ -22,15 +22,16 @@
     src = import ./. {flake = {inherit defaults inputs;};};
   in
     {inherit src;}
-    // src.lix.mkFlake {
-      base = src;
-      mods = {
-        configurations = true;
-        utilities = true;
-        devShells = true;
-        templates = true;
-      };
-    };
+    # // src.lix.mkFlake {
+    #   base = src;
+    #   mods = {
+    #     configurations = true;
+    #     utilities = true;
+    #     devShells = true;
+    #     templates = true;
+    #   };
+    # }
+    // {};
 
   inputs = {
     #~@ Core/Nix Infrastructure

@@ -19,7 +19,7 @@
 
   mkLibrary = {
     base,
-    excludes ? ["default"],
+    excludes ? ["default"], #TODO: This needs to see folders to skip as will, not just files and if the extension (nix) is present it doesn't skip?
     seed ? {},
     extra ? {},
   }: let
@@ -73,6 +73,11 @@
 
     merged = recursiveAttrs global scoped;
     seeded = recursiveAttrs (recursiveAttrs seed extra) merged;
-  in {inherit global scoped merged seeded;};
+  in {
+    # inherit global scoped merged seeded;
+    domains = scoped;
+    aliases = global;
+    charged = seeded;
+  };
 in
   exports

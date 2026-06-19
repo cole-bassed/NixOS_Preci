@@ -1,6 +1,6 @@
-{paths ? {src = ../../../.;}, ...}: let
+let
   base = ./.;
-  excludes = ["default" "bootstrap"];
+  excludes = ["default"];
   inherit
     (builtins)
     attrNames
@@ -128,7 +128,7 @@
       map
       (spec: let
         name = nameOf spec.input;
-        imported = import spec.input (scope // {inherit paths;});
+        imported = import spec.input scope;
         global = collectGlobals imported;
         scoped = collectScoped imported;
       in {

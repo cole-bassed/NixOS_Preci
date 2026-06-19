@@ -21,6 +21,7 @@
         select
         ;
       filter = select;
+      head = firstOf;
       getFirst = firstOf;
       orEmptyNamed = orEmpty';
       fromList = listToAttrs;
