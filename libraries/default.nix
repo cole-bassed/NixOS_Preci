@@ -77,7 +77,7 @@
       seed =
         bootstrap
         // {
-          bootstrap = import (base + "/bootstrap.nix") bootstrap;
+          bootstrap = import base bootstrap;
         };
       excludes = bootstrap.excludes.paths;
     };

@@ -1,111 +1,424 @@
 {
-  bootstrap ?
-    import (
-      paths.store.libraries.bootstrap or (
-        paths.libraries.bootstrap or (
-          paths.bootstrap or ../internal/base
-        )
-      )
-    ) {inherit paths;},
-  defaults ? {allowUnfree = true;},
+  attrsets ? {},
+  lists ? {},
+  defaults ? {},
   flake ? {},
-  inputs ? {},
-  name ? null,
-  names ? {src = "dots";},
-  path ? null,
-  paths ? {},
+  names ? {},
+  ...
 }: let
-  inherit (bootstrap.attrsets) recursiveAttrs;
-  inherit (bootstrap.types) isFlakeLike;
-  inherit (builtins) isAttrs getEnv;
-
-  args = {
-    inherit bootstrap;
-    inherit (resolved) inputs;
-
-    defaults = recursiveAttrs defaults (
-      recursiveAttrs {
-        host = let
-          env = {
-            host = getEnv "HOSTNAME";
-            name = getEnv "NAME";
-          };
-        in
-          if isAttrs flake && (flake.currentHost or "") != ""
-          then flake.currentHost
-          else if env.host != ""
-          then env.host
-          else if env.name != ""
-          then env.name
-          else "ExampleHost";
-
-        excludes = {
-          paths = [
-            "archive"
-            "backup"
-            "review"
-            "temp"
-
-            "default.nix"
-            "flake.nix"
-          ];
-        };
-
-        tags = ["core" "home"];
-      } (flake.defaults or {})
-    );
-
-    names = recursiveAttrs names (
-      recursiveAttrs {
-        src =
-          if name != null
-          then name
-          else names.src;
-      }
-      (flake.names or {})
-    );
-
-    paths = recursiveAttrs paths (
-      recursiveAttrs {
-        store.src =
-          if path != null
-          then path
-          else paths.src;
-      } (flake.paths or{})
-    );
-
-    path = args.paths.store.src;
-    name = args.names.src;
-  };
-
-  common = {
-    inherit (args) defaults names paths;
-    inherit (resolved) libraries;
-  };
-
-  resolved = {
-    inputs = import ./inputs.nix {
-      inputs = flake.inputs or inputs;
-      inherit (args) bootstrap defaults name;
-    };
-    libraries = import ./libraries.nix args;
-    modules = import ./modules.nix args;
-    overlays = import ./overlays.nix args;
-    packages = import ./packages.nix args;
-  };
-
-  src = {
-    inherit common;
-    flake = common // resolved;
-  };
-in
-  {inherit (args) defaults names paths;}
-  // resolved.libraries.merged
-  // (
-    if (isFlakeLike resolved.inputs)
-    then {
-      inherit (src) flake;
-      ${args.names.src} = src.flake;
+  exports =
+    {
+      inputs = {inherit raw classified normalized;};
+      types = checks;
+      inherit collectModules preferDefaultModules;
     }
-    else {${args.names.src} = src.common;}
-  )
+    // checks;
+  checks = {
+    inherit
+      collectModules
+      preferDefaultModules
+      getPackages
+      hasLib
+      hasModules
+      hasOverlays
+      isFlakeLike
+      isHomeManagerLike
+      isNixDarwinLike
+      isNixpkgsInfrastructure
+      isNixpkgsLike
+      isTreefmtLike
+      ;
+  };
+  inputs = flake.inputs or {};
+
+  inherit (builtins) attrNames elem filter head isAttrs listToAttrs isString;
+
+  filterAttrs =
+    attrsets.filterAttrs or (predicate: set:
+      listToAttrs (
+        map
+        (name: {
+          inherit name;
+          value = set.${name};
+        })
+        (
+          filter
+          (name: predicate name set.${name})
+          (attrNames set)
+        )
+      ));
+
+  recursiveUpdate =
+    attrsets.recursiveUpdate or (
+      lhs: rhs:
+        if isAttrs lhs && isAttrs rhs
+        then
+          listToAttrs (map
+            (name: {
+              inherit name;
+              value =
+                if lhs ? ${name} && rhs ? ${name}
+                then recursiveUpdate lhs.${name} rhs.${name}
+                else rhs.${name} or lhs.${name};
+            })
+            (unique (attrNames lhs ++ attrNames rhs)))
+        else rhs
+    );
+
+  firstAttrOf =
+    attrsets.firstOf or (
+      attrs:
+        if attrs == {}
+        then null
+        else head (attrValues attrs)
+    );
+
+  raw =
+    filterAttrs
+    (input: _: !(elem input ["self" (flake.name or names.src)]))
+    inputs;
+
+  classified = {
+    nixpkgs = filterAttrs (_: isNixpkgsLike) raw;
+    nix-darwin = filterAttrs (_: isNixDarwinLike) raw;
+    treefmt = filterAttrs (_: isTreefmtLike) raw;
+
+    home-manager =
+      filterAttrs
+      (
+        input: isHomeManagerLike
+        # || input == "nixHM"
+      )
+      raw;
+
+    modules =
+      filterAttrs
+      (
+        input: value:
+          hasModules value
+          && !(isNixpkgsLike value)
+        # && input != "nixHM"
+      )
+      raw;
+
+    overlays = filterAttrs (_: hasOverlays) raw;
+
+    packages =
+      filterAttrs
+      (_: value: value ? packages && !(isNixpkgsLike value))
+      raw;
+
+    libraries = filterAttrs (_: hasLib) raw;
+    infrastructure = filterAttrs (_: isNixpkgsInfrastructure) raw;
+  };
+
+  normalized = recursiveUpdate classified {
+    inherit raw;
+    nixpkgs =
+      if flake ? nixpkgs
+      then
+        if isString (flake.nixpkgs or {})
+        then inputs.${flake.nixpkgs}
+        else flake.nixpkgs
+      else if defaults ? nixpkgs
+      then
+        if isString defaults.nixpkgs
+        then inputs.${defaults.nixpkgs}
+        else defaults.nixpkgs
+      else firstAttrOf classified.nixpkgs;
+
+    nix-darwin = firstAttrOf classified.nix-darwin;
+    home-manager = firstAttrOf classified.home-manager;
+    treefmt = firstAttrOf classified.treefmt;
+  };
+
+  inherit (attrsets) getAttr hasAttr maps orEmpty attrValues;
+  inherit (lists) asIf concat unique;
+
+  /**
+  Prefer a module set's `default` entry when present.
+
+  If `modules.default` exists, returns a singleton list containing only that
+  module. Otherwise returns all attribute values of the module set.
+
+  # Type
+
+  ```nix
+  preferDefault :: AttrSet -> List
+  ```
+
+  # Dependencies
+
+  None
+  */
+  preferDefaultModules = modules:
+    if modules ? default
+    then [modules.default]
+    else attrValues modules;
+
+  /**
+  Collect modules of a given type from a set of flake inputs.
+
+  Supported types:
+  - `nixos`
+  - `darwin`
+  - `home`
+
+  # Type
+
+  ```nix
+  collect :: String -> AttrSet -> List
+  ```
+
+  # Dependencies
+
+  - lists.asIf
+  - lists.unique
+  - modules.preferDefault
+  */
+  collectModules = type: modules: let
+    moduleAttr =
+      if type == "nixos"
+      then "nixosModules"
+      else if type == "darwin"
+      then "darwinModules"
+      else if type == "home"
+      then "homeModules"
+      else throw "modules.collect:= unsupported type '${type}'";
+
+    rawCollected =
+      if type == "home"
+      then
+        concat (
+          attrValues (
+            maps
+            (
+              _: input: let
+                mods =
+                  if hasAttr "homeModules" input
+                  then input.homeModules
+                  else input.homeManagerModules or {};
+              in
+                preferDefaultModules mods
+            )
+            modules
+          )
+        )
+      else
+        concat (
+          attrValues (
+            maps
+            (
+              _: input:
+                asIf
+                (hasAttr moduleAttr input)
+                (preferDefaultModules (getAttr moduleAttr input))
+            )
+            modules
+          )
+        );
+  in
+    unique rawCollected;
+
+  /**
+  Normalize package exports from a flake-like input.
+
+  Supports both `legacyPackages` and `packages` layouts and always returns
+  an attrset. When both exist, `packages` is merged over `legacyPackages`.
+
+  # Type
+
+  ```nix
+  getPackages :: AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+
+  - attrsets.orEmpty
+
+  # Arguments
+
+  input
+  : The flake-like input to inspect.
+
+  # Examples
+
+  ```nix
+  getPackages { packages.x86_64-linux.hello = {}; }
+  # => { x86_64-linux.hello = {}; }
+  ```
+  */
+  getPackages = input: let
+    value = orEmpty input;
+  in
+    orEmpty (value.legacyPackages or {})
+    // orEmpty (value.packages or {});
+
+  /**
+  Return whether an input exposes a `lib` attribute.
+
+  # Type
+
+  ```nix
+  hasLib :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasLib = input:
+    input ? lib;
+
+  /**
+  Return whether an input exposes any recognized module namespace.
+
+  # Type
+
+  ```nix
+  hasModules :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasModules = input:
+    input ? nixosModules
+    || input ? darwinModules
+    || input ? homeModules
+    || input ? homeManagerModules;
+
+  /**
+  Return whether an input exposes overlays.
+
+  # Type
+
+  ```nix
+  hasOverlays :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  hasOverlays = input:
+    input ? overlays;
+
+  /**
+  Return whether an input summary should be treated as flake-like.
+
+  # Type
+
+  ```nix
+  isFlakeLike :: AttrSet -> Bool
+  ```
+  */
+  isFlakeLike = inputs:
+    ((inputs.classified.modules or {}) != {})
+    || ((inputs.classified.overlays or {}) != {})
+    || ((inputs.normalized.nixpkgs or {}) != {});
+
+  /**
+  Return whether an input looks like a nixpkgs-style input.
+
+  # Type
+
+  ```nix
+  isNixpkgsLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isNixpkgsLike = input:
+    input ? legacyPackages
+    && input ? lib
+    && !(input ? __functor);
+
+  /**
+  Return whether an input looks like nix-darwin.
+
+  # Type
+
+  ```nix
+  isNixDarwinLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isNixDarwinLike = input:
+    input ? darwinModules
+    && input ? lib
+    && !(input ? legacyPackages)
+    && !(input ? nixosModules)
+    && !(input ? homeModules)
+    && !(input ? homeManagerModules);
+
+  /**
+  Return whether an input looks like home-manager.
+
+  # Type
+
+  ```nix
+  isHomeManagerLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  None
+  */
+  isHomeManagerLike = input:
+    input ? nixosModules
+    && input ? darwinModules
+    && input ? legacyPackages
+    && input ? lib
+    && input ? flakeModules
+    && !(input ? homeModules);
+
+  /**
+  Return whether an input looks like treefmt-nix.
+
+  # Type
+
+  ```nix
+  isTreefmtLike :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - flakes.hasModules
+  - flakes.hasOverlays
+  */
+  isTreefmtLike = input:
+    input ? lib
+    && input.lib ? evalModule
+    && input ? flakeModule
+    && !(input ? legacyPackages)
+    && !(hasModules input)
+    && !(hasOverlays input);
+
+  /**
+  Return whether an input is nixpkgs-like infrastructure only.
+
+  # Type
+
+  ```nix
+  isNixpkgsInfrastructure :: AttrSet -> Bool
+  ```
+
+  # Dependencies
+
+  - flakes.isNixpkgsLike
+  - flakes.hasModules
+  - flakes.hasOverlays
+  */
+  isNixpkgsInfrastructure = input:
+    isNixpkgsLike input
+    && !(hasModules input)
+    && !(hasOverlays input);
+in
+  exports
