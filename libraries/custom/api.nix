@@ -8,19 +8,20 @@
   exports = {
     scoped = {
       inherit hosts users;
-      admins = getAdmins;
-      normalUsers = getNormal;
+      admins = getAdminUsers;
+      normalUsers = getNormalUsers;
     };
     global = {
       hostSpecs = hosts;
       userSpecs = users;
-      getAdminUsers = getAdmins;
-      getNormalUsers = getNormal;
+      getAdminUsers = getAdminUsers;
+      getNormalUsers = getNormalUsers;
     };
   };
-  inherit (attrsets) attrNames genAttrs filterAttrs mapAttrs;
-  inherit (lists) elemAt filter length;
+  inherit (attrsets) attrNames attrValues listToAttrs genAttrs filterAttrs mapAttrs optionalAttrs;
+  inherit (lists) asList concatLists elemAt filter length;
   inherit (ingestion) collectNamedSpecs;
+  inherit (specs) users hosts;
 
   api = let
     base = paths.store.api or paths.api or ../../configuration/api;
@@ -36,7 +37,10 @@
     };
 
   specs = {
-    hosts = collectSpecs "core" api.hosts;
+    hosts =
+      mapAttrs
+      (_: host: host // {users = resolveUsers host;})
+      (collectSpecs "core" api.hosts);
     users = collectSpecs "home" api.users;
   };
 
@@ -95,14 +99,14 @@
       byRole = mkRoleIndex users;
     };
 
-  getAdmins = host:
+  getAdminUsers = host:
     (
       if host.users ? values
       then host.users
       else getUsers host.users
     ).byRole.administrator.values;
 
-  getNormal = host:
+  getNormalUsers = host:
     filterAttrs (_: user: (user.role or "") != "service")
     (
       if host.users ? values
@@ -167,12 +171,5 @@
     };
   in
     resolved // {inherit primary;};
-
-  hosts =
-    mapAttrs
-    (_: host: host // {users = resolveUsers host;})
-    specs.hosts;
-
-  inherit (specs) users;
 in
   exports
