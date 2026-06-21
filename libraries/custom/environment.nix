@@ -1,15 +1,16 @@
 {
   api,
-  debug,
-  types,
   attrsets,
-  flake,
-  filesystem,
-  strings,
-  paths,
-  names,
+  debug,
   defaults,
   excludes,
+  filesystem,
+  flake,
+  names,
+  paths,
+  staged,
+  strings,
+  types,
   ...
 }: let
   exports = {
@@ -55,7 +56,7 @@
   */
   mkSrc = {
     host ? defaultHost,
-    libraries ? {},
+    libraries ? null,
     overrides ? {},
   }: let
     _name = "environment::mkSrc";
@@ -142,10 +143,15 @@
     };
 
     libraries' = let
-      raw = checked.overrides.libraries or libraries;
+      raw =
+        checked.overrides.libraries or (
+          if libraries != null
+          then libraries
+          else staged
+        );
       name = raw.name or names.lib or "lix";
       custom = raw.${name} or raw.merged or raw;
-      lib = raw.lib or raw.global.charged or custom;
+      lib = raw.lib or custom;
     in {
       libraries =
         raw

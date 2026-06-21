@@ -45,7 +45,6 @@
           excludes
           (flake.excludes or (flake.defaults.excludes or {}))
         );
-
       paths = recursiveUpdate {
         excludes = seed.excludes.paths;
         store = {
@@ -53,7 +52,7 @@
           api = ../configuration/api;
         };
         local.src = "/etc/nixos";
-      } (recursiveUpdate paths (flake.paths or {}));
+      } (recursiveUpdate paths flake.paths or {});
 
       names = recursiveUpdate {
         src = "dots";
@@ -75,7 +74,10 @@
 
     built = mkLibrary {
       inherit base;
-      seed = shared.charged // {bootstrap = import base shared.charged;};
+      seed =
+        shared.charged
+        // {bootstrap = import base shared.charged;}
+        // {staged = shared;};
     };
 
     stripped = let
@@ -127,13 +129,24 @@
   in
     updated;
 
-  custom = mkLibrary {
-    base = ./custom;
-    seed = global.charged;
-  };
+  custom = let
+    base = mkLibrary {
+      base = ./custom;
+      seed = global.charged // {staged = global;};
+    };
+
+    charged = base.charged // {pathsResolved = base.charged.mkPaths {};};
+    updated =
+      base
+      // {
+        inherit charged;
+        ${names.lib or "lix"} = charged;
+      };
+  in
+    updated;
 
   config = mkLibrary {
-    seed = custom.charged;
+    seed = custom.charged // {staged = custom;};
     base = ./config;
   };
 

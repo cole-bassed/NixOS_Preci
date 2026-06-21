@@ -212,8 +212,11 @@
         if local == null
         then toString args.store
         else if isAttrs local
-        then local.src
-        or (throw "${_name}: 'local' attrset is missing a 'src' string.")
+        then
+          local.src
+        or (throw "${_name}: 'local' attrset is missing a 'src' string. Given paths are [${
+            concatStringsSep ", " (attrNames local)
+          }].")
         else local;
     };
 
@@ -262,8 +265,14 @@
     then true
     else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
     assert !isAttrs store
-    || (store ? src && isPath store.src)
-    || throw "${_name}: 'store' set is missing a valid path for 'src'.";
+    || (store ? src
+      && (
+        (isPath store.src)
+        || (isString store.src && hasPrefix "/" store.src)
+      ))
+    || throw "${_name}: 'store' set is missing a valid path for 'src'. Given paths are [${
+      concatStringsSep ", " (attrNames store)
+    }].";
     assert (local == null)
     || isString local
     || isAttrs local

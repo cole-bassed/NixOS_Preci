@@ -91,8 +91,11 @@
           name: value:
             assert withContext {
               inherit name;
-              assertion = resolved.paths ? ${name};
-              message = "'${name}' is not a known path in paths.store";
+              assertion = resolved.paths.store ? ${name};
+              message = "'${name}' is not a known path in paths.store. Known paths are [${concat {
+                delim = ", ";
+                parts = attrNames resolved.paths.store;
+              }}]";
               context = "resolving path for '${name}' in assemble";
             };
               (name != "configuration") && (isEnabled value)
@@ -102,7 +105,7 @@
       mergeAttrsList (
         mapAttrsToList (
           name: args:
-            import resolved.paths.${name} (base // {args = normalize args;})
+            import resolved.paths.store.${name} (base // {args = normalize args;})
         )
         enabled
       )
@@ -158,6 +161,7 @@
           class = host.class or defaultHost.class;
           src = mkSrc {
             inherit host;
+            libraries = base.libraries or (args.libraries or null);
             overrides = extraArgs;
           };
           specialArgs =
