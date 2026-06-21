@@ -1,30 +1,39 @@
 {
-  attrsets,
-  trivial,
-  filesystem,
+  attrsets ? {},
+  trivial ? {},
+  filesystem ? {},
+  names ? {},
   ...
 }: let
   exports = {
     scoped = {
       mkLibs = mkLibrary;
-      inherit (filesystem) mkPaths;
+      mkLix = mkLibraryFlat;
+      inherit mkLibraryFlat;
     };
-    global = {inherit mkLibrary;};
+    global = {inherit mkLibrary mkLibraryFlat;};
   };
 
+  bootstrap = import ./.;
   inherit (builtins) attrValues foldl' mapAttrs;
-  inherit (attrsets) recursiveAttrs;
-  inherit (filesystem) getSpecs;
-  inherit (trivial) fix;
+
+  recursiveUpdate = attrsets.recursiveUpdate or bootstrap.recursiveUpdate;
+  recursiveSelf = trivial.recursiveSelf or bootstrap.recursiveSelf;
+  getSpecs = filesystem.getSpecs or bootstrap.getSpecs;
+
+  mkLibraryFlat = library:
+    recursiveUpdate
+    library
+    {${names.lib or "lix"} = library.charged;};
 
   mkLibrary = {
     base,
-    excludes ? ["default"], #TODO: This needs to see folders to skip as will, not just files and if the extension (nix) is present it doesn't skip?
+    excludes ? seed.excludes.paths or ["default"], #TODO: This needs to see folders to skip as will, not just files and if the extension (nix) is present it doesn't skip?
     seed ? {},
     extra ? {},
   }: let
-    clean = attrs:
-      removeAttrs attrs [
+    clean = set:
+      removeAttrs set [
         "flat"
         "global"
         "scoped"
@@ -40,44 +49,37 @@
           then {}
           else spec
         );
-      value = recursiveAttrs global scoped;
-    in {
-      inherit global scoped value;
+      value = recursiveUpdate global scoped;
       raw = spec;
-    };
+    in {inherit global scoped raw value;};
 
-    modules = fix (self: let
+    modules = recursiveSelf (self: let
       scope =
-        recursiveAttrs
+        recursiveUpdate
         seed
         (clean (mapAttrs (_: lib: lib.value) self));
     in
       foldl'
-      recursiveAttrs
+      recursiveUpdate
       {}
       (
         map
-        (spec: {
-          ${spec.name} = normalize (import spec.input scope);
-        })
+        (spec: {${spec.name} = normalize (import spec.input scope);})
         (getSpecs {inherit base excludes;})
       ));
 
-    scoped = mapAttrs (_: mod: mod.value) modules;
-
-    global =
+    domains = mapAttrs (_: mod: mod.value) modules;
+    aliases =
       foldl'
-      (acc: mod: recursiveAttrs acc mod.global)
+      (acc: mod: recursiveUpdate acc mod.global)
       {}
       (attrValues modules);
-
-    merged = recursiveAttrs global scoped;
-    seeded = recursiveAttrs (recursiveAttrs seed extra) merged;
+    merged = recursiveUpdate domains aliases;
+    charged = recursiveUpdate (recursiveUpdate seed extra) merged;
   in {
-    # inherit global scoped merged seeded;
-    domains = scoped;
-    aliases = global;
-    charged = seeded;
+    inherit aliases charged domains;
+    # ${names.lib or "lix"} = charged;
+    excluded = excludes;
   };
 in
   exports

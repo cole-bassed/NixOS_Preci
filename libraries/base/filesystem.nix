@@ -324,42 +324,88 @@
   #     )
   #   else throw "${_name}: expected a directory path, got ${toString base}";
 
+  # getSpecs = {
+  #   base,
+  #   excludes ? ["default"],
+  #   depth ? 2,
+  # }: let
+  #   # _name = "filesystem::getSpecsRecursive";
+  #   scan = dir: d: let
+  #     names = attrNames (readDir dir);
+  #     normalizeName = name: let
+  #       suffix = ".nix";
+  #       nameLen = stringLength name;
+  #       suffixLen = stringLength suffix;
+  #     in
+  #       if hasSuffix suffix name
+  #       then substring 0 (nameLen - suffixLen) name
+  #       else name;
+  #     isIncluded = name: !(elem (normalizeName name) excludes);
+  #     toCandidate = name: dir + "/${name}";
+  #   in
+  #     if d == 0
+  #     then []
+  #     else
+  #       concatLists (map (
+  #           name:
+  #             if isIncluded name && isNixPath (toCandidate name)
+  #             then [
+  #               {
+  #                 name = normalizeName name;
+  #                 input = resolveDefaultNix (toCandidate name);
+  #               }
+  #             ]
+  #             else if isDirectory (toCandidate name)
+  #             then scan (toCandidate name) (d - 1)
+  #             else []
+  #         )
+  #         names);
+  # in
+  #   scan base depth;
   getSpecs = {
     base,
     excludes ? ["default"],
     depth ? 2,
   }: let
-    # _name = "filesystem::getSpecsRecursive";
+    normalizeName = name: let
+      suffix = ".nix";
+      nameLen = stringLength name;
+      suffixLen = stringLength suffix;
+    in
+      if hasSuffix suffix name
+      then substring 0 (nameLen - suffixLen) name
+      else name;
+
+    normalizedExcludes = map normalizeName excludes;
+    isIncluded = name: !(elem (normalizeName name) normalizedExcludes);
+    toCandidate = dir: name: dir + "/${name}";
+
     scan = dir: d: let
       names = attrNames (readDir dir);
-      normalizeName = name: let
-        suffix = ".nix";
-        nameLen = stringLength name;
-        suffixLen = stringLength suffix;
-      in
-        if hasSuffix suffix name
-        then substring 0 (nameLen - suffixLen) name
-        else name;
-      isIncluded = name: !(elem (normalizeName name) excludes);
-      toCandidate = name: dir + "/${name}";
     in
       if d == 0
       then []
       else
-        concatLists (map (
-            name:
-              if isIncluded name && isNixPath (toCandidate name)
+        concatLists (
+          map (
+            name: let
+              candidate = toCandidate dir name;
+            in
+              if !isIncluded name
+              then []
+              else if isNixPath candidate
               then [
                 {
                   name = normalizeName name;
-                  input = resolveDefaultNix (toCandidate name);
+                  input = resolveDefaultNix candidate;
                 }
               ]
-              else if isDirectory (toCandidate name)
-              then scan (toCandidate name) (d - 1)
+              else if isDirectory candidate
+              then scan candidate (d - 1)
               else []
           )
-          names);
+          names
+        );
   in
     scan base depth;
 in

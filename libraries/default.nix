@@ -5,23 +5,18 @@
   excludes ? {},
   paths ? {},
 }: let
+  # TODO: Create a version of mkSrc in base, so that it's available at all levels.
   shared = let
-    # TODO: Create a version of mkSrc in the bootstrap, so that it's available at all levels.
     base =
       paths.store.libraries.shared or
       (paths.libraries.shared or
         (paths.shared or ./base));
-  in
-    (import base).mkLibrary {inherit base;};
-  inherit (shared.charged) mkLibrary recursiveUpdate removeAttrPaths;
-
-  bootstrap =
-    shared.charged
-    // {
+    inherit (import base) recursiveUpdate;
+    seed = {
       flake =
         recursiveUpdate {
-          name = bootstrap.names.src or bootstrap.defaults.names.src;
-          path = bootstrap.paths.store.src or paths.src or ../.;
+          name = seed.names.src or seed.defaults.names.src;
+          path = seed.paths.store.src or paths.src or ../.;
         }
         flake;
 
@@ -37,14 +32,14 @@
               "archive"
               "backup"
               "bootstrap"
-              "review" # TODO: Doesn't work at directory level
+              "review"
               "temp"
               "default"
-              "default.nix" # TODO: Doesn't work
+              "default.nix"
               "flake.nix"
             ]
             ++ (paths.excludes or [])
-            ++ (bootstrap.defaults.excludes.paths or []);
+            ++ (seed.defaults.excludes.paths or []);
         } (
           recursiveUpdate
           excludes
@@ -52,7 +47,7 @@
         );
 
       paths = recursiveUpdate {
-        excludes = bootstrap.excludes.paths;
+        excludes = seed.excludes.paths;
         store = {
           src = ../.;
           api = ../configuration/api;
@@ -66,118 +61,113 @@
         top = "_";
       } (recursiveUpdate names (flake.names or {}));
     };
+    assembly = import (base + "/assembly.nix") seed;
+    inherit (assembly.global) mkLibrary;
+  in
+    mkLibrary {inherit base seed;};
+  inherit (shared.charged) mkLibrary recursiveUpdate removeAttrPaths;
 
   global = let
-    base = paths.store.libraries.global or
-      (paths.libraries.global or
-        (paths.global or ./imports));
-  in
-    mkLibrary {
+    base =
+      paths.store.libraries.global or
+    (paths.libraries.global or
+      (paths.global or ./imports));
+
+    built = mkLibrary {
       inherit base;
-      seed =
-        bootstrap
-        // {
-          bootstrap = import base bootstrap;
-        };
-      excludes = bootstrap.excludes.paths;
+      seed = shared.charged // {bootstrap = import base shared.charged;};
     };
-  flakes = with global.domains; {
-    inherit overlays modules libraries packages inputs;
-    enable = libraries.default.types.isFlakeLike inputs;
-    nixpkgs = inputs.normalized.nixpkgs or {};
-  };
-  global' = recursiveUpdate global {
-    charged.flake =
-      recursiveUpdate
-      (global.charged.flake or {})
-      flakes;
-    charged.flakes =
-      recursiveUpdate
-      (global.charged.flakes or {})
-      (flakes // global.aliases);
-    domains.libraries.merged.flakes =
-      recursiveUpdate
-      (global.domains.libraries.merged.flakes or {})
-      (flakes // global.aliases);
-    domains.libraries.default.flakes =
-      recursiveUpdate
-      (global.domains.libraries.default.flakes or {})
-      (flakes // global.aliases);
-  };
+
+    stripped = let
+      lib = built.domains.libraries.default;
+      charged =
+        recursiveUpdate
+        (removeAttrs built.charged ["bootstrap"])
+        lib;
+    in
+      charged
+      // {
+        inherit lib;
+        ${names.lib or "lix"} = charged;
+      };
+
+    flaked = recursiveUpdate stripped (let
+      flakeArgs =
+        built.domains
+        // (with built.domains; {
+          enable = libraries.default.types.isFlakeLike inputs;
+          nixpkgs = inputs.normalized.nixpkgs or {};
+        });
+
+      flakeLibs = recursiveUpdate flakeArgs built.aliases;
+    in {
+      charged.flake =
+        recursiveUpdate
+        (built.charged.flake or {})
+        flakeArgs;
+
+      charged.flakes =
+        recursiveUpdate
+        (built.charged.flakes or {})
+        flakeLibs;
+
+      domains.libraries.merged.flakes =
+        recursiveUpdate
+        (built.domains.libraries.merged.flakes or {})
+        flakeLibs;
+
+      domains.libraries.default.flakes =
+        recursiveUpdate
+        (built.domains.libraries.default.flakes or {})
+        flakeLibs;
+    });
+
+    cleaned = removeAttrPaths flaked [
+      {
+        scopes = [
+          "lib"
+          "lists"
+          "modules"
+        ];
+        items = [
+          "applyModuleArgsIfFunction"
+          "collectModules"
+          "dischargeProperties"
+          "evalOptionValue"
+          "fold"
+          "isInOldestRelease"
+          "mergeModules'"
+          "mergeModules"
+          "mkAliasOptionModuleMD"
+          "mkFixStrictness"
+          "nixpkgsVersion"
+          "pushDownProperties"
+          "unifyModuleSyntax"
+        ];
+      }
+    ];
+  in
+    cleaned;
 
   custom = mkLibrary {
     base = ./custom;
-    seed =
-      recursiveUpdate
-      global'.charged
-      (
-        recursiveUpdate
-        global'.charged.libraries.default
-        {inherit flakes;}
-      );
+    seed = global.charged;
   };
-
-  cleaned = removeAttrPaths custom.charged [
-    {
-      scopes = [
-        "lib"
-        "lists"
-        "modules"
-      ];
-      items = [
-        "applyModuleArgsIfFunction"
-        "bootstrap"
-        "collectModules"
-        "dischargeProperties"
-        "evalOptionValue"
-        "fold"
-        "isInOldestRelease"
-        "mergeModules'"
-        "mergeModules"
-        "mkAliasOptionModuleMD"
-        "mkFixStrictness"
-        "nixpkgsVersion"
-        "pushDownProperties"
-        "unifyModuleSyntax"
-      ];
-    }
-  ];
 
   config = mkLibrary {
-    seed = recursiveUpdate cleaned {
-      lib = global.charged.libraries.merged;
-      ${names.lib or "lix"} = cleaned;
-    };
+    seed = custom.charged;
     base = ./config;
   };
-  config' = recursiveUpdate global {
-    charged.flake =
-      recursiveUpdate
-      (global.charged.flake or {})
-      flakes;
-    charged.flakes =
-      recursiveUpdate
-      (global.charged.flakes or {})
-      (flakes // global.aliases);
-    domains.libraries.merged.flakes =
-      recursiveUpdate
-      (global.domains.libraries.merged.flakes or {})
-      (flakes // global.aliases);
-    domains.libraries.default.flakes =
-      recursiveUpdate
-      (global.domains.libraries.default.flakes or {})
-      (flakes // global.aliases);
-  };
 
-  merged = config'.charged;
+  merged = config.charged;
 in {
   inherit
     config
     custom
     shared
     merged
+    global
     ;
-  global = global';
-  lib = global.charged.libraries.merged;
+  inherit (global) lib;
   ${names.lib or "lix"} = merged;
 }
