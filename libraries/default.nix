@@ -65,7 +65,7 @@
     inherit (assembly.global) mkLibrary;
   in
     mkLibrary {inherit base seed;};
-  inherit (shared.charged) mkLibrary recursiveUpdate removeAttrPaths;
+  inherit (shared.charged) mkLibrary recursiveUpdate;
 
   global = let
     base =
@@ -81,17 +81,20 @@
     stripped = let
       lib = built.domains.libraries.default;
       charged =
-        recursiveUpdate
-        (removeAttrs built.charged ["bootstrap"])
-        lib;
+        (
+          recursiveUpdate
+          (removeAttrs built.charged ["bootstrap"])
+          built.domains.libraries.default
+        )
+        // {inherit lib;};
     in
-      charged
+      built
       // {
-        inherit lib;
+        inherit charged lib;
         ${names.lib or "lix"} = charged;
       };
 
-    flaked = recursiveUpdate stripped (let
+    updated = recursiveUpdate stripped (let
       flakeArgs =
         built.domains
         // (with built.domains; {
@@ -103,51 +106,26 @@
     in {
       charged.flake =
         recursiveUpdate
-        (built.charged.flake or {})
+        (stripped.charged.flake or {})
         flakeArgs;
 
       charged.flakes =
         recursiveUpdate
-        (built.charged.flakes or {})
+        (stripped.charged.flakes or {})
         flakeLibs;
 
       domains.libraries.merged.flakes =
         recursiveUpdate
-        (built.domains.libraries.merged.flakes or {})
+        (stripped.lib.flakes or {})
         flakeLibs;
 
       domains.libraries.default.flakes =
         recursiveUpdate
-        (built.domains.libraries.default.flakes or {})
+        (stripped.charged.flakes or {})
         flakeLibs;
     });
-
-    cleaned = removeAttrPaths flaked [
-      {
-        scopes = [
-          "lib"
-          "lists"
-          "modules"
-        ];
-        items = [
-          "applyModuleArgsIfFunction"
-          "collectModules"
-          "dischargeProperties"
-          "evalOptionValue"
-          "fold"
-          "isInOldestRelease"
-          "mergeModules'"
-          "mergeModules"
-          "mkAliasOptionModuleMD"
-          "mkFixStrictness"
-          "nixpkgsVersion"
-          "pushDownProperties"
-          "unifyModuleSyntax"
-        ];
-      }
-    ];
   in
-    cleaned;
+    updated;
 
   custom = mkLibrary {
     base = ./custom;
@@ -168,6 +146,6 @@ in {
     merged
     global
     ;
-  inherit (global) lib;
+  inherit (merged) lib;
   ${names.lib or "lix"} = merged;
 }

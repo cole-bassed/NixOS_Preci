@@ -2,12 +2,7 @@
   exports = {
     scoped =
       {
-        inherit
-          (inputs)
-          raw
-          classified
-          normalized
-          ;
+        inherit (inputs) raw classified normalized;
         enable = types.isFlakeLike inputs;
       }
       // types;

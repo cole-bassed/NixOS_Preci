@@ -13,17 +13,44 @@
     global = {inherit hasLibraries;};
   };
   inherit (bootstrap) inputs hasLibraries;
-  inherit (attrsets) asAttrsIf mapAttrs filterAttrs;
+  inherit (attrsets) asAttrsIf mapAttrs filterAttrs removeAttrPaths;
 
-  excluded = excludes.libraries or [];
+  excluded =
+    excludes
+    // {
+      libraries =
+        (excludes.libraries or [])
+        ++ [
+          "applyModuleArgsIfFunction"
+          "collectModules"
+          "dischargeProperties"
+          "evalOptionValue"
+          "fold"
+          "isInOldestRelease"
+          "mergeModules'"
+          "mergeModules"
+          "mkAliasOptionModuleMD"
+          "mkFixStrictness"
+          "nixpkgsVersion"
+          "pushDownProperties"
+          "unifyModuleSyntax"
+        ];
+    };
+
+  exclusions = [
+    {
+      scopes = ["lib" "lists" "modules"];
+      items = excluded.libraries or [];
+    }
+  ];
+  stripExclusions = libraries: removeAttrPaths libraries exclusions;
+
   classified =
     mapAttrs
     (_: input: input.lib)
     inputs.classified.libraries;
 
-  treefmt = inputs.normalized.treefmt or {};
-
-  normalized =
+  normalized = stripExclusions (
     (
       mapAttrs
       (_: input: input.lib)
@@ -96,14 +123,21 @@
         };
     }
     // (
-      asAttrsIf
-      (treefmt ? lib)
-      {treefmt = treefmt.lib // {projectRoot = paths.store.src;};}
-    );
+      let
+        treefmt = inputs.normalized.treefmt or {};
+      in
+        asAttrsIf
+        (treefmt ? lib)
+        {treefmt = treefmt.lib // {projectRoot = paths.store.src;};}
+    )
+  );
 
   merged =
-    normalized.nixpkgs
-    // classified
-    // normalized;
+    stripExclusions
+    (
+      normalized.nixpkgs
+      // classified
+      // normalized
+    );
 in
   exports

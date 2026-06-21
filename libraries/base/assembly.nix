@@ -78,7 +78,8 @@
     charged = recursiveUpdate (recursiveUpdate seed extra) merged;
   in {
     inherit aliases charged domains;
-    # ${names.lib or "lix"} = charged;
+    ${names.lib or "lix"} = charged;
+    lib = charged.lib or merged;
     excluded = excludes;
   };
 in

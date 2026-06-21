@@ -41,7 +41,6 @@
       inputs = {
         nixpkgs.follows = "nixCore";
         home-manager.follows = "nixHM";
-        rust-overlay.follows = "rust";
       };
     };
     nixHM = {
