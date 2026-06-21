@@ -14,8 +14,8 @@
     global = {
       hostSpecs = hosts;
       userSpecs = users;
-      getAdminUsers = getAdminUsers;
-      getNormalUsers = getNormalUsers;
+      inherit getAdminUsers;
+      inherit getNormalUsers;
     };
   };
   inherit (attrsets) attrNames attrValues listToAttrs genAttrs filterAttrs mapAttrs optionalAttrs;

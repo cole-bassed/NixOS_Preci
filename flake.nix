@@ -10,18 +10,18 @@
     };
     defaults = {allowUnfree = true;};
     src = import ./. {flake = {inherit defaults excludes inputs nixpkgs;};};
-  in
-    {inherit src;}
-    // src.${src.libraries.name}.mkFlake {
-      base = src;
+    base = src.${src.names.src};
+    libs = src.${src.names.lib};
+  in {lib = base;}
+    // libs.mkFlake {
+      inherit base;
       mods = {
         configuration = true;
         utilities = true;
         shells = true;
         templates = true;
       };
-    }
-    // {};
+    };
 
   inputs = {
     #~@ Core/Nix Infrastructure

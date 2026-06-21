@@ -1,10 +1,1 @@
-{lix, ...} @ base: let
-  inherit (lix.modules) importModules;
-in
-  importModules (base
-    // {
-      base = ./.;
-      excludes = [
-        "review"
-      ];
-    })
+{lix, ...} @ base: lix.modules.importModules (base // {base = ./.;})

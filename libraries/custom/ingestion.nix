@@ -228,7 +228,6 @@
     includeFiles ? true,
     ...
   }:
-    importAll (args
-      // {inherit base excludes tags extraArgs includeFiles;});
+    importAll (args // {inherit base excludes tags extraArgs includeFiles;});
 in
   exports

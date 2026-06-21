@@ -23,7 +23,7 @@
   };
 
   inherit (filesystem) mkPaths mkUserPaths;
-  inherit (attrsets) foldlAttrs optionalAttrs recursiveUpdate;
+  inherit (attrsets) attrNames genAttrs foldlAttrs optionalAttrs recursiveUpdate;
   inherit (debug) expect;
   inherit (strings) concat toUpper;
   inherit (types) isAttrs isString;
@@ -57,7 +57,7 @@
   mkSrc = {
     host ? defaultHost,
     libraries ? null,
-    overrides ? {},
+    extraArgs ? {},
   }: let
     _name = "environment::mkSrc";
 
@@ -69,11 +69,11 @@
         context = "validating target host specifications";
       };
 
-      overrides = expect {
+      extraArgs = expect {
         name = _name;
         type = "attrs";
-        value = overrides;
-        context = "validating environment value overrides";
+        value = extraArgs;
+        context = "validating environment value extraArgs";
       };
     };
 
@@ -142,9 +142,23 @@
       path = flake.path or flake.paths.src or paths'.store.src or null;
     };
 
+    defaults' =
+      libraries'.charged.defaults or (
+        recursiveUpdate
+        defaults
+        (flake'.defaults or {})
+      );
+
+    excludes' =
+      libraries'.charged.excludes or (
+        recursiveUpdate
+        excludes
+        (flake'.excludes or {})
+      );
+
     libraries' = let
       raw =
-        checked.overrides.libraries or (
+        checked.extraArgs.libraries or (
           if libraries != null
           then libraries
           else staged
@@ -162,32 +176,35 @@
       "${name}" = custom;
     };
 
+    names' = recursiveUpdate names {
+      src = flake'.name;
+      lib = libraries'.libraries.name;
+    };
+
+    updated = let
+      base = {
+        names = names';
+        paths = paths';
+        defaults = defaults';
+        excludes = excludes';
+      };
+    in
+      genAttrs
+      (attrNames base)
+      (name: recursiveUpdate base.${name} (extraArgs.${name} or {}));
+
     args =
-      (
+      updated
+      // {
+        inherit host;
+        name = updated.names.src;
+      }
+      // libraries'
+      // (
         optionalAttrs
         (flake.enable or false)
         {flake = flake';}
-      )
-      // libraries'
-      // {
-        inherit host;
-        paths = paths';
-
-        defaults =
-          recursiveUpdate
-          defaults
-          (flake'.defaults or {});
-
-        names = recursiveUpdate names {
-          src = flake'.name;
-          lib = args.libraries.name;
-        };
-
-        excludes =
-          recursiveUpdate
-          excludes
-          (flake'.excludes or {});
-      };
+      );
   in
     args // {${args.names.src} = args;};
 

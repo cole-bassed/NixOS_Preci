@@ -119,10 +119,7 @@
               args = {
                 modules = let
                   collected = import resolved.paths.store.configuration (
-                    recursiveUpdate base {
-                      top = base.names.top or (names.top or "dots");
-                      args = normalize configuration;
-                    }
+                    recursiveUpdate base {args = normalize configuration;}
                   );
                 in {
                   core = collected.imports or [];
@@ -160,14 +157,13 @@
           host = recursiveUpdate defaultHost spec;
           class = host.class or defaultHost.class;
           src = mkSrc {
-            inherit host;
+            inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);
-            overrides = extraArgs;
           };
           specialArgs =
             {
-              inherit host src args;
-              top = src.names.top or names.top;
+              inherit host args;
+              top = src.name or (src.names.top or (names.top or names.src));
             }
             // (removeAttrs src ["lib" "modules" "packages"]);
         in {

@@ -57,7 +57,6 @@
       names = recursiveUpdate {
         src = "dots";
         lib = "lix";
-        top = "_";
       } (recursiveUpdate names (flake.names or {}));
     };
     assembly = import (base + "/assembly.nix") seed;

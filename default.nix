@@ -1,7 +1,6 @@
 {flake ? {}, ...}: let
   names = {
     src = "dots";
-    top = "_";
     lib = "lix";
   };
 
@@ -20,6 +19,7 @@
     };
   };
 
+  # TODO: Does flake truly ever pass currentHost as an argument?
   defaults.host = let
     inherit (builtins) isAttrs getEnv;
     env = {
@@ -27,11 +27,11 @@
       name = getEnv "NAME";
     };
   in
-    if isAttrs flake && (flake.currentHost or "") != ""
+    if isAttrs flake && ((flake.currentHost or "") != "")
     then flake.currentHost
-    else if env.host != ""
+    else if (env.host != "")
     then env.host
-    else if env.name != ""
+    else if (env.name != "")
     then env.name
     else "ExampleHost";
 
