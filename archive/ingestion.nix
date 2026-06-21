@@ -23,7 +23,6 @@
       collectNamed = collectNamedSpecs;
       importAttrs = readDirAttrs;
       resolve = resolveEntrypoint;
-      # inherit getUsers getAdminsUsers getNonServiceUsers;
     };
     global = {
       inherit
@@ -38,9 +37,9 @@
     };
   };
 
-  inherit (attrsets) attrNames filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (attrsets) filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asList any concatMap elem findFirst length;
+  inherit (lists) asList any concatMap elem findFirst;
   inherit (strings) hasSuffix removeSuffix;
   inherit (types) isFunction;
 
@@ -66,9 +65,15 @@
     (
       name: type: let
         defaultPredicate =
-          if includeFiles
-          then type == "directory" || (type == "regular" && hasSuffix ".nix" name && name != "default.nix")
-          else type == "directory";
+          (type == "directory")
+          || (
+            if includeFiles
+            then
+              (type == "regular")
+              && hasSuffix ".nix" name
+              && name != "default.nix"
+            else false
+          );
       in
         (
           if predicate != null
@@ -78,7 +83,10 @@
         && !(elem name excludes)
         && (
           if type == "directory"
-          then any (f: pathExists (base + "/${name}/${f}")) candidates
+          then
+            any
+            (f: pathExists (base + "/${name}/${f}"))
+            candidates
           else true
         )
     )
@@ -88,7 +96,10 @@
     base,
     name,
   }:
-    findFirst (f: pathExists (base + "/${name}/${f}")) entrypoint candidates;
+    findFirst
+    (f: pathExists (base + "/${name}/${f}"))
+    entrypoint
+    candidates;
 
   importModule = {
     args ? {},
@@ -147,7 +158,12 @@
       )
       entries;
   in
-    genAttrs tags (tag: concatMap (spec: asList (spec.${tag} or null)) specs);
+    genAttrs tags (
+      tag:
+        concatMap
+        (spec: asList (spec.${tag} or null))
+        specs
+    );
 
   collectNamedSpecs = {
     args ? {},
@@ -174,7 +190,8 @@
               // extraArgs;
           };
         in
-          importedModule // {tags = (importedModule.tags or []) ++ asList tags;}
+          importedModule
+          // {tags = (importedModule.tags or []) ++ asList tags;}
       )
       entries;
   in
@@ -195,7 +212,9 @@
     includeFiles ? false,
     ...
   }: let
-    specs = collectSpecs {inherit args base excludes tags extraArgs includeFiles;};
+    specs = collectSpecs {
+      inherit args base excludes tags extraArgs includeFiles;
+    };
   in {
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
@@ -210,78 +229,6 @@
     ...
   }:
     importAll (args
-      // {
-        inherit base excludes tags extraArgs includeFiles;
-      });
-
-  getUsers = spec: let
-    mkGroup = attrs: let
-      names = attrNames attrs;
-      values = mapAttrs (name: user:
-        user
-        // {
-          inherit name;
-          home = user.home or "/home/${name}";
-          description = user.description or name;
-        })
-      attrs;
-      count = length names;
-    in {inherit names values count;};
-
-    filterByStatus = status: attrs:
-      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
-
-    filterByRole = wantedRole: attrs:
-      filterAttrs (
-        _: u: let
-          role = u.role or "";
-          isNormal = role == "" || role == "user" || role == "normal";
-        in
-          if wantedRole == "normal"
-          then isNormal
-          else role == wantedRole
-      )
-      attrs;
-
-    mkStatusIndex = attrs:
-      genAttrs ["enabled" "disabled"] (status: let
-        subset = filterByStatus status attrs;
-      in
-        (mkGroup subset) // {byRole = mkRoleIndex subset;});
-
-    mkRoleIndex = attrs:
-      genAttrs ["normal" "administrator" "service" "guest"] (role: let
-        subset = filterByRole role attrs;
-      in
-        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
-
-    users = mapAttrs (_: u:
-      {
-        role = "user";
-        enable = true;
-      }
-      // u)
-    spec;
-  in
-    (mkGroup users)
-    // {
-      byStatus = mkStatusIndex users;
-      byRole = mkRoleIndex users;
-    };
-
-  getAdminsUsers = host:
-    (
-      if host.users ? values
-      then host.users
-      else getUsers host.users
-    ).byRole.administrator.values;
-
-  getNonServiceUsers = host:
-    filterAttrs (_: user: (user.role or "") != "service")
-    (
-      if host.users ? values
-      then host.users
-      else getUsers host.users
-    ).values;
+      // {inherit base excludes tags extraArgs includeFiles;});
 in
   exports
