@@ -10,6 +10,7 @@ in {
   id = "deadbeef"; # Valid 8-character hexadecimal ID template  #> head -c8 /etc/machine-id'
   type = "laptop"; # Alternatives: desktop, server
   class = "nixos";
+  inherit arch os;
   system = "x86_64-linux"; # Alternatives: aarch64-linux, x86_64-darwin
   stateVersion = "26.05";
   paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";

@@ -7,6 +7,7 @@
   inherit (lix.assembly) mkCoreUsers mkSudoRules mkHomeUsers;
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf anything;
+  inherit (lix) lib;
 
   data = host.users or {};
 
@@ -27,7 +28,12 @@
             execWheelOnly = true;
             extraRules = mkSudoRules host;
           };
-          home-manager.users = mkHomeUsers {inherit lix host top;};
+          home-manager.users = mkHomeUsers {
+            inherit host;
+            lib = lix;
+            dom = "base";
+            mod = "users";
+          };
         }
         else {}
       );

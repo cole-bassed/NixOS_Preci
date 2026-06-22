@@ -7,8 +7,8 @@
   inherit (lix.attrsets) removeEmpty;
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf anything;
-
-  src = host.localization or {};
+  mod = "localization";
+  src = host.${mod} or {};
 
   data = {
     latitude = src.latitude or null;
@@ -20,7 +20,7 @@
   };
 
   mk = scope: {...}: {
-    options.${top}.localization = mkOption {
+    options.${top}.${mod} = mkOption {
       type = attrsOf anything;
       default = {};
       description = "Resolved host localization data: geographic coordinates, location provider, timezone, locale, and clock mode.";

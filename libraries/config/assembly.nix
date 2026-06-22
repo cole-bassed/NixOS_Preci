@@ -151,16 +151,21 @@
       resolved =
         mapAttrs (_: spec: let
           host = spec;
-          class = host.class or defaultClass;
+          class = host.class or (defaultHost.class or "nixos");
           src = mkSrc {
             inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);
           };
-          specialArgs = {
-            inherit host args;
-            top = src.name or (src.names.top or (names.top or names.src));
-          };
-          # // (removeAttrs src ["lib" "modules" "packages" "nixpkgs"]);
+          specialArgs =
+            {
+              inherit host args;
+              top = src.name or (src.names.top or (names.top or names.src));
+              # ${src.names.lib} = src.${src.names.lib};
+              # ${src.names.lib} = removeAttrs src.${src.names.lib} ["flake" "flakes"];
+              # inherit src;
+              inherit (src) paths;
+            }
+            // (removeAttrs src ["lib"]);
         in {
           inherit class specialArgs;
           modules =
