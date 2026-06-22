@@ -1,11 +1,10 @@
-# configuration/base/users.nix
 {
   lix,
   top,
   host,
   ...
 }: let
-  inherit (lix) mkCoreUsers mkSudoRules mkHomeUsers;
+  inherit (lix.assembly) mkCoreUsers mkSudoRules mkHomeUsers;
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf anything;
 

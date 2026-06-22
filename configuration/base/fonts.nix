@@ -8,25 +8,27 @@
   userName ? null,
   ...
 }: let
-  inherit (lib) filterAttrs mkIf mkMerge optionals unique;
+  inherit (lib.attrsets) attrValues isAttrs filterAttrs hasAttr getAttr;
+  inherit (lib.modules) mkIf mkMerge;
+  inherit (lix.lists) foldl' optionals unique;
   inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) attrsOf anything bool;
 
-  getAttrPathOr = path: fallback: value:
-    let
-      result = builtins.foldl'
-        (
-          current: name:
-            if current == null || !(builtins.isAttrs current) || !(builtins.hasAttr name current)
-            then null
-            else builtins.getAttr name current
-        )
-        value
-        path;
-    in
-      if result == null
-      then fallback
-      else result;
+  getAttrPathOr = path: fallback: value: let
+    result =
+      foldl'
+      (
+        current: name:
+          if (current == null) || !(isAttrs current) || !(hasAttr name current)
+          then null
+          else getAttr name current
+      )
+      value
+      path;
+  in
+    if result == null
+    then fallback
+    else result;
 
   userValues =
     if host.users ? values
@@ -36,12 +38,12 @@
   primaryUser = host.users.primary.value or null;
 
   selectedUser =
-    if userName != null && builtins.hasAttr userName userValues
-    then builtins.getAttr userName userValues
+    if userName != null && hasAttr userName userValues
+    then getAttr userName userValues
     else primaryUser;
 
   getUserName = user:
-    if user != null && builtins.isAttrs user && user ? name
+    if user != null && isAttrs user && user ? name
     then user.name
     else null;
 
@@ -85,12 +87,13 @@
       homeEnable ? false,
       consoleEnable ? false,
       kmsconEnable ? false,
-    }: unique (
-      optionals (packagesEnable && systemEnable && scope == "core") (builtins.attrValues packageMap)
-      ++ optionals (packagesEnable && homeEnable && scope == "home") (builtins.attrValues packageMap)
-      ++ optionals (consoleEnable && scope == "core") [pkgs.terminus_font]
-      ++ optionals (kmsconEnable && scope == "core" && packageMap ? monospace) [packageMap.monospace]
-    );
+    }:
+      unique (
+        optionals (packagesEnable && systemEnable && scope == "core") (attrValues packageMap)
+        ++ optionals (packagesEnable && homeEnable && scope == "home") (attrValues packageMap)
+        ++ optionals (consoleEnable && scope == "core") [pkgs.terminus_font]
+        ++ optionals (kmsconEnable && scope == "core" && packageMap ? monospace) [packageMap.monospace]
+      );
 
     data = {
       inherit families packageMap;

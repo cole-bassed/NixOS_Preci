@@ -1,4 +1,3 @@
-# configuration/base/system.nix
 {
   lix,
   top,
@@ -13,7 +12,7 @@
   interface = host.interface or {};
   devices = host.devices or {};
 
-  mk = scope: { ... }: let
+  mk = scope: {...}: let
     bootData = {
       loader = interface.bootLoader or "systemd-boot";
       timeout = interface.bootLoaderTimeout or null;

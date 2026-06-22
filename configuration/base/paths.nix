@@ -1,4 +1,3 @@
-# configuration/base/paths.nix
 {
   lix,
   top,

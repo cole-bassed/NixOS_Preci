@@ -1,4 +1,3 @@
-# configuration/base/localization.nix
 {
   lix,
   top,

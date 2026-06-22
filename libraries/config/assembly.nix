@@ -47,7 +47,6 @@
     attrValues
     filterAttrs
     genAttrs
-    listToAttrs
     mapAttrs
     mapAttrsToList
     mergeAttrsList
@@ -56,9 +55,9 @@
     ;
   inherit (api) getUsers getAdminUsers getNormalUsers hosts;
   inherit (debug) withContext expect;
-  inherit (environment) mkCdAliases mkVariables mkSrc;
+  inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
-  inherit (lists) asList concatLists elem foldl' groupBy;
+  inherit (lists) asList elem foldl' groupBy;
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder;
