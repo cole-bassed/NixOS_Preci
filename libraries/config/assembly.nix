@@ -156,12 +156,11 @@
             inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);
           };
-          specialArgs =
-            {
-              inherit host args;
-              top = src.name or (src.names.top or (names.top or names.src));
-            }
-            // (removeAttrs src ["lib" "modules" "packages" "nixpkgs"]);
+          specialArgs = {
+            inherit host args;
+            top = src.name or (src.names.top or (names.top or names.src));
+          };
+          # // (removeAttrs src ["lib" "modules" "packages" "nixpkgs"]);
         in {
           inherit class specialArgs;
           modules =

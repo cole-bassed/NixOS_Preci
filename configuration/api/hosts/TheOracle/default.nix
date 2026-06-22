@@ -17,9 +17,10 @@ in {
   description = "Oracle Cloud free-tier Ampere instance";
   type = "server";
   class = "nixos";
-  system = "${arch}-${os}";
   stateVersion = "26.05";
   paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";
+  inherit arch os;
+  system = "${arch}-${os}";
 
   # ---------------------------------------------------------
   # LOCALIZATION

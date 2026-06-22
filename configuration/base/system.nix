@@ -26,7 +26,7 @@
       description = host.description or null;
       type = host.type or null;
       class = host.class or "nixos";
-      platform = host.system or "x86_64-linux";
+      platform = host.system or "${host.arch}-${host.os}";
       stateVersion = host.stateVersion or "25.11";
       displays = host.displays or devices.display or {};
       functionalities = host.functionalities or [];
