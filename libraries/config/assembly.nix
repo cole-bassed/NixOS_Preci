@@ -162,7 +162,7 @@
               inherit host args;
               top = src.name or (src.names.top or (names.top or names.src));
             }
-            // (removeAttrs src ["lib" "modules" "packages"]);
+            // (removeAttrs src ["lib" "modules" "packages" "nixpkgs"]);
         in {
           inherit class specialArgs;
           modules =

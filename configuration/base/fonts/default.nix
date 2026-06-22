@@ -5,11 +5,10 @@
   dom,
   mod,
   host,
-  pkgs,
   userName ? null,
   ...
 }: let
-  inherit (lib) filterAttrs mkIf optionalAttrs optionals unique;
+  inherit (lib) filterAttrs mkIf mkMerge optionals unique;
   inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) attrsOf anything bool;
 
@@ -28,8 +27,6 @@
       if result == null
       then fallback
       else result;
-
-  getPkg = path: getAttrPathOr path null pkgs;
 
   userValues =
     if host.users ? values
@@ -57,16 +54,22 @@
     clock = "Rubik";
   };
 
-  packageMap = filterAttrs (_: value: value != null) {
-    emoji = getPkg ["noto-fonts-color-emoji"];
-    monospace = getPkg ["maple-mono" "NF"];
-    sans = getPkg ["monaspace"];
-    serif = getPkg ["noto-fonts"];
-    material = getPkg ["material-symbols"];
-    clock = getPkg ["rubik"];
-  };
+  mk = scope: {
+    config,
+    pkgs,
+    ...
+  }: let
+    getPkg = path: getAttrPathOr path null pkgs;
 
-  mk = scope: {config, ...}: let
+    packageMap = filterAttrs (_: value: value != null) {
+      emoji = getPkg ["noto-fonts-color-emoji"];
+      monospace = getPkg ["maple-mono" "NF"];
+      sans = getPkg ["monaspace"];
+      serif = getPkg ["noto-fonts"];
+      material = getPkg ["material-symbols"];
+      clock = getPkg ["rubik"];
+    };
+
     args = mkModuleArgs {inherit config top dom mod scope;};
     inherit (args) cfg opt mkEnableMod;
     inherit (cfg) enable;
@@ -76,11 +79,17 @@
 
     families = defaultFamilies // userFamilies // hostFamilies;
 
-    packageList = unique (
-      optionals (cfg.packages.enable && cfg.packages.system && scope == "core") (builtins.attrValues packageMap)
-      ++ optionals (cfg.packages.enable && cfg.packages.home && scope == "home") (builtins.attrValues packageMap)
-      ++ optionals (cfg.console.enable && scope == "core") [pkgs.terminus_font]
-      ++ optionals (cfg.kmscon.enable && scope == "core" && packageMap ? monospace) [packageMap.monospace]
+    mkPackageList = {
+      packagesEnable,
+      systemEnable ? false,
+      homeEnable ? false,
+      consoleEnable ? false,
+      kmsconEnable ? false,
+    }: unique (
+      optionals (packagesEnable && systemEnable && scope == "core") (builtins.attrValues packageMap)
+      ++ optionals (packagesEnable && homeEnable && scope == "home") (builtins.attrValues packageMap)
+      ++ optionals (consoleEnable && scope == "core") [pkgs.terminus_font]
+      ++ optionals (kmsconEnable && scope == "core" && packageMap ? monospace) [packageMap.monospace]
     );
 
     data = {
@@ -102,97 +111,103 @@
       };
     };
   in {
-    options = opt {
-      enable = mkEnableMod.true;
-      console.enable = mkOption {
-        type = bool;
-        default = true;
-        description = "Enable the console font wiring exported by the base fonts module.";
-      };
-      kmscon.enable = mkOption {
-        type = bool;
-        default = true;
-        description = "Enable kmscon using the resolved monospace family.";
-      };
-      fontconfig.enable = mkOption {
-        type = bool;
-        default = true;
-        description = "Enable fontconfig defaults from the resolved semantic font families.";
-      };
-      packages = {
-        enable = mkOption {
+    options =
+      (opt {
+        enable = mkEnableMod.true;
+        console.enable = mkOption {
           type = bool;
           default = true;
-          description = "Install the resolved font packages.";
+          description = "Enable the console font wiring exported by the base fonts module.";
         };
-        system = mkOption {
+        kmscon.enable = mkOption {
           type = bool;
           default = true;
-          description = "Install resolved font packages system-wide in the core scope.";
+          description = "Enable kmscon using the resolved monospace family.";
         };
-        home = mkOption {
+        fontconfig.enable = mkOption {
           type = bool;
           default = true;
-          description = "Install resolved font packages in Home Manager profiles.";
+          description = "Enable fontconfig defaults from the resolved semantic font families.";
+        };
+        packages = {
+          enable = mkOption {
+            type = bool;
+            default = true;
+            description = "Install the resolved font packages.";
+          };
+          system = mkOption {
+            type = bool;
+            default = true;
+            description = "Install resolved font packages system-wide in the core scope.";
+          };
+          home = mkOption {
+            type = bool;
+            default = true;
+            description = "Install resolved font packages in Home Manager profiles.";
+          };
+        };
+      })
+      // {
+        ${top}.fonts = mkOption {
+          type = attrsOf anything;
+          default = {};
+          description = "Resolved semantic font data: selected families, package mapping, console settings, and kmscon settings.";
         };
       };
-    };
 
-    options.${top}.fonts = mkOption {
-      type = attrsOf anything;
-      default = {};
-      description = "Resolved semantic font data: selected families, package mapping, console settings, and kmscon settings.";
-    };
-
-    config = mkIf enable (
+    config = mkIf enable (mkMerge [
       {
         ${top}.fonts = data;
       }
-      // optionalAttrs (scope == "core") (
-        (optionalAttrs (cfg.packages.enable || cfg.fontconfig.enable) {
-          fonts =
-            (optionalAttrs (cfg.packages.enable && cfg.packages.system) {packages = packageList;})
-            // (optionalAttrs cfg.fontconfig.enable {fontconfig.enable = true;});
-        })
-        // (optionalAttrs cfg.console.enable {
-          boot.kernelParams = ["fbcon=font:${data.console.kernel}"];
-          console = {
-            packages = [data.console.package];
-            font = data.console.font;
-          };
-        })
-        // (optionalAttrs cfg.kmscon.enable {
-          services.kmscon = {
-            enable = true;
-            hwRender = true;
-            fonts = optionals (data.kmscon.package != null) [
-              {
-                name = data.kmscon.font;
-                package = data.kmscon.package;
-              }
-            ];
-            extraConfig = "font-size=${toString data.kmscon.fontSize}";
-            extraOptions = "--term ${data.kmscon.term}";
-          };
-        })
-      )
-      // optionalAttrs (scope == "home") (
-        (optionalAttrs (cfg.packages.enable && cfg.packages.home) {
-          home.packages = packageList;
-        })
-        // (optionalAttrs cfg.fontconfig.enable {
-          fonts.fontconfig = {
-            enable = true;
-            defaultFonts = {
-              emoji = [families.emoji];
-              monospace = [families.monospace];
-              sansSerif = [families.sans];
-              serif = [families.serif];
+      (mkIf (scope == "core" && (cfg.packages.enable || cfg.fontconfig.enable)) {
+        fonts =
+          (mkIf (cfg.packages.enable && cfg.packages.system) {
+            packages = mkPackageList {
+              packagesEnable = cfg.packages.enable;
+              systemEnable = cfg.packages.system;
             };
+          })
+          // (mkIf cfg.fontconfig.enable {fontconfig.enable = true;});
+      })
+      (mkIf (scope == "core" && cfg.console.enable) {
+        boot.kernelParams = ["fbcon=font:${data.console.kernel}"];
+        console = {
+          packages = [data.console.package];
+          font = data.console.font;
+        };
+      })
+      (mkIf (scope == "core" && cfg.kmscon.enable) {
+        services.kmscon = {
+          enable = true;
+          hwRender = true;
+          fonts = optionals (data.kmscon.package != null) [
+            {
+              name = data.kmscon.font;
+              package = data.kmscon.package;
+            }
+          ];
+          extraConfig = "font-size=${toString data.kmscon.fontSize}";
+          extraOptions = "--term ${data.kmscon.term}";
+        };
+      })
+      (mkIf (scope == "home" && cfg.packages.enable && cfg.packages.home) {
+        home.packages = mkPackageList {
+          packagesEnable = cfg.packages.enable;
+          homeEnable = cfg.packages.home;
+        };
+      })
+      (mkIf (scope == "home" && cfg.fontconfig.enable) {
+        fonts.fontconfig = {
+          enable = true;
+          defaultFonts = {
+            emoji = [families.emoji];
+            monospace = [families.monospace];
+            sansSerif = [families.sans];
+            serif = [families.serif];
           };
-        })
-      )
-    );
+        };
+      })
+    ]);
   };
 in {
   core = mk "core";
