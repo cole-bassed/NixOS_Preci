@@ -4,6 +4,7 @@
   mod,
   packages,
   mkArgs,
+  userHome,
   ...
 }: let
   name = "profiles";
@@ -18,7 +19,7 @@ in {
     scope = "home";
     inherit (mkArgs {inherit config scope;}) cfg opt;
 
-    home = config.home.homeDirectory;
+    home = userHome;
 
     mkUser = profile: {
       name = profile;

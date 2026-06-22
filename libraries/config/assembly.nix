@@ -230,7 +230,7 @@
   in {
     users =
       mapAttrs (_: user: {
-        inherit (user) description;
+        inherit (user) description home;
         group = user.group or user.name;
         isNormalUser = (user.role or "") != "service";
         isSystemUser = (user.role or "") == "service";
@@ -261,41 +261,33 @@
   in
     mapAttrs (
       name: user:
-        mkHomeUser (byName.${name} or {})
+        mkHomeUser {
+          inherit name;
+          spec = byName.${name} or {};
+        }
     ) (getNormalUsers host);
 
   /**
   UNIFIED RULE: Generates a Home Manager configuration layout for an individual user profile.
   Automatically merges system-wide flake paths with user-specific custom paths.
   */
-  mkHomeUser = spec: {
+  mkHomeUser = {
+    name,
+    spec,
+  }: {
     config,
+    lib,
     osConfig,
     top,
-    src,
     ...
-  }: let
-    paths = let
-      flake = osConfig.${top}.paths.local or {};
-      host = listToAttrs (map (name: {
-        name = concatLists "_" [src.name name];
-        value = flake.${name};
-      }) (attrNames flake));
-      user = optionalAttrs (spec ? paths) spec.paths;
-    in {
-      inherit host user;
-      merged = host // user;
-      resolved = config.${top}.paths.local;
-    };
-  in {
+  }: {
     imports =
       [
         {
-          ${top}.paths.local = paths.merged;
-          home = {
-            sessionVariables = mkVariables paths.config;
-            shellAliases = mkCdAliases paths.config;
-          };
+          _module.args.userName = name;
+          _module.args.userHome = osConfig.users.users.${name}.home;
+          home.username = lib.mkForce name;
+          home.homeDirectory = lib.mkForce osConfig.users.users.${name}.home;
           programs.home-manager.enable = true;
         }
         (
@@ -304,6 +296,7 @@
           {home = {inherit (osConfig.system) stateVersion;};}
         )
       ]
+      ++ asList (spec.imports or null)
       ++ asList (spec.home or null);
   };
 

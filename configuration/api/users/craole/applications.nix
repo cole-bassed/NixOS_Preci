@@ -1,6 +1,7 @@
 {
   config,
   top,
+  userHome,
   ...
 }: let
   profiles = {
@@ -14,7 +15,7 @@ in {
       enable = true;
       inherit profiles;
       defaultProfile = "craole";
-      extraRepositories = {"${config.home.homeDirectory}/.dots/" = "cole-bassed";};
+      extraRepositories = {"${userHome}/.dots/" = "cole-bassed";};
     };
     zen-browser.enable = true;
   };

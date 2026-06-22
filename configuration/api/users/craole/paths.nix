@@ -2,16 +2,27 @@
   lib,
   top,
   config,
+  osConfig,
+  userName,
+  userHome,
   ...
 }: let
   inherit (lib.attrsets) mapAttrs optionalAttrs;
-  inherit (lib.options) mkOption;
-  inherit (lib.types) attrs;
-  home = config.home.homeDirectory;
+
+  home = userHome;
   gitProfiles = config.${top}.applications.git.profiles or {};
 
+  local = {
+    documents = home + "/Documents";
+    downloads = home + "/Downloads";
+    music = home + "/Music";
+    pictures = home + "/Pictures";
+    projects = home + "/Projects";
+    videos = home + "/Videos";
+  };
+
   pictures = let
-    base = home + "/Pictures";
+    base = local.pictures;
   in {
     inherit base;
     avatars = {
@@ -26,10 +37,8 @@
     };
   };
 
-  downloads = {base = home + "/Downloads";};
-
   projects = let
-    base = home + "/Projects";
+    base = local.projects;
   in {
     inherit base;
     repos =
@@ -37,14 +46,9 @@
       (mapAttrs (name: _: base + "/${name}") gitProfiles);
   };
 in {
-  options.${top}.paths = mkOption {
-    type = attrs;
-    default = {};
-    description = "Derived user filesystem paths exposed as session variables and cd aliases.";
-  };
-
-  config.${top}.paths = {
-    inherit downloads pictures projects;
-    inherit (pictures) avatars wallpapers;
+  config.${top} = {
+    paths.local = local;
+    paths.pictures = pictures;
+    paths.projects = projects;
   };
 }

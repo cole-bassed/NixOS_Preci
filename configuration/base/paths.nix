@@ -1,57 +1,110 @@
+# configuration/base/paths.nix
 {
   lix,
   top,
-  dom,
-  mod,
   paths,
   ...
 }: let
-  inherit (lix.modules) mkIf;
-  inherit (lix.lists) elem;
-  inherit (lix.options) mkModuleArgs;
-  inherit (lix.attrsets) filterAttrs;
+  inherit (lix.attrsets) filterAttrs mapAttrs mapAttrs';
   inherit (lix.environment) mkVariables mkCdAliases;
+  inherit (lix.lists) elem;
+  inherit (lix.options) mkOption;
+  inherit (lix.types) attrsOf anything;
 
-  # Paths describing the dotfiles project itself -- host-level, the same
-  # for every user on the box. Per-user media folders (documents,
-  # downloads, pictures, projects, etc.) are deliberately excluded here;
-  # those belong in home-manager, one layer up.
-  projectKeys = [
-    "api"
-    "configuration"
-    "dbg"
-    "documentation"
-    "libraries"
-    "secrets"
-    "shells"
-    "src"
-    "templates"
-    "utilities"
-  ];
+  paths' = {
+    local = paths.local or {};
+    store = paths.store or {};
+  };
 
-  projectPaths = filterAttrs (name: _: elem name projectKeys) (paths.local or {});
+  keys = {
+    core = [
+      "api"
+      "configuration"
+      "dbg"
+      "documentation"
+      "libraries"
+      "secrets"
+      "shells"
+      "src"
+      "templates"
+      "utilities"
+    ];
+    home = [
+      "documents"
+      "downloads"
+      "music"
+      "pictures"
+      "projects"
+      "videos"
+    ];
+  };
+
+  # Filters any local-style path map down to one of the key groups above.
+  pick = scope: local: filterAttrs (name: _: elem name keys.${scope}) local;
+
+  mkGroup = attrs: {
+    variables = mkVariables {
+      inherit attrs;
+      prefix = top;
+    };
+    aliases = mkCdAliases attrs;
+  };
 
   mk = scope: {config, ...}: let
-    args = mkModuleArgs {inherit config top dom mod scope;};
-    inherit (args) cfg opt mkEnableMod;
-    inherit (cfg) enable;
+    cfg = config.${top}.paths or {};
+    group = mkGroup (
+      if scope == "core"
+      then let
+        local = pick "core" paths'.local;
+        store =
+          mapAttrs' (name: value: {
+            name = "${name}_store";
+            inherit value;
+          })
+          (pick "core" paths'.store);
+      in
+        local // store
+      else pick "home" (cfg.local or paths'.local)
+    );
   in {
-    options = opt {
-      enable = mkEnableMod.true;
+    options.${top}.paths = mkOption {
+      type = attrsOf anything;
+      default = {};
+      description = "Staged path data for dots: raw local/store maps, core.{variables,aliases}, and a per-user home.<user>.{variables,aliases} breakdown -- the single source injected into environment/home options.";
     };
 
-    config = mkIf enable (
-      if scope == "core"
-      then {
-        environment.variables = mkVariables {
-          prefix = "dots";
-          attrs = projectPaths;
-        };
-        environment.shellAliases = mkCdAliases projectPaths;
+    config =
+      {
+        ${top}.paths =
+          {inherit (paths') local store;}
+          // (
+            if scope == "core"
+            then {
+              core = group;
+              home = mapAttrs (
+                _: userCfg: userCfg.${top}.paths.home or {}
+              ) (config.home-manager.users or {});
+            }
+            else {home = group;}
+          );
       }
-      else {}
-    );
+      // (
+        if scope == "core"
+        then {
+          environment = {
+            inherit (group) variables;
+            shellAliases = group.aliases;
+          };
+        }
+        else {
+          home = {
+            sessionVariables = group.variables;
+            shellAliases = group.aliases;
+          };
+        }
+      );
   };
 in {
   core = mk "core";
+  home = mk "home";
 }

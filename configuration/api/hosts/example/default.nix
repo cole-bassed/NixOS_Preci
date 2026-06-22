@@ -12,7 +12,7 @@ in {
   class = "nixos";
   system = "x86_64-linux"; # Alternatives: aarch64-linux, x86_64-darwin
   stateVersion = "26.05";
-  paths.src = "/home/${admin}/dotsfiles";
+  paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";
 
   # ---------------------------------------------------------
   # LOCALIZATION

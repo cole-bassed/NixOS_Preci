@@ -292,9 +292,9 @@
     foldlAttrs (
       acc: name: value:
         if isAttrs value && value ? base
-        then acc // {"cd${name}" = "cd ${value.base}";}
+        then acc // {"cd_${name}" = "cd ${value.base}";}
         else if isString value
-        then acc // {"cd${name}" = "cd ${value}";}
+        then acc // {"cd_${name}" = "cd ${value}";}
         else acc
     ) {}
     _attrs;
