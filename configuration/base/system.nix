@@ -12,7 +12,7 @@
   interface = host.interface or {};
   devices = host.devices or {};
 
-  mk = scope: {...}: let
+  mk = scope: _: let
     bootData = {
       loader = interface.bootLoader or "systemd-boot";
       timeout = interface.bootLoaderTimeout or null;

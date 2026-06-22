@@ -11,7 +11,7 @@
 
   data = host.users or {};
 
-  mk = scope: {...}: {
+  mk = scope: _: {
     options.${top}.users = mkOption {
       type = attrsOf anything;
       default = {};

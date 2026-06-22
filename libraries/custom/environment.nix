@@ -8,6 +8,7 @@
   flake,
   names,
   paths,
+  lists,
   staged,
   strings,
   types,
@@ -25,10 +26,11 @@
   inherit (filesystem) mkPaths mkUserPaths;
   inherit (attrsets) attrNames genAttrs foldlAttrs optionalAttrs recursiveUpdate;
   inherit (debug) expect;
+  inherit (lists) head;
   inherit (strings) concat toUpper;
   inherit (types) isAttrs isString;
 
-  defaultHost = api.hosts.${defaults.host};
+  defaultHost = api.hosts.${defaults.host} or api.hosts.${(head (attrNames api.hosts))};
 
   /**
   Build the basic `dots` path configuration for a host.

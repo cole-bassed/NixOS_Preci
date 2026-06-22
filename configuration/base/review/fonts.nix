@@ -31,9 +31,7 @@
     else result;
 
   userValues =
-    if host.users ? values
-    then host.users.values
-    else {};
+    host.users.values or {};
 
   primaryUser = host.users.primary.value or null;
 

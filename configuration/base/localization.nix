@@ -19,7 +19,7 @@
     useLocalTime = src.useLocalTime or true;
   };
 
-  mk = scope: {...}: {
+  mk = scope: _: {
     options.${top}.${mod} = mkOption {
       type = attrsOf anything;
       default = {};
