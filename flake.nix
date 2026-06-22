@@ -12,7 +12,8 @@
     src = import ./. {flake = {inherit defaults excludes inputs nixpkgs;};};
     base = src.${src.names.src};
     libs = src.${src.names.lib};
-  in {lib = base;}
+  in
+    {lib = base;}
     // libs.mkFlake {
       inherit base;
       mods = {
@@ -84,7 +85,7 @@
       owner = "NousResearch";
       type = "github";
     };
-    rust = {
+    langRust = {
       owner = "oxalica";
       repo = "rust-overlay";
       type = "github";
