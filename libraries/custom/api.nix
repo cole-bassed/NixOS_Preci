@@ -19,7 +19,7 @@
     };
   };
   inherit (attrsets) attrNames attrValues listToAttrs genAttrs filterAttrs mapAttrs optionalAttrs;
-  inherit (lists) asList concatLists elemAt filter length;
+  inherit (lists) asList concatLists isList imap0 elemAt filter length;
   inherit (ingestion) collectNamedSpecs;
   inherit (specs) users hosts;
 
@@ -44,6 +44,7 @@
     users = collectSpecs "home" api.users;
   };
 
+  # TODO: Keep schema as a list — fix api.nix to convert list→attrset before processing
   getUsers = spec: let
     mkGroup = attrs: let
       names = attrNames attrs;
@@ -118,7 +119,30 @@
     hostPath = "api/hosts/${host.name}";
     fail = msg: throw "${hostPath}: ${msg}";
 
-    declared = host.users or {};
+    rawUsers = host.users or {};
+
+    # Convert list → attrset, preserving first-element-as-primary
+    declared =
+      if isList rawUsers
+      then
+        listToAttrs (
+          imap0 (
+            i: user: let
+              uName = user.name or (fail "user at index ${toString i} missing 'name'");
+              uAttrs =
+                removeAttrs user ["name"]
+                // {
+                  primary = user.primary or (i == 0); # first is primary
+                };
+            in {
+              name = uName;
+              value = uAttrs;
+            }
+          )
+          rawUsers
+        )
+      else rawUsers;
+
     isSingleUser = length (attrNames declared) == 1;
 
     resolveUser = userName: config: let

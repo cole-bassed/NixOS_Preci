@@ -6,7 +6,7 @@
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs;
-  inherit (lix.modules) mkDefault;
+  inherit (lix.modules) mkDefault mkIf;
   inherit (lix.lists) elem;
   inherit (lix.options) mkOption mkEnableOption;
   inherit (lix.types) str nullOr listOf attrsOf enum int float submodule;
@@ -34,7 +34,7 @@
       };
       options = mkOption {
         type = listOf str;
-        default = [];
+        default = ["defaults"];
         description = "Mount option flags.";
       };
     };
@@ -395,32 +395,33 @@
         || cfg.devices.swap != []
         || cfg.modules != []
         || cfg.devices.boot != {};
-    in {
-      assertions = [
-        {
-          assertion = elem cfg.interface.bootLoader ["systemd-boot" "grub" "grub-efi"];
-          message = "${top}.system.interface.bootLoader must be one of \"systemd-boot\", \"grub\", \"grub-efi\"; got \"${cfg.interface.bootLoader}\" for host \"${cfg.name}\".";
-        }
-      ];
+    in
+      {
+        assertions = [
+          {
+            assertion = elem cfg.interface.bootLoader ["systemd-boot" "grub" "grub-efi"];
+            message = "${top}.system.interface.bootLoader must be one of \"systemd-boot\", \"grub\", \"grub-efi\"; got \"${cfg.interface.bootLoader}\" for host \"${cfg.name}\".";
+          }
+        ];
 
-      networking.hostName = mkDefault cfg.name;
-      system.stateVersion = mkDefault cfg.stateVersion;
-      nixpkgs.hostPlatform = mkDefault cfg.platform;
+        networking.hostName = mkDefault cfg.name;
+        system.stateVersion = mkDefault cfg.stateVersion;
+        nixpkgs.hostPlatform = mkDefault cfg.platform;
 
-      boot.loader =
-        bootLoaderConfig
-        // optionalAttrs (cfg.interface.bootLoaderTimeout != null) {
-          timeout = cfg.interface.bootLoaderTimeout;
+        boot = {
+          loader =
+            bootLoaderConfig
+            // optionalAttrs (cfg.interface.bootLoaderTimeout != null) {
+              timeout = cfg.interface.bootLoaderTimeout;
+            };
+          initrd = optionalAttrs ((host.modules or []) != [] || (devicesSrc.boot or {}) != {}) {
+            availableKernelModules = cfg.modules;
+            luks.devices = cfg.devices.boot;
+          };
         };
-
-      boot.initrd = optionalAttrs hasFsConfig {
-        availableKernelModules = cfg.modules;
-        luks.devices = cfg.devices.boot;
-      };
-
-      fileSystems = cfg.devices.file;
-      swapDevices = cfg.devices.swap;
-    };
+      }
+      // optionalAttrs ((devicesSrc.file or {}) != {}) {fileSystems = cfg.devices.file;}
+      // optionalAttrs ((devicesSrc.swap or []) != []) {swapDevices = cfg.devices.swap;};
   };
 
   home = {};

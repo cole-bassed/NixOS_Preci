@@ -523,26 +523,30 @@ SPDX-License-Identifier: MIT
 Authors: craole <craole@example.com>
 */
 let
+  admin = "craole";
   arch = "x86_64";
   os = "linux";
-  admin = "craole";
 in {
-  inherit arch os;
-
-  imports = [./hardware-configuration.nix];
+  inherit os arch;
+  # imports = [./hardware-configuration.nix];
+  disabledModules = [];
 
   name = "precision";
-  id = "a1b2c3d4";
+  id = "cfd69003";
+  description = "Dell Precision M2800";
   type = "laptop";
   class = "nixos";
+  system = "x86_64-linux";
   stateVersion = "26.05";
   paths.src = "/home/${admin}/.dots";
 
   localization = {
-    timeZone = "America/Jamaica";
-    defaultLocale = "en_US.UTF-8";
     latitude = 18.015;
     longitude = -77.49;
+    city = "Mandeville, Jamaica";
+    locator = "geoclue2";
+    timeZone = "America/Jamaica";
+    defaultLocale = "en_US.UTF-8";
   };
 
   users = [
@@ -555,8 +559,54 @@ in {
   ];
 
   packages = {
+    unstable = true;
     allowUnfree = true;
     kernel = "linuxPackages_latest";
+    caches = {
+      nyx = {
+        sub = "https://geo-mirror.chaotic.cx/";
+        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
+      };
+    };
+  };
+
+  interface = {
+    bootLoader = "systemd-boot";
+    bootLoaderTimeout = 1;
+    windowManager = "hyprland";
+    keyboard = {
+      modifier = "SUPER";
+      swapCapsEscape = false;
+    };
+  };
+
+  modules = [
+    "xhci_pci"
+    "ehci_pci"
+    "ahci"
+    "usb_storage"
+    "usbhid"
+    "sd_mod"
+    "sr_mod"
+    "sdhci_pci"
+  ];
+
+  devices = {
+    boot = {};
+    file = {
+      "/" = {
+        device = "/dev/disk/by-uuid/05382bd2-cc99-4717-8343-0c6076d81441";
+        fsType = "ext4";
+      };
+      "/boot" = {
+        device = "/dev/disk/by-uuid/1FC3-D0C5";
+        fsType = "vfat";
+        options = ["fmask=0077" "dmask=0077"];
+      };
+    };
+    swap = [
+      {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
+    ];
   };
 
   specs = {
@@ -575,29 +625,6 @@ in {
     };
   };
 
-  devices = {
-    network = ["wlo1"];
-    display = {
-      "eDP-1" = {
-        resolution = "1920x1080";
-        refreshRate = 60;
-        scale = 1;
-        position = "0x0";
-        priority = 0;
-      };
-    };
-  };
-
-  interface = {
-    bootLoader = "systemd-boot";
-    bootLoaderTimeout = 1;
-    windowManager = "hyprland";
-    keyboard = {
-      modifier = "SUPER";
-      swapCapsEscape = false;
-    };
-  };
-
   functionalities = [
     "audio"
     "battery"
@@ -609,4 +636,6 @@ in {
     "video"
     "wireless"
   ];
+
+  services = [];
 }
