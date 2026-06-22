@@ -1,4 +1,3 @@
-# configuration/modules/base/identity.nix
 {
   lix,
   top,

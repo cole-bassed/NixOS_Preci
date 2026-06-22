@@ -293,6 +293,8 @@
       acc: name: value:
         if isAttrs value && value ? base
         then acc // {"cd${name}" = "cd ${value.base}";}
+        else if isString value
+        then acc // {"cd${name}" = "cd ${value}";}
         else acc
     ) {}
     _attrs;

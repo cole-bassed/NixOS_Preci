@@ -1,5 +1,5 @@
 {lix, ...} @ base:
-lix.ingestion.importModules base {
+lix.importModules (base // {
   base = ./.;
   excludes = [
     "ai"
@@ -8,4 +8,4 @@ lix.ingestion.importModules base {
     "interface"
     "secrets"
   ];
-}
+})

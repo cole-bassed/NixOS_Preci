@@ -7,10 +7,10 @@
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs;
-  inherit (lix.config) mkCoreUsers mkSudoRules mkHomeUsers;
+  inherit (lix) mkCoreUsers mkSudoRules mkHomeUsers;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkOption;
-  inherit (lix.types) attrsOf nullOr str bool either listOf;
+  inherit (lix.types) attrsOf anything;
 
   mk = scope: {config, ...}: let
     initial = mkModuleArgs {inherit config top dom mod scope;};
@@ -26,7 +26,8 @@
     options = opt {
       enable = mkEnableMod.true;
       users = mkOption {
-        type = attrsOf (attrsOf (nullOr (either str bool (listOf str))));
+        # type = attrsOf (attrsOf (nullOr (either str (either bool (listOf str)))));
+        type = attrsOf anything;
         default = host.users or {};
         description = "User account declarations. Overrides host.api default specifications.";
       };
@@ -41,7 +42,7 @@
           extraRules = mkSudoRules resolved.host;
         };
 
-        home-manager.users = mkHomeUsers resolved;
+        home-manager.users = mkHomeUsers {inherit (resolved) lib host dom mod;};
       }
     );
   };

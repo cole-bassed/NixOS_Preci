@@ -59,7 +59,6 @@
   inherit (debug) withContext expect;
   inherit (environment) mkCdAliases mkVariables mkSrc;
   inherit (filesystem) mkPaths;
-  inherit (ingestion) collectNamedSpecs;
   inherit (lists) asList concatLists elem foldl' groupBy;
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
@@ -117,13 +116,11 @@
             mkConfiguration {
               inherit base;
               args = {
-                modules = let
-                  collected = import resolved.paths.store.configuration (
-                    recursiveUpdate base {args = normalize configuration;}
-                  );
-                in {
-                  core = collected.imports or [];
-                  home = collected."home-manager".sharedModules or [];
+                modules = {
+                  core = [
+                    resolved.paths.store.configuration
+                  ];
+                  home = [];
                 };
               };
             }
@@ -171,6 +168,8 @@
           modules =
             (mkFlakeModules class)
             ++ (src.modules.core or [])
+            ++ (extraArgs.modules.core or [])
+            ++ (args.modules.core or [])
             ++ (host.imports or [])
             ++ [
               {
@@ -180,7 +179,10 @@
                     delim = "-";
                     parts = [src.name "backup"];
                   };
-                  sharedModules = (mkFlakeModules "home") ++ (src.modules.home or []);
+                  sharedModules =
+                    (mkFlakeModules "home")
+                    ++ (src.modules.home or [])
+                    ++ (extraArgs.modules.home or []);
                   useGlobalPkgs = true;
                   useUserPackages = true;
                 };
@@ -253,10 +255,9 @@
     dom,
     mod,
   }: let
-    byName = collectNamedSpecs {
-      args = {inherit host lib dom mod;};
-      base = mod;
-    };
+    byName =
+      lib.api.users
+        or (lib.api.userSpecs or {});
   in
     mapAttrs (
       name: user:
