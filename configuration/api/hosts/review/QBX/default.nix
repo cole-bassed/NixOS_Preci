@@ -3,10 +3,10 @@ let
   arch = "x86_64";
   os = "linux";
 in {
-  imports = [./hardware-configuration.nix];
+  inherit arch os;
 
+  imports = [./hardware-configuration.nix];
   stateVersion = "25.11";
-  system = "${arch}-${os}";
   class = "nixos";
   id = "cfd69003";
 

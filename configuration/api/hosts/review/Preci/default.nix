@@ -4,39 +4,49 @@ let
   os = "linux";
 in {
   # ---------------------------------------------------------
+  # MACHINE IMPORTS
+  # ---------------------------------------------------------
+  imports = [./hardware-configuration.nix];
+  disabledModules = [];
+
+  # ---------------------------------------------------------
   # SYSTEM IDENTITY
   # ---------------------------------------------------------
-  name = "ExampleHost";
-  id = "deadbeef"; # Valid 8-character hexadecimal ID template  #> head -c8 /etc/machine-id'
-  type = "laptop"; # Alternatives: desktop, server
+  name = "Preci";
+  id = "cfd69003";
+  description = "Dell Precision M2800";
+  type = "laptop";
   class = "nixos";
-  inherit arch os;
-  system = "x86_64-linux"; # Alternatives: aarch64-linux, x86_64-darwin
-  stateVersion = "26.05";
-  paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";
+  system = "x86_64-linux";
+  stateVersion = "25.11";
+  paths.src = "/home/${admin}/.dots";
 
   # ---------------------------------------------------------
   # LOCALIZATION
   # ---------------------------------------------------------
   localization = {
-    city = "London, United Kingdom";
-    timezone = "Europe/London";
-    locale = "en_GB.UTF-8";
+    latitude = 18.015;
+    longitude = -77.49;
+    city = "Mandeville, Jamaica";
     locator = "geoclue2";
-    latitude = 51.5074;
-    longitude = -0.1278;
+    timeZone = "America/Jamaica";
+    defaultLocale = "en_US.UTF-8";
   };
 
   # ---------------------------------------------------------
   # USER ACCOUNTS
   # ---------------------------------------------------------
   users = {
-    ${admin} = {
+    craole = {
       role = "administrator";
       primary = true;
       autoLogin = true;
     };
-    # guest = {enabled = false;};
+    # cc = {
+    #   role = "service";
+    #   enabled = false;
+    # };
+    # john = {};
   };
 
   # ---------------------------------------------------------
@@ -45,11 +55,11 @@ in {
   packages = {
     unstable = true;
     allowUnfree = true;
-    kernel = "linuxPackages_latest";
+    kernel = "linuxPackages_cachyos-lto";
     caches = {
-      example-cache = {
-        sub = "https://nixos.org";
-        key = "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=";
+      nyx = {
+        sub = "https://geo-mirror.chaotic.cx/";
+        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
       };
     };
   };
@@ -57,25 +67,27 @@ in {
   # ---------------------------------------------------------
   # DISPLAY ENVIRONMENT
   # ---------------------------------------------------------
-  # Dual monitor example (Stacked arrangement setup)
   displays = {
-    DP-1 = {
-      brand = "Generic-Brand";
-      size = 27.0;
-      priority = 0; # Main screen
-      resolution = "3840x2160";
-      refreshRate = 144;
+    "HDMI-A-3" = {
+      brand = "KTC";
+      resolution = "2560x1440";
+      refreshRate = 100;
       scale = 1;
-      position = "0x0";
+      # Centered below DP-3: (2560 - 1600) / 2 = 480 → x=480; y=900 (below 900px tall DP-3)
+      position = "480x900";
+      size = 27.0;
+      priority = 0; # Primary
     };
-    HDMI-A-1 = {
-      brand = "Generic-Brand";
-      size = 24.0;
-      priority = 1; # Secondary screen
-      resolution = "1920x1080";
+
+    "DP-3" = {
+      brand = "DELL";
+      resolution = "1600x900";
       refreshRate = 60;
       scale = 1;
-      position = "960x2160";
+      # Centered above HDMI-A-3: (2560 - 1600) / 2 = 480
+      position = "480x0";
+      size = 19.4;
+      priority = 1;
     };
   };
 
@@ -88,26 +100,27 @@ in {
   };
 
   modules = [
-    "nvme"
     "xhci_pci"
+    "ehci_pci"
+    "ahci"
+    "usb_storage"
     "usbhid"
     "sd_mod"
+    "sr_mod"
+    "sdhci_pci"
   ];
 
   devices = {
-    boot = {
-      # "luks-root" = {
-      #   device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000";
-      # };
-    };
+    boot = {};
 
     file = {
       "/" = {
-        device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000";
+        device = "/dev/disk/by-uuid/05382bd2-cc99-4717-8343-0c6076d81441";
         fsType = "ext4";
       };
+
       "/boot" = {
-        device = "/dev/disk/by-uuid/0000-0000";
+        device = "/dev/disk/by-uuid/1FC3-D0C5";
         fsType = "vfat";
         options = [
           "fmask=0077"
@@ -117,7 +130,7 @@ in {
     };
 
     swap = [
-      # { device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000"; }
+      {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
     ];
   };
 
@@ -128,20 +141,27 @@ in {
     "audio"
     "battery"
     "bluetooth"
+    "dualboot-windows"
     "efi"
     "gpu"
     "keyboard"
     "network"
     "nvme"
+    "remote"
     "secureboot"
     "storage"
     "touchpad"
     "tpm"
     "video"
     "virtualization"
+    "vpn"
     "webcam"
+    "wired"
     "wireless"
   ];
 
-  services = ["ssh" "firewall"];
+  services = [
+    "tailscale"
+    "streaming"
+  ];
 }
