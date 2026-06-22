@@ -1,4 +1,5 @@
 let
+  admin = "craole";
   arch = "x86_64";
   os = "linux";
 in {

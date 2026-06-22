@@ -1,8 +1,8 @@
 let
   admin = "craole";
+  arch = "aarch64";
+  os = "linux";
 in {
-  nixpkgs.hostPlatform = "aarch64-linux";
-
   # ---------------------------------------------------------
   # MACHINE IMPORTS
   # ---------------------------------------------------------
@@ -17,7 +17,7 @@ in {
   description = "Oracle Cloud free-tier Ampere instance";
   type = "server";
   class = "nixos";
-  system = "aarch64-linux";
+  system = "${arch}-${os}";
   stateVersion = "26.05";
   paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";
 

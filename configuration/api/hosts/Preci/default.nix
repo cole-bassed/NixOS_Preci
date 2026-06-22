@@ -1,8 +1,8 @@
 let
   admin = "craole";
+  arch = "x86_64";
+  os = "linux";
 in {
-  nixpkgs.hostPlatform = "x86_64-linux";
-
   # ---------------------------------------------------------
   # MACHINE IMPORTS
   # ---------------------------------------------------------
@@ -17,7 +17,7 @@ in {
   description = "Dell Precision M2800";
   type = "laptop";
   class = "nixos";
-  system = "x86_64-linux";
+  system = "${arch}-${os}";
   stateVersion = "25.11";
   paths.src = "/home/${admin}/.dots";
 
