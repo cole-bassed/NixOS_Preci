@@ -78,7 +78,6 @@
       repo = "llm-agents.nix";
       owner = "numtide";
       type = "github";
-      # inputs.nixpkgs.follows = "nixCore"; #? See llm-agents documentation
     };
     aiHermes = {
       repo = "hermes-agent";
