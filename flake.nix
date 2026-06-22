@@ -58,6 +58,20 @@
       inputs.nixpkgs.follows = "nixCore";
     };
 
+    #~@ Deployment
+    deployColmena = {
+      repo = "colmena";
+      owner = "zhaofengli";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    deployNixosAnywhere = {
+      repo = "nixos-anywhere";
+      owner = "nix-community";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+
     #~@ Utilities:= formatting, tooling, secrets
     aiToolkit = {
       repo = "llm-agents.nix";

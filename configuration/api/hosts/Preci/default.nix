@@ -4,8 +4,8 @@ in {
   nixpkgs.hostPlatform = "x86_64-linux";
 
   # ---------------------------------------------------------
-  # SYSTEM IDENTITY
-  # ---------------------------------------------------------{
+  # MACHINE IMPORTS
+  # ---------------------------------------------------------
   imports = [./hardware-configuration.nix];
   disabledModules = [];
 
@@ -89,6 +89,49 @@ in {
       size = 19.4;
       priority = 1;
     };
+  };
+
+  # ---------------------------------------------------------
+  # BOOT & DEVICES
+  # ---------------------------------------------------------
+  interface = {
+    bootLoader = "systemd-boot";
+    bootLoaderTimeout = 1;
+  };
+
+  modules = [
+    "xhci_pci"
+    "ehci_pci"
+    "ahci"
+    "usb_storage"
+    "usbhid"
+    "sd_mod"
+    "sr_mod"
+    "sdhci_pci"
+  ];
+
+  devices = {
+    boot = {};
+
+    file = {
+      "/" = {
+        device = "/dev/disk/by-uuid/05382bd2-cc99-4717-8343-0c6076d81441";
+        fsType = "ext4";
+      };
+
+      "/boot" = {
+        device = "/dev/disk/by-uuid/1FC3-D0C5";
+        fsType = "vfat";
+        options = [
+          "fmask=0077"
+          "dmask=0077"
+        ];
+      };
+    };
+
+    swap = [
+      {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
+    ];
   };
 
   # ---------------------------------------------------------

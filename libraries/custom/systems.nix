@@ -30,6 +30,7 @@
   inherit (api) hosts;
   inherit (strings) concat;
   defaultHost = api.hosts.${defaults.host};
+  defaultSystem = defaultHost.system or defaultHost.platform or "x86_64-linux";
 
   classification = class:
     assert withContext {
@@ -62,7 +63,7 @@
   supported = {extra ? []}:
     unique (
       extra
-      ++ map (host: host.system or host.platform or defaultHost.system)
+      ++ map (host: host.system or host.platform or defaultSystem)
       (attrValues hosts)
     );
 

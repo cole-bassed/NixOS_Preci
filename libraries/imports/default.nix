@@ -93,6 +93,8 @@
     nixpkgs = filterAttrs (_: isNixpkgsLike) raw;
     nix-darwin = filterAttrs (_: isNixDarwinLike) raw;
     treefmt = filterAttrs (_: isTreefmtLike) raw;
+    colmena = filterAttrs (input: _: input == "deployColmena") raw;
+    nixos-anywhere = filterAttrs (input: _: input == "deployNixosAnywhere") raw;
 
     home-manager =
       filterAttrs
@@ -121,6 +123,10 @@
 
     libraries = filterAttrs (_: hasLibraries) raw;
     infrastructure = filterAttrs (_: isNixpkgsInfrastructure) raw;
+    deployment =
+      filterAttrs
+      (input: _: elem input ["deployColmena" "deployNixosAnywhere"])
+      raw;
   };
 
   normalized = recursiveUpdate classified {
@@ -141,6 +147,12 @@
     nix-darwin = firstOf classified.nix-darwin;
     home-manager = firstOf classified.home-manager;
     treefmt = firstOf classified.treefmt;
+    colmena = firstOf classified.colmena;
+    nixos-anywhere = firstOf classified."nixos-anywhere";
+    deployment = {
+      colmena = firstOf classified.colmena;
+      nixos-anywhere = firstOf classified."nixos-anywhere";
+    };
   };
 
   inherit (attrsets) getAttr hasAttr maps orEmpty attrValues;

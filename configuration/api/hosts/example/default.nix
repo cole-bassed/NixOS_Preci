@@ -79,6 +79,48 @@ in {
   };
 
   # ---------------------------------------------------------
+  # BOOT & DEVICES
+  # ---------------------------------------------------------
+  interface = {
+    bootLoader = "systemd-boot";
+    bootLoaderTimeout = 1;
+  };
+
+  modules = [
+    "nvme"
+    "xhci_pci"
+    "usbhid"
+    "sd_mod"
+  ];
+
+  devices = {
+    boot = {
+      # "luks-root" = {
+      #   device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000";
+      # };
+    };
+
+    file = {
+      "/" = {
+        device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000";
+        fsType = "ext4";
+      };
+      "/boot" = {
+        device = "/dev/disk/by-uuid/0000-0000";
+        fsType = "vfat";
+        options = [
+          "fmask=0077"
+          "dmask=0077"
+        ];
+      };
+    };
+
+    swap = [
+      # { device = "/dev/disk/by-uuid/00000000-0000-0000-0000-000000000000"; }
+    ];
+  };
+
+  # ---------------------------------------------------------
   # SYSTEM FUNCTIONALITIES & SERVICES
   # ---------------------------------------------------------
   functionalities = [

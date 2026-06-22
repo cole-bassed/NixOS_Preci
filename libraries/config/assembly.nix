@@ -6,7 +6,6 @@
   environment,
   filesystem,
   flake,
-  ingestion,
   lists,
   names,
   paths,
@@ -65,6 +64,7 @@
   inherit (systems) getClassification getBuilder;
 
   defaultHost = api.hosts.${defaults.host};
+  defaultClass = defaultHost.class or "nixos";
 
   mkFlake = arg: let
     _name = "config.assembly.mkFlake";
@@ -151,8 +151,8 @@
         );
       resolved =
         mapAttrs (_: spec: let
-          host = recursiveUpdate defaultHost spec;
-          class = host.class or defaultHost.class;
+          host = spec;
+          class = host.class or defaultClass;
           src = mkSrc {
             inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);

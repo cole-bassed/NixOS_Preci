@@ -29,6 +29,12 @@
     }
     // asIf (inputs.normalized.home-manager != null) {
       home-manager = getPackages inputs.normalized.home-manager;
+    }
+    // asIf (inputs.normalized.colmena != null) {
+      colmena = getPackages inputs.normalized.colmena;
+    }
+    // asIf (inputs.normalized ? "nixos-anywhere" && inputs.normalized."nixos-anywhere" != null) {
+      nixos-anywhere = getPackages inputs.normalized."nixos-anywhere";
     };
 in
   exports
