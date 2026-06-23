@@ -6,7 +6,10 @@
   ...
 }: let
   exports = {
-    scoped = {inherit isFunction' asFloat toFloat;};
+    scoped = {
+      inherit isFunction' asFloat toFloat;
+      to = {float = toFloat;};
+    };
     global = {inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull;};
   };
 
