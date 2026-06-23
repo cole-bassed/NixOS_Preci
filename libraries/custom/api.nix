@@ -8,20 +8,28 @@
 }: let
   exports = {
     scoped = {
-      inherit hosts users;
+      inherit hosts users monitors;
       admins = getAdminUsers;
       normalUsers = getNormalUsers;
     };
     global = {
-      hostSpecs = hosts;
-      userSpecs = users;
+      hostAPI = hosts;
+      userAPI = users;
+      monitorAPI = monitors;
       inherit getAdminUsers getNormalUsers;
     };
   };
   inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs;
   inherit (lists) head isList imap0 elemAt filter length;
   inherit (ingestion) collectNamedSpecs;
-  inherit (specs) users;
+  inherit (specs) users monitors;
+
+  api = let
+    base = paths.store.api or paths.api or ../../configuration/api;
+    hosts = base + "/hosts";
+    users = base + "/users";
+    monitors = base + "/monitors";
+  in {inherit hosts users monitors;};
 
   hosts = let
     known = specs.hosts;
@@ -36,12 +44,6 @@
   in
     known // {default = normalized fallback;};
 
-  api = let
-    base = paths.store.api or paths.api or ../../configuration/api;
-    hosts = base + "/hosts";
-    users = base + "/users";
-  in {inherit hosts users;};
-
   collectSpecs = tags: base:
     collectNamedSpecs {
       inherit base tags;
@@ -55,6 +57,7 @@
       (_: host: host // {users = resolveUsers host;})
       (collectSpecs "core" api.hosts);
     users = collectSpecs "home" api.users;
+    monitors = collectSpecs "core" api.monitors;
   };
 
   getUsers = spec: let
