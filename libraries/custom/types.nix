@@ -6,18 +6,25 @@
   ...
 }: let
   exports = {
-    scoped = {
-      inherit isFunction';
-    };
-    global = {
-      inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull;
-    };
+    scoped = {inherit isFunction' asFloat toFloat;};
+    global = {inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull;};
   };
 
   inherit (debug) withContext;
   inherit (lists) head tail isList optionals reverseList;
-  inherit (strings) concatStrings stringLength stringToCharacters;
-  inherit (types) isAttrs isBool isString;
+  inherit (strings) concatStrings fromJSON stringLength stringToCharacters;
+  inherit
+    (types)
+    coercedTo
+    float
+    isAttrs
+    isBool
+    isFloat
+    isInt
+    str
+    int
+    isString
+    ;
 
   /**
   Determine if a module, feature, or configuration target is enabled.
@@ -183,5 +190,98 @@
   ```
   */
   isNotEmpty = value: !isEmpty value;
+
+  /**
+  Convert a value to a float.
+
+  Accepts `int`, numeric `str`, or `float`. Strings are parsed via
+  `fromJSON` and validated before coercion. Non-numeric strings
+  throw a descriptive error.
+
+  # Type
+  ```nix
+  toFloat :: int | str | float -> float
+
+  # Dependencies
+  types.isFloat
+  types.isInt
+  types.isString
+  types.fromJSON
+
+  # Arguments
+  value
+  : The value to convert.
+
+  #Examples
+  ```nix
+  toFloat 1
+  # => 1.0
+
+  toFloat "3.14"
+  # => 3.14
+
+  toFloat 2.5
+  # => 2.5
+
+  toFloat "not a number"
+  # => error: toFloat: cannot convert string 'not a number' to a number
+  ```
+  */
+  toFloat = value:
+    if isFloat value
+    then value
+    else if isInt value
+    then value * 1.0
+    else if isString value
+    then let
+      parsed = fromJSON value;
+    in
+      if isFloat parsed || isInt parsed
+      then parsed * 1.0
+      else throw "toFloat: cannot convert string 'value′toanumber"
+    else throw "toFloat:unsupportedtype: {typeOf value}";
+  /**
+  Option type that coerces values to float.
+  For use in lib.mkOption { type = ...; }. Accepts the same inputs as
+  toFloat but is a coercedTo type definition rather than a callable
+  function.
+  Type
+  nix
+
+  asFloat :: option-type
+
+  Dependencies
+
+      types.coercedTo
+      types.int
+      types.str
+      types.float
+      types.fromJSON
+      types.isFloat
+      types.isInt
+
+  Examples
+  nix
+
+  lib.mkOption {
+    type = asFloat;
+    default = 0.5;
+  }
+
+  # All of these are valid values for the option:
+  # threshold = 0.5;      # float — passed through
+  # threshold = 1;        # int   — coerced to 1.0
+  # threshold = "2.5";    # str   — coerced to 2.5
+  */
+  asFloat = let
+    fromInt = value: value * 1.0;
+    fromStr = value: let
+      parsed = fromJSON value;
+    in
+      if isFloat parsed || isInt parsed
+      then parsed * 1.0
+      else throw "asFloat: cannot convert string '${value}' to a number";
+  in
+    coercedTo int fromInt (coercedTo str fromStr float);
 in
   exports

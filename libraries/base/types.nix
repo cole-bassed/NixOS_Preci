@@ -4,8 +4,32 @@
       inherit isEmpty isNotEmpty;
       inherit (builtins) isAttrs isFunction isList isPath isString typeOf;
       type = builtins.typeOf;
+      from = with builtins; {
+        json = fromJSON;
+        toml = fromTOML;
+      };
+
+      to = with builtins; {
+        json = toJSON;
+        xml = toXML;
+        file = toFile;
+        string = toString;
+        path = toPath;
+      };
     };
-    global = {inherit isEmpty isNotEmpty;};
+    global = {
+      inherit isEmpty isNotEmpty;
+      inherit
+        (builtins)
+        fromJSON
+        fromTOML
+        toFile
+        toJSON
+        toPath
+        toString
+        toXML
+        ;
+    };
   };
 
   inherit (builtins) isAttrs isFunction isList isString stringLength;
