@@ -6,7 +6,7 @@
   exports = {
     scoped = {
       inherit
-        as
+        # as
         asIf
         firstOf
         gets
@@ -206,45 +206,42 @@
     then with args; exec set paths
     else exec args;
 
+  #TODO: Move to custom.types
   /**
   Coerce a value into an attrset.
 
-  ```nix
   - Attrsets are returned unchanged
   - Strings become `{ ${value} = true; }`
   - Lists become an attrset of boolean flags keyed by list entries
-  ```
 
   # Type
-
   ```nix
-  as :: { ... } | String | [ String ] -> { ... }
+  attrsets.as :: { ... } | String | [ String ] -> { ... }
   ```
 
   # Dependencies
-
   None
 
   # Arguments
-
   value
   : The value to coerce.
 
   # Examples
+  > attrsets.as { a = 1; }
+  => { a = 1; }
 
-  ```nix
-  as { a = 1; }
-  # => { a = 1; }
+  > attrsets.as "debug"
+  => { debug = true; }
 
-  as "debug"
-  # => { debug = true; }
-
-  as [ "debug" "types" ]
-  # => { debug = true; types = true; }
-  ```
+  > attrsets.as [ "debug" "types" ]
+  => { debug = true; types = true; }
   */
   as = value: let
-    type = typeOf value;
+    _name = "attrsets.as";
+    _args = {
+      inherit value;
+      type = typeOf value;
+    };
   in
     if isAttrs value
     then value
@@ -260,7 +257,7 @@
         })
         value
       )
-    else throw "attrsets.as:= unsupported type: ${type}";
+    else throw "${_name}: Unsupported type: ${_args.type}";
 
   /**
   Conditionally coerce a value into an attrset.

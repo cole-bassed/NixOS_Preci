@@ -9,25 +9,19 @@
     scoped = {
       inherit isFunction' asFloat toFloat;
       to = {float = toFloat;};
+      from = {};
+      as = {float = asFloat;};
     };
-    global = {inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull;};
+    global = {
+      inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull toFloat;
+      asFloatType = asFloat;
+    };
   };
 
   inherit (debug) withContext;
   inherit (lists) head tail isList optionals reverseList;
   inherit (strings) concatStrings fromJSON stringLength stringToCharacters;
-  inherit
-    (types)
-    coercedTo
-    float
-    isAttrs
-    isBool
-    isFloat
-    isInt
-    str
-    int
-    isString
-    ;
+  inherit (types) coercedTo float int isAttrs isBool isFloat isInt str typeOf isString;
 
   /**
   Determine if a module, feature, or configuration target is enabled.
@@ -204,33 +198,40 @@
   # Type
   ```nix
   toFloat :: int | str | float -> float
+  ```
 
   # Dependencies
+  ```nix
   types.isFloat
   types.isInt
   types.isString
-  types.fromJSON
+  strings.fromJSON
+  ```
 
   # Arguments
   value
   : The value to convert.
 
   #Examples
-  ```nix
-  toFloat 1
-  # => 1.0
+  > toFloat 1
+  => 1.0
 
-  toFloat "3.14"
-  # => 3.14
+  > toFloat "3.14"
+  => 3.14
 
-  toFloat 2.5
-  # => 2.5
+  > toFloat 2.5
+  => 2.5
 
-  toFloat "not a number"
-  # => error: toFloat: cannot convert string 'not a number' to a number
-  ```
+  > toFloat "not a number"
+  => error: toFloat: cannot convert string 'not a number' to a number
   */
-  toFloat = value:
+  toFloat = value: let
+    _name = "types::toFloat";
+    _args = {
+      inherit value;
+      type = typeOf value;
+    };
+  in
     if isFloat value
     then value
     else if isInt value
@@ -241,49 +242,53 @@
     in
       if isFloat parsed || isInt parsed
       then parsed * 1.0
-      else throw "toFloat: cannot convert string 'value′toanumber"
-    else throw "toFloat:unsupportedtype: {typeOf value}";
+      else throw "${_name}: Cannot convert string '${_args.value}' to a number"
+    else throw "${_name}: Unsupported type: ${_args.type}";
+
   /**
   Option type that coerces values to float.
+
   For use in lib.mkOption { type = ...; }. Accepts the same inputs as
   toFloat but is a coercedTo type definition rather than a callable
   function.
-  Type
-  nix
 
+  # Type
+  ```nix
   asFloat :: option-type
+  ```
 
-  Dependencies
+  # Dependencies
+  ```nix
+  types.coercedTo
+  types.int
+  types.str
+  types.float
+  strings.fromJSON
+  types.isFloat
+  types.isInt
+  ```
 
-      types.coercedTo
-      types.int
-      types.str
-      types.float
-      types.fromJSON
-      types.isFloat
-      types.isInt
-
-  Examples
-  nix
-
+  # Examples
+  ```nix
   lib.mkOption {
     type = asFloat;
     default = 0.5;
   }
 
   # All of these are valid values for the option:
-  # threshold = 0.5;      # float — passed through
-  # threshold = 1;        # int   — coerced to 1.0
-  # threshold = "2.5";    # str   — coerced to 2.5
+  > threshold = 0.5;      # float — passed through
+  > threshold = 1;        # int   — coerced to 1.0
+  > threshold = "2.5";    # str   — coerced to 2.5
   */
   asFloat = let
+    _name = "types::asFloat";
     fromInt = value: value * 1.0;
     fromStr = value: let
       parsed = fromJSON value;
     in
       if isFloat parsed || isInt parsed
       then parsed * 1.0
-      else throw "asFloat: cannot convert string '${value}' to a number";
+      else throw "${_name}: cannot convert string '${value}' to a number";
   in
     coercedTo int fromInt (coercedTo str fromStr float);
 in

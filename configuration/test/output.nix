@@ -7,17 +7,35 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkOption;
-  inherit (lix.types) attrsOf bool either nullOr int float str submodule;
-
-  #? Schema S8: devices.display entries.
+  inherit (lix.displays) isRequired mkHyprland mkNiri;
+  inherit (lix.options) mkModuleArgs mkOption mkEnableOption;
+  inherit (lix.types) attrsOf asFloat nullOr int str submodule;
 
   mk = scope: {config, ...}: let
     args = mkModuleArgs {inherit config top dom mod scope;};
     inherit (args) cfg opt mkEnableMod;
     inherit (cfg) enable;
+
+    #? Pull compositor toggles from the interface module's resolved config.
+    windowManagers = cfg.interface.windowManagers or {};
+
+    #? Pull displays from this module's own resolved config.
+    displays = cfg.displays or {};
   in {
     options = opt {
+      compositors = {
+        hyprland = {
+          enable =
+            mkEnableOption "Monitor configuration for hyprland"
+            // {default = host.interface.windowManager or null == "hyprland";};
+        };
+        niri = {
+          enable =
+            mkEnableOption "Monitor configuration for niri"
+            // {default = host.interface.windowManager or null == "niri";};
+        };
+      };
+
       displays = let
         entry = submodule {
           options = {
@@ -33,12 +51,12 @@
               description = "Native resolution, format \"WxH\".";
             };
             refreshRate = mkOption {
-              type = nullOr float;
+              type = nullOr asFloat;
               default = null;
               description = "Refresh rate in Hz.";
             };
             scale = mkOption {
-              type = float;
+              type = asFloat;
               default = 1.0;
               description = "Display scale factor.";
             };
@@ -48,7 +66,7 @@
               description = "Position in the virtual layout, format \"XxY\".";
             };
             size = mkOption {
-              type = nullOr float;
+              type = nullOr asFloat;
               default = null;
               description = "Physical panel size, diagonal inches.";
             };
@@ -69,12 +87,15 @@
 
     config = mkIf enable (
       if scope == "core"
-      then {
-        # Display configuration is typically handled by the compositor/wm module
-        # This module provides the structured data for other modules to consume
-        # e.g., Hyprland, niri, or kanshi can read config.dots.displays
-      }
-      else {}
+      then {}
+      else
+        mkIf isRequired {
+          wayland.windowManager.hyprland.settings = mkIf (cfg.windowManagers.hyprland.enable) {
+            monitor = mkHyprland displays;
+          };
+
+          programs.niri.settings.outputs = mkIf (cfg.windowManagers.niri.enable) (mkNiri displays);
+        }
     );
   };
 in {
