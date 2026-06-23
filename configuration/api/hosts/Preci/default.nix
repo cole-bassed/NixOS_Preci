@@ -51,21 +51,6 @@ in {
       role = "administrator";
     }
   ];
-
-  users = [
-    {
-      name = admin;
-      enable = true;
-      autoLogin = true;
-      role = "administrator";
-    }
-    {
-      name = "cc";
-      enable = true;
-      autoLogin = false;
-      role = "normal";
-    }
-  ];
   # ---------------------------------------------------------
   # PACKAGES & CACHES
   # ---------------------------------------------------------

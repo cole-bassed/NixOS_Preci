@@ -4,10 +4,9 @@
   host,
   ...
 }: let
-  inherit (lix.assembly) mkCoreUsers mkSudoRules mkHomeUsers;
+  inherit (lix.users) mkCoreUsers mkSudoRules mkHomeUsers;
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf anything;
-  inherit (lix) lib;
 
   data = host.users or {};
 

@@ -51,7 +51,7 @@
         niri = {
           enable =
             mkEnableOption "Niri, a scrollable-tiling Wayland compositor"
-            // {default = elem "niri" (host.interface.environment.managers or [])};
+            // {default = elem "niri" (host.interface.environment.managers or []);};
         };
       };
     };

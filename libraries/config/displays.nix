@@ -6,9 +6,7 @@
   ...
 }: let
   exports = {
-    scoped = {
-      inherit mkHyprland mkNiri isRequired;
-    };
+    scoped = {inherit mkHyprland mkNiri isRequired;};
     global = {
       mkHyprlandDisplays = mkHyprland;
       mkNiriDisplays = mkNiri;
