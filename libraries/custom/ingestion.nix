@@ -171,21 +171,26 @@
     base,
     excludes ? pathExcludes,
     tags ? defaults.tags,
+    includeFiles ? false,
     rekey ? false,
   }: let
-    entries = readDirAttrs {inherit base excludes;};
+    entries = readDirAttrs {inherit base excludes includeFiles;};
     raw =
       mapAttrs
       (
-        name: _: let
+        name: type: let
+          mod =
+            if type == "regular"
+            then removeSuffix ".nix" name
+            else name;
+
           importedModule = importModule {
             inherit base name;
             args =
               args
               // {
                 dom = baseNameOf (toString base);
-                mod = name;
-                inherit tags;
+                inherit mod tags;
               }
               // extraArgs;
           };
@@ -197,10 +202,17 @@
   in
     if rekey
     then
-      mapAttrs' (dirName: spec: {
-        name = spec.name or dirName;
-        value = spec // {name = spec.name or dirName;};
-      })
+      mapAttrs' (
+        name: spec: let
+          mod =
+            if hasSuffix ".nix" name
+            then removeSuffix ".nix" name
+            else name;
+        in {
+          name = spec.name or mod;
+          value = spec // {name = spec.name or mod;};
+        }
+      )
       raw
     else raw;
 

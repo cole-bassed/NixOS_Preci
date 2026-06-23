@@ -1,6 +1,6 @@
 {lix, ...} @ base: let
   inherit (lix.options) mkOption mkEnableOption;
-  inherit (lix.types) asFloat nullOr int str submodule;
+  inherit (lix.types) asFloat nullOr int str submodule enum;
 in
   lix.importModules (
     base
@@ -11,8 +11,6 @@ in
         // {
           entry = submodule {
             options = {
-              enable = mkEnableOption "display output" // {default = true;};
-
               brand = mkOption {
                 type = nullOr str;
                 default = null;
@@ -40,7 +38,10 @@ in
               position = mkOption {
                 type = nullOr str;
                 default = null;
-                description = "Position in the virtual layout, format \"XxY\".";
+                description = ''
+                  Display position. May be semantic ("left", "right", "top", "bottom", "center")
+                  or exact coordinates in "XxY" form.
+                '';
               };
 
               size = mkOption {
@@ -52,7 +53,12 @@ in
               priority = mkOption {
                 type = int;
                 default = 0;
-                description = "Display ordering priority; 0 is primary.";
+                description = "Display ordering priority; derived from API list order.";
+              };
+
+              primary = mkEnableOption null {
+                default = false;
+                description = "Whether this display is the primary output. Derived from API list order.";
               };
             };
           };

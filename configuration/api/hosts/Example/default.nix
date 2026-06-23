@@ -650,29 +650,19 @@ in {
       {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
     ];
 
-    display = {
-      "HDMI-A-3" = {
-        brand = "KTC";
-        resolution = "2560x1440";
-        refreshRate = 100;
-        scale = 1;
-        # Centered below DP-3: (2560 - 1600) / 2 = 480 → x=480; y=900 (below 900px tall DP-3)
-        position = "480x900";
-        size = 27.0;
-        priority = 0;
-      };
+    display = [
+      {
+        output = "HDMI-A-3";
+        monitor = "ktc-27";
+        position = "right";
+      }
 
-      "DP-3" = {
-        brand = "DELL";
-        resolution = "1600x900";
-        refreshRate = 60;
-        scale = 1;
-        # Centered above HDMI-A-3: (2560 - 1600) / 2 = 480
-        position = "480x0";
-        size = 19.4;
-        priority = 1;
-      };
-    };
+      {
+        output = "DP-3";
+        monitor = "dell-19";
+        position = "left";
+      }
+    ];
   };
 
   # ---------------------------------------------------------
