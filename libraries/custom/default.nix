@@ -44,7 +44,7 @@
 
       defaults = merge defaults (
         merge {
-          host = "ExampleHost";
+          host = "TheExample";
           excludes.paths = [
             "archive"
             "backup"

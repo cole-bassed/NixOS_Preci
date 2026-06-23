@@ -36,7 +36,7 @@
 
     defaults = recursiveAttrs defaults (
       recursiveAttrs {
-        host = "ExampleHost";
+        host = "TheExample";
         excludes.paths = [
           "archive"
           "backup"
@@ -161,4 +161,3 @@ in
 #     ];
 #   }
 # ]
-

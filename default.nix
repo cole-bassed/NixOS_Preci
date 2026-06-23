@@ -33,7 +33,7 @@
     then env.host
     else if (env.name != "")
     then env.name
-    else "ExampleHost";
+    else "TheExample";
 
   libraries =
     import paths.store.libraries

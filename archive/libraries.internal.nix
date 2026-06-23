@@ -14,7 +14,7 @@
   args = {
     inherit bootstrap;
     defaults = merge (merge defaults {
-      host = "ExampleHost";
+      host = "TheExample";
       excludes = {
         paths = [
           "archive"

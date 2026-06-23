@@ -35,13 +35,13 @@
       Human-readable machine name.
     *  type    : nullOr str
     *  default : null  -> falls back to the host directory name
-    *  example : "ExampleHost"
+    *  example : "TheExample"
     */
     name = mkOption {
       type = types.nullOr types.str;
       default = null;
       description = "Human-readable machine name. Falls back to the host directory name when unset.";
-      example = "ExampleHost";
+      example = "TheExample";
     };
 
     /**
