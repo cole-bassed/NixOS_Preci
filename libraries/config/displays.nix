@@ -2,6 +2,7 @@
   attrsets,
   lists,
   strings,
+  names,
   ...
 }: let
   exports = {
@@ -18,11 +19,30 @@
   inherit (lists) any elemAt;
   inherit (strings) splitString toInt;
 
-  isRequired = config:
-    any (x: x) [
-      (config.compositors.hyprland.enable or false)
-      (config.compositors.niri.enable or false)
-    ];
+  isRequired = args: let
+    config = args.config or args;
+    cfg = config.${args.top or (args.scope or names.src)} or {};
+  in
+    any (x: x) ((
+        with config; [
+          (services.xserver.qtile.enable or false)
+          (services.xserver.xmonad.enable or false)
+          (programs.niri.enable or false)
+          (wayland.windowManager.hyprland.enable or false)
+        ]
+      )
+      ++ (
+        with cfg.desktopEnvironment; [
+          (gnome.enable or false)
+          (plasma.enable or false)
+        ]
+      )
+      ++ (
+        with cfg.windowManagement; [
+          (hyprland.enable or false)
+          (niri.enable or false)
+        ]
+      ));
 
   mkHyprland = displays:
     mapAttrsToList (

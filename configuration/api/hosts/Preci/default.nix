@@ -44,6 +44,12 @@ in {
       autoLogin = true;
       role = "administrator";
     }
+    {
+      name = "cc";
+      enable = true;
+      autoLogin = false;
+      role = "administrator";
+    }
   ];
 
   # ---------------------------------------------------------

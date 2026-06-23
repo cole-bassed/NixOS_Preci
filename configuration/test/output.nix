@@ -8,34 +8,15 @@
 }: let
   inherit (lix.modules) mkIf;
   inherit (lix.displays) isRequired mkHyprland mkNiri;
-  inherit (lix.options) mkModuleArgs mkOption mkEnableOption;
+  inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) attrsOf asFloat nullOr int str submodule;
 
   mk = scope: {config, ...}: let
     args = mkModuleArgs {inherit config top dom mod scope;};
     inherit (args) cfg opt mkEnableMod;
-    inherit (cfg) enable;
-
-    #? Pull compositor toggles from the interface module's resolved config.
-    windowManagers = cfg.interface.windowManagers or {};
-
-    #? Pull displays from this module's own resolved config.
     displays = cfg.displays or {};
   in {
     options = opt {
-      compositors = {
-        hyprland = {
-          enable =
-            mkEnableOption "Monitor configuration for hyprland"
-            // {default = host.interface.windowManager or null == "hyprland";};
-        };
-        niri = {
-          enable =
-            mkEnableOption "Monitor configuration for niri"
-            // {default = host.interface.windowManager or null == "niri";};
-        };
-      };
-
       displays = let
         entry = submodule {
           options = {
@@ -85,18 +66,21 @@
         };
     };
 
-    config = mkIf enable (
+    config =
       if scope == "core"
       then {}
       else
-        mkIf isRequired {
-          wayland.windowManager.hyprland.settings = mkIf (cfg.windowManagers.hyprland.enable) {
-            monitor = mkHyprland displays;
-          };
+        mkIf (isRequired config) {
+          wayland.windowManager.hyprland.settings =
+            mkIf
+            (config.wayland.windowManager.hyprland.enable)
+            {monitor = mkHyprland displays;};
 
-          programs.niri.settings.outputs = mkIf (cfg.windowManagers.niri.enable) (mkNiri displays);
-        }
-    );
+          programs.niri.settings.outputs =
+            mkIf
+            (config.programs.niri.enable)
+            (mkNiri displays);
+        };
   };
 in {
   core = mk "core";
