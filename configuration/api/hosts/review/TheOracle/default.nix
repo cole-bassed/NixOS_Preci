@@ -10,7 +10,7 @@ in {
 
   name = "TheOracle";
   id = "0a11ce42";
-  description = "Oracle Cloud free-tier Ampere instance";
+  description = "Oracle Cloud Free Tier Ampere Instance";
   type = "server";
   class = "nixos";
   stateVersion = "26.05";
@@ -49,10 +49,18 @@ in {
   modules = [];
 
   devices = {
-    boot = {};
-    file = {};
+    boot = {
+      device = "/dev/disk/by-label/NIXBOOT"; # Standard target for systemd-boot installers
+      fsType = "vfat";
+    };
+    file = {
+      "/" = {
+        device = "/dev/disk/by-label/nixos";
+        fsType = "ext4";
+      };
+    };
     swap = [];
-    network = [];
+    network = ["enp0s3"]; # Crucial for Oracle Cloud's virtual network card
     display = {};
   };
 
@@ -61,14 +69,16 @@ in {
     tcp = {
       ranges = [];
       ports = [
-        22
-        80
-        443
+        22 # SSH / Colmena deployments
+        80 # Caddy HTTP
+        443 # Caddy HTTPS / SSL handshakes
       ];
     };
     udp = {
       ranges = [];
-      ports = [];
+      ports = [
+        41641 # Default Tailscale port for direct peer connections
+      ];
     };
   };
 
@@ -77,12 +87,18 @@ in {
     "1.0.0.1"
   ];
 
-  vpn = {};
+  vpn = {
+    tailscale = {
+      enable = true;
+      autoconnect = true;
+    };
+  };
 
   specs = {
     machine = "server";
     cpu = {
       inherit arch;
+      cores = 2; # Matches your safe always-free slider layout
     };
     gpu = {
       mode = "off";
