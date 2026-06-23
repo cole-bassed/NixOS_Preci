@@ -531,7 +531,7 @@ in {
   # imports = [./hardware-configuration.nix];
   disabledModules = [];
 
-  name = "precision";
+  name = "ExampleHost";
   id = "cfd69003";
   description = "Dell Precision M2800";
   type = "laptop";
