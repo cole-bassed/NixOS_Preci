@@ -60,46 +60,46 @@
     };
   };
 
-  #? Schema S8: devices.display entries.
-  displayEntrySubmodule = submodule {
-    options = {
-      brand = mkOption {
-        type = nullOr str;
-        default = null;
-        description = "Display/panel manufacturer.";
-      };
-      resolution = mkOption {
-        type = nullOr str;
-        default = null;
-        description = "Native resolution, format \"WxH\".";
-      };
-      refreshRate = mkOption {
-        type = nullOr float;
-        default = null;
-        description = "Refresh rate in Hz.";
-      };
-      scale = mkOption {
-        type = float;
-        default = 1.0;
-        description = "Display scale factor.";
-      };
-      position = mkOption {
-        type = nullOr str;
-        default = null;
-        description = "Position in the virtual layout, format \"XxY\".";
-      };
-      size = mkOption {
-        type = nullOr float;
-        default = null;
-        description = "Physical panel size, diagonal inches.";
-      };
-      priority = mkOption {
-        type = int;
-        default = 0;
-        description = "Display ordering priority; 0 is primary.";
-      };
-    };
-  };
+  # #? Schema S8: devices.display entries.
+  # displayEntrySubmodule = submodule {
+  #   options = {
+  #     brand = mkOption {
+  #       type = nullOr str;
+  #       default = null;
+  #       description = "Display/panel manufacturer.";
+  #     };
+  #     resolution = mkOption {
+  #       type = nullOr str;
+  #       default = null;
+  #       description = "Native resolution, format \"WxH\".";
+  #     };
+  #     refreshRate = mkOption {
+  #       type = nullOr float;
+  #       default = null;
+  #       description = "Refresh rate in Hz.";
+  #     };
+  #     scale = mkOption {
+  #       type = float;
+  #       default = 1.0;
+  #       description = "Display scale factor.";
+  #     };
+  #     position = mkOption {
+  #       type = nullOr str;
+  #       default = null;
+  #       description = "Position in the virtual layout, format \"XxY\".";
+  #     };
+  #     size = mkOption {
+  #       type = nullOr float;
+  #       default = null;
+  #       description = "Physical panel size, diagonal inches.";
+  #     };
+  #     priority = mkOption {
+  #       type = int;
+  #       default = 0;
+  #       description = "Display ordering priority; 0 is primary.";
+  #     };
+  #   };
+  # };
 
   #? `system.nix` only ever acted at `core` scope (NixOS itself --
   #  boot, filesystems, networking, the boot loader). There is no
