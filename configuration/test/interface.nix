@@ -7,12 +7,14 @@
   ...
 }: let
   inherit (lix.options) mkModuleArgs mkEnableOption;
+  inherit (lix.lists) elem;
 
   mk = scope: {config, ...}: let
     args = mkModuleArgs {inherit config top dom mod scope;};
     inherit (args) cfg opt;
     # inherit (cfg) enable;
     wm = cfg.windowManagement or {};
+    de = cfg.desktopEnvironment or {};
   in {
     options = opt {
       desktopEnvironment = {};
@@ -27,7 +29,7 @@
                 A configuration file will be generated in {file}`~/.config/hypr/hyprland.conf`.
                 See <https://wiki.hyprland.org> for more information
               '';
-              default = host.interface.windowManager or null == "hyprland";
+              default = elem "hyprland" (host.interface.environment.managers or []);
             };
           withUWSM =
             mkEnableOption null
@@ -49,7 +51,7 @@
         niri = {
           enable =
             mkEnableOption "Niri, a scrollable-tiling Wayland compositor"
-            // {default = host.interface.windowManager or null == "niri";};
+            // {default = elem "niri" (host.interface.environment.managers or [])};
         };
       };
     };

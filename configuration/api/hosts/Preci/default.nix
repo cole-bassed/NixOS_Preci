@@ -52,6 +52,20 @@ in {
     }
   ];
 
+  users = [
+    {
+      name = admin;
+      enable = true;
+      autoLogin = true;
+      role = "administrator";
+    }
+    {
+      name = "cc";
+      enable = true;
+      autoLogin = false;
+      role = "normal";
+    }
+  ];
   # ---------------------------------------------------------
   # PACKAGES & CACHES
   # ---------------------------------------------------------
@@ -154,9 +168,16 @@ in {
   # BOOT & INTERFACE
   # ---------------------------------------------------------
   interface = {
+    boot = {
+      loader = "systemd-boot";
+      timeout = 1;
+    };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    windowManager = "hyprland";
+    environment = {
+      managers = [];
+      desktops = [];
+    };
     keyboard = {
       modifier = "SUPER";
       swapCapsEscape = false;

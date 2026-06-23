@@ -28,12 +28,7 @@
             execWheelOnly = true;
             extraRules = mkSudoRules host;
           };
-          home-manager.users = mkHomeUsers {
-            inherit host;
-            lib = lix;
-            dom = "base";
-            mod = "users";
-          };
+          home-manager.users = mkHomeUsers host;
         }
         else {}
       );
