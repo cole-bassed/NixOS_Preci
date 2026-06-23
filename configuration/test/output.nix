@@ -18,10 +18,10 @@
     inherit (cfg) enable;
   in {
     options = opt {
-      enable = mkEnableMod.true;
       displays = let
         entry = submodule {
           options = {
+            enable = mkEnableMod.true;
             brand = mkOption {
               type = nullOr str;
               default = null;
