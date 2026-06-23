@@ -16,7 +16,6 @@
       hostSpecs = hosts;
       userSpecs = users;
       inherit getAdminUsers getNormalUsers;
-      defaultHost = hosts.default;
     };
   };
   inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs;
@@ -26,9 +25,16 @@
 
   hosts = let
     known = specs.hosts;
+    fallback = known.${defaults.host} or known.${head (attrNames known)}; #! Fail if no hosts defined
+    normalized = host: let
+      arch = host.arch or "x86_64";
+      os = host.os or "linux";
+      class = host.class or "nixos";
+      system = host.system or "${arch}-${os}";
+    in
+      host // {inherit arch os class system;};
   in
-    known
-    // {default = known.${defaults.host} or known.${head (attrNames known)};};
+    known // {default = normalized fallback;};
 
   api = let
     base = paths.store.api or paths.api or ../../configuration/api;

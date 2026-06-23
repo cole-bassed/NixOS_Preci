@@ -2,7 +2,6 @@
   api,
   attrsets,
   debug,
-  defaults,
   environment,
   filesystem,
   flake,
@@ -61,8 +60,6 @@
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder;
-
-  defaultClass = api.hosts.default.class or "nixos";
 
   mkFlake = arg: let
     _name = "config.assembly.mkFlake";
@@ -148,9 +145,8 @@
           })
         );
       resolved =
-        mapAttrs (_: spec: let
-          host = spec;
-          class = host.class or defaultClass;
+        mapAttrs (_: host: let
+          class = host.class or hosts.default.class;
           src = mkSrc {
             inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);

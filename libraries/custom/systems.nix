@@ -3,12 +3,9 @@
   debug,
   attrsets,
   lists,
-  # nixpkgs,
-  # nix-darwin,
   types,
   flakes,
   strings,
-  defaults,
   ...
 }: let
   exports = {
@@ -29,11 +26,6 @@
   inherit (types) isFunction;
   inherit (api) hosts;
   inherit (strings) concat;
-  inherit (api.hosts) defaultHost;
-
-  defaultSystem =
-    defaultHost.system or
-      "${(defaultHost.arch or "x86_64")}-${(defaultHost.os or "linux")}";
 
   classification = class:
     assert withContext {
@@ -66,7 +58,7 @@
   supported = {extra ? []}:
     unique (
       extra
-      ++ map (host: host.system or host.platform or defaultSystem)
+      ++ map (host: host.system or (host.platform or hosts.default.system))
       (attrValues hosts)
     );
 
