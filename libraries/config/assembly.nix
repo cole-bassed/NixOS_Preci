@@ -62,8 +62,7 @@
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder;
 
-  defaultHost = api.hosts.${defaults.host};
-  defaultClass = defaultHost.class or "nixos";
+  defaultClass = api.hosts.default.class or "nixos";
 
   mkFlake = arg: let
     _name = "config.assembly.mkFlake";
@@ -151,7 +150,7 @@
       resolved =
         mapAttrs (_: spec: let
           host = spec;
-          class = host.class or (defaultHost.class or "nixos");
+          class = host.class or defaultClass;
           src = mkSrc {
             inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);

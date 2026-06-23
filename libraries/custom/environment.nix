@@ -8,7 +8,6 @@
   flake,
   names,
   paths,
-  lists,
   staged,
   strings,
   types,
@@ -23,14 +22,12 @@
     };
   };
 
-  inherit (filesystem) mkPaths mkUserPaths;
+  inherit (api) hosts;
   inherit (attrsets) attrNames genAttrs foldlAttrs optionalAttrs recursiveUpdate;
+  inherit (filesystem) mkPaths mkUserPaths;
   inherit (debug) expect;
-  inherit (lists) head;
   inherit (strings) concat toUpper;
   inherit (types) isAttrs isString;
-
-  defaultHost = api.hosts.${defaults.host} or api.hosts.${(head (attrNames api.hosts))};
 
   /**
   Build the basic `dots` path configuration for a host.
@@ -57,7 +54,7 @@
   : Explicit framework and configuration adjustments to overlay on the defaults.
   */
   mkSrc = {
-    host ? defaultHost,
+    host ? hosts.default,
     libraries ? null,
     extraArgs ? {},
   }: let

@@ -1,5 +1,6 @@
 {
   attrsets,
+  defaults,
   lists,
   paths,
   ingestion,
@@ -14,14 +15,20 @@
     global = {
       hostSpecs = hosts;
       userSpecs = users;
-      inherit getAdminUsers;
-      inherit getNormalUsers;
+      inherit getAdminUsers getNormalUsers;
+      defaultHost = hosts.default;
     };
   };
-  inherit (attrsets) attrNames attrValues listToAttrs genAttrs filterAttrs mapAttrs optionalAttrs;
-  inherit (lists) asList concatLists isList imap0 elemAt filter length;
+  inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs;
+  inherit (lists) head isList imap0 elemAt filter length;
   inherit (ingestion) collectNamedSpecs;
-  inherit (specs) users hosts;
+  inherit (specs) users;
+
+  hosts = let
+    known = specs.hosts;
+  in
+    known
+    // {default = known.${defaults.host} or known.${head (attrNames known)};};
 
   api = let
     base = paths.store.api or paths.api or ../../configuration/api;
@@ -44,7 +51,6 @@
     users = collectSpecs "home" api.users;
   };
 
-  # TODO: Keep schema as a list — fix api.nix to convert list→attrset before processing
   getUsers = spec: let
     mkGroup = attrs: let
       names = attrNames attrs;
@@ -60,12 +66,12 @@
     in {inherit names values count;};
 
     filterByStatus = status: attrs:
-      filterAttrs (_: u: (u.enable or true) == (status == "enabled")) attrs;
+      filterAttrs (_: user: (user.enable or true) == (status == "enabled")) attrs;
 
     filterByRole = wantedRole: attrs:
       filterAttrs (
-        _: u: let
-          role = u.role or "";
+        _: user: let
+          role = user.role or "";
           isNormal = role == "" || role == "user" || role == "normal";
         in
           if wantedRole == "normal"
@@ -86,12 +92,12 @@
       in
         (mkGroup subset) // {byStatus = mkStatusIndex subset;});
 
-    users = mapAttrs (_: u:
+    users = mapAttrs (_: user:
       {
         role = "user";
         enable = true;
       }
-      // u)
+      // user)
     spec;
   in
     (mkGroup users)

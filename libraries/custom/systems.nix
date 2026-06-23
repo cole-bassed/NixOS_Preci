@@ -23,14 +23,17 @@
     };
   };
 
-  inherit (attrsets) attrNames attrValues genAttrs;
+  inherit (attrsets) attrValues genAttrs;
   inherit (debug) withContext;
-  inherit (lists) elem head unique;
+  inherit (lists) elem unique;
   inherit (types) isFunction;
   inherit (api) hosts;
   inherit (strings) concat;
-  defaultHost = api.hosts.${defaults.host} or api.hosts.${(head (attrNames api.hosts))};
-  defaultSystem = defaultHost.system or defaultHost.platform or "x86_64-linux";
+  inherit (api.hosts) defaultHost;
+
+  defaultSystem =
+    defaultHost.system or
+      "${(defaultHost.arch or "x86_64")}-${(defaultHost.os or "linux")}";
 
   classification = class:
     assert withContext {
