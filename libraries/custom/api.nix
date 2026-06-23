@@ -28,7 +28,7 @@
     base = paths.store.api or paths.api or ../../configuration/api;
     hosts = base + "/hosts";
     users = base + "/users";
-    monitors = base + "/monitors";
+    monitors = base + "/display";
   in {inherit hosts users monitors;};
 
   hosts = let
