@@ -15,7 +15,7 @@ _: let
         tail
         zipAttrsWith
         ;
-      inherit as asIf foldl orEmpty unique;
+      inherit as asIf asModule foldl orEmpty unique;
       maps = builtins.concatMap;
       at = builtins.elemAt;
       first = head;
@@ -28,6 +28,7 @@ _: let
     };
 
     global = {
+      asModuleList = asModule;
       asList = as;
       asListIf = asIf;
       orEmptyList = orEmpty;
@@ -106,6 +107,13 @@ _: let
     else if type == "path"
     then [value]
     else throw "lists.as:= unsupported type: ${type}";
+
+  asModule = value:
+    if value == null
+    then []
+    else if isList value
+    then value
+    else [value];
 
   /**
   Conditionally coerce a value into a list.

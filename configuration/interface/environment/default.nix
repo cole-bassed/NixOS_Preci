@@ -9,12 +9,10 @@
 }: let
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) asAttrs namesOf valuesOf;
-  inherit (lix.lists) elem;
+  inherit (lix.lists) elem concatMap;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum listOf;
-
-  inherit (lib) concatMap;
 
   setOf = list: namesOf (asAttrs list);
 
@@ -191,14 +189,15 @@
       };
   };
 
-  args = config: scope:
+  mkArgs = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
 in {
   core = {config, ...}: let
-    inherit ((args config "core")) cfg opt;
-    protocol = config.${top}.${dom}.protocol;
+    inherit ((mkArgs config "core")) cfg opt;
+    protocol = config.${top}.interface.protocol;
   in {
     options = opt (opts.core spec.core cfg);
+
     config = {
       services = {
         xserver = mkIf protocol.x11 {
@@ -221,6 +220,8 @@ in {
           plasma6.enable = elem "plasma" cfg.desktops;
         };
       };
+
+      programs.sway.enable = cfg.sway.enable;
     };
   };
 
@@ -229,7 +230,7 @@ in {
     user ? {},
     ...
   }: let
-    inherit ((args config "home")) cfg opt;
+    inherit ((mkArgs config "home")) cfg opt;
   in {
     options = opt (opts.home (spec.home user) cfg);
     config = {};

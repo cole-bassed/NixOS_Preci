@@ -39,9 +39,9 @@
     };
   };
 
-  inherit (attrsets) filterAttrs genAttrs mapAttrs mapAttrs' mapAttrsToList;
+  inherit (attrsets) attrNames filterAttrs genAttrs mapAttrs mapAttrs';
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asList any concatMap elem findFirst;
+  inherit (lists) asModuleList any concatMap elem findFirst optionals;
   inherit (strings) hasSuffix removeSuffix;
   inherit (types) isFunction;
 
@@ -131,6 +131,9 @@
     entrypoint
     candidates;
 
+  hasEntrypointDir = base: name:
+    any (f: pathExists (base + "/${name}/${f}")) candidates;
+
   importModule = {
     args ? {},
     base,
@@ -162,37 +165,61 @@
     includes ? [],
     tags ? defaults.tags,
     includeFiles ? false,
+    recurse ? false,
     rawTag ? "core",
   }: let
-    entries = readDirAttrs {inherit base excludes includes includeFiles;};
-    specs =
-      mapAttrsToList
-      (
-        name: type: let
+    stem = name:
+      if hasSuffix ".nix" name
+      then removeSuffix ".nix" name
+      else name;
+
+    wrap = module:
+      if module ? core || module ? home
+      then module
+      else {${rawTag} = module;};
+
+    collect = ctx: base: let
+      entries = readDirAttrs {inherit base excludes includes includeFiles;};
+    in
+      concatMap (
+        name: let
+          type = entries.${name};
+          name' = stem name;
+
+          ctx' =
+            if ctx == null
+            then {
+              dom = baseNameOf (toString base);
+              mod = name';
+            }
+            else
+              ctx
+              // {
+                leaf = name';
+              };
+
           module = importModule {
             inherit base name;
             args =
               args
-              // {
-                dom = baseNameOf (toString base);
-                mod =
-                  if type == "regular"
-                  then removeSuffix ".nix" name
-                  else name;
-              }
+              // ctx'
               // extraArgs;
           };
+
+          children =
+            optionals
+            (type == "directory" && (recurse || !(hasEntrypointDir base name)))
+            (collect ctx' (base + "/${name}"));
         in
-          if module ? core || module ? home
-          then module
-          else {${rawTag} = module;}
-      )
-      entries;
+          [(wrap module)] ++ children
+      ) (attrNames entries);
+
+    specs = collect null base;
   in
     genAttrs tags (
       tag:
         concatMap
-        (spec: asList (spec.${tag} or null))
+        (spec: asModuleList (spec.${tag} or null))
         specs
     );
 
@@ -228,7 +255,7 @@
           };
         in
           importedModule
-          // {tags = (importedModule.tags or []) ++ asList tags;}
+          // {tags = (importedModule.tags or []) ++ asModuleList tags;}
       )
       entries;
   in
@@ -254,12 +281,13 @@
     includes ? [],
     tags ? defaults.tags,
     extraArgs ? {},
+    recurse ? false,
     includeFiles ? false,
     ...
   }: let
     specs =
       collectSpecs
-      {inherit args base excludes includes tags extraArgs includeFiles;};
+      {inherit args base excludes includes tags extraArgs includeFiles recurse;};
   in {
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
@@ -272,8 +300,15 @@
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? true,
+    recurse ? false,
     ...
-  }:
-    importAll (args // {inherit base excludes includes tags extraArgs includeFiles;});
+  }: let
+    specs =
+      collectSpecs
+      {inherit args base excludes includes tags extraArgs includeFiles recurse;};
+  in {
+    imports = specs.core or [];
+    home-manager.sharedModules = specs.home or [];
+  };
 in
   exports

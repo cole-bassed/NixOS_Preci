@@ -3,27 +3,25 @@
   top,
   dom,
   mod,
+  leaf,
   ...
 }: let
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs;
 
-  args = config: scope:
+  mkArgs = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
-
-  env = config:
-    config.${top}.${dom}.environment;
 in {
   core = {config, ...}: let
-    cfg = env config;
+    inherit ((mkArgs config "core")) cfg;
   in {
     config = {
       programs = {
-        niri = mkIf cfg.niri.enable {
-          inherit (cfg.niri) enable;
+        niri = mkIf cfg.${leaf}.enable {
+          inherit (cfg.${leaf}) enable;
         };
 
-        uwsm.waylandCompositors.niri = mkIf cfg.niri.enable {
+        uwsm.waylandCompositors.${leaf} = mkIf cfg.${leaf}.enable {
           prettyName = "Niri";
           comment = "Niri compositor managed by UWSM";
           binPath = "/run/current-system/sw/bin/niri-session";
@@ -33,12 +31,10 @@ in {
   };
 
   home = {config, ...}: let
-    cfg = env config;
+    inherit ((mkArgs config "home")) cfg;
   in {
-    config = {
-      programs.niri = mkIf cfg.niri.enable {
-        inherit (cfg.niri) enable;
-      };
+    config.programs.niri = mkIf cfg.${leaf}.enable {
+      inherit (cfg.${leaf}) enable;
     };
   };
 }

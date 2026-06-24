@@ -3,28 +3,28 @@
   top,
   dom,
   mod,
+  leaf,
   ...
 }: let
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs;
 
-  args = config: scope:
+  mkArgs = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
-
-  env = config:
-    config.${top}.${dom}.environment;
 in {
   core = {config, ...}: let
-    cfg = env config;
+    inherit ((mkArgs config "core")) cfg;
   in {
     config = {
-      programs.mango = mkIf cfg.mango.enable {
-        enable = true;
+      programs = {
+        ${leaf} = mkIf cfg.${leaf}.enable {
+          enable = true;
+        };
       };
     };
   };
 
-  home = {config, ...}: {
+  home = _: {
     config = {};
   };
 }

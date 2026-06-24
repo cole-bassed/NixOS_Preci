@@ -6,7 +6,7 @@
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs;
-  inherit (lix.modules) mkDefault mkIf;
+  inherit (lix.modules) mkDefault;
   inherit (lix.lists) elem;
   inherit (lix.options) mkOption mkEnableOption;
   inherit (lix.types) str nullOr listOf attrsOf enum int float submodule;
