@@ -13,6 +13,6 @@ lix.importModules (
       "sessions"
       "default.nix"
     ];
-    includeFiles = true;
+    # includeFiles = true;
   }
 )

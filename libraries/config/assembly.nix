@@ -135,7 +135,7 @@
             (mkFlakeModules class)
             ++ (src.modules.core or [])
             ++ (extraArgs.modules.core or [])
-            ++ (args.modules.core or [])
+            # ++ (args.modules.core or [])
             ++ (host.imports or [])
             ++ [
               {
