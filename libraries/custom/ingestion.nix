@@ -47,7 +47,7 @@
 
   candidates = entrypoints.nix.candidates or ["default.nix"];
 
-  pathExcludes =
+  globalExcludes =
     excludes.paths
     or paths.excludes
     or defaults.excludes.paths
@@ -63,16 +63,27 @@
       "flake.nix"
     ];
 
+  resolveExcludes = local:
+    globalExcludes
+    ++ (
+      if local == null
+      then []
+      else if types.isAttrs local
+      then local.paths or []
+      else local
+    );
+
   readDirAttrs = {
     base,
-    excludes ? pathExcludes,
+    excludes ? null,
     includes ? [],
     predicate ? null,
     includeFiles ? false,
   }: let
+    excluded = map normalize (resolveExcludes excludes);
+
     normalize = name: removeSuffix ".nix" name;
 
-    excluded = map normalize excludes;
     included = map normalize includes;
 
     isExcluded = name:
@@ -147,7 +158,7 @@
     args,
     extraArgs ? {},
     base,
-    excludes ? pathExcludes,
+    excludes ? null,
     includes ? [],
     tags ? defaults.tags,
     includeFiles ? false,
@@ -189,7 +200,7 @@
     args ? {},
     extraArgs ? {},
     base,
-    excludes ? pathExcludes,
+    excludes ? null,
     includes ? [],
     tags ? defaults.tags,
     includeFiles ? false,
@@ -239,7 +250,7 @@
 
   importAll = args @ {
     base,
-    excludes ? pathExcludes,
+    excludes ? null,
     includes ? [],
     tags ? defaults.tags,
     extraArgs ? {},
@@ -256,7 +267,7 @@
 
   importModules = args @ {
     base,
-    excludes ? pathExcludes,
+    excludes ? null,
     includes ? [],
     tags ? defaults.tags,
     extraArgs ? {},
