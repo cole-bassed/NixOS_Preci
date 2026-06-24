@@ -98,20 +98,11 @@
   mkHomeUser = {
     name,
     spec,
-  }: {
-    lib,
-    osConfig,
-    ...
-  }: {
+  }: {osConfig, ...}: {
     imports =
       [
         {
-          _module.args.userName = name;
-          _module.args.userHome = osConfig.users.users.${name}.home;
-
-          home.username = lib.mkForce name;
-          home.homeDirectory = lib.mkForce osConfig.users.users.${name}.home;
-
+          _module.args.user = spec // {inherit name;};
           programs.home-manager.enable = true;
         }
         (

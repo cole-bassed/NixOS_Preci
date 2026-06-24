@@ -11,7 +11,6 @@ lix.importModules (
       "login"
       "protocols"
       "sessions"
-      "test"
       "default.nix"
     ];
     includeFiles = true;
