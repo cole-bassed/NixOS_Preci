@@ -156,7 +156,7 @@
   };
 
   inherit (attrsets) getAttr hasAttr maps orEmpty attrValues;
-  inherit (lists) asIf concat unique;
+  inherit (lists) asIf concat concatLists unique;
 
   /**
   Collect modules of a given type from a set of flake inputs.
@@ -178,49 +178,73 @@
   - lists.unique
   - modules.preferDefault
   */
-  collectModules = type: modules: let
-    moduleAttr =
+  # collectModules = type: modules: let
+  #   moduleAttr =
+  #     if type == "nixos"
+  #     then "nixosModules"
+  #     else if type == "darwin"
+  #     then "darwinModules"
+  #     else if type == "home"
+  #     then "homeModules"
+  #     else throw "modules.collect:= unsupported type '${type}'";
+
+  #   rawCollected =
+  #     if type == "home"
+  #     then
+  #       concat (
+  #         attrValues (
+  #           maps
+  #           (
+  #             _: input: let
+  #               mods =
+  #                 if hasAttr "homeModules" input
+  #                 then input.homeModules
+  #                 else input.homeManagerModules or {};
+  #             in
+  #               defaultOrAllValues mods
+  #           )
+  #           modules
+  #         )
+  #       )
+  #     else
+  #       concat (
+  #         attrValues (
+  #           maps
+  #           (
+  #             _: input:
+  #               asIf
+  #               (hasAttr moduleAttr input)
+  #               (defaultOrAllValues (getAttr moduleAttr input))
+  #           )
+  #           modules
+  #         )
+  #       );
+  # in
+  #   unique rawCollected;
+
+  collectModules = type: inputs: let
+    attr =
       if type == "nixos"
       then "nixosModules"
       else if type == "darwin"
       then "darwinModules"
       else if type == "home"
       then "homeModules"
-      else throw "modules.collect:= unsupported type '${type}'";
+      else throw "flakes.collectModules:= unsupported type '${type}'";
 
-    rawCollected =
+    legacy =
       if type == "home"
-      then
-        concat (
-          attrValues (
-            maps
-            (
-              _: input: let
-                mods =
-                  if hasAttr "homeModules" input
-                  then input.homeModules
-                  else input.homeManagerModules or {};
-              in
-                defaultOrAllValues mods
-            )
-            modules
-          )
-        )
-      else
-        concat (
-          attrValues (
-            maps
-            (
-              _: input:
-                asIf
-                (hasAttr moduleAttr input)
-                (defaultOrAllValues (getAttr moduleAttr input))
-            )
-            modules
-          )
-        );
+      then "homeManagerModules"
+      else null;
+
+    get = input:
+      if hasAttr attr input
+      then defaultOrAllValues (getAttr attr input)
+      else if legacy != null && hasAttr legacy input
+      then defaultOrAllValues (getAttr legacy input)
+      else [];
   in
-    unique rawCollected;
+    concatLists (map get (attrValues inputs));
 
   /**
   Normalize package exports from a flake-like input.

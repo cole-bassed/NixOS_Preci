@@ -40,22 +40,39 @@
   inherit (attrsets) attrNames filterAttrs isAttrs;
   inherit (lists) asListIf elem;
 
-  excluded = excludes.modules or [];
+  excluded = let
+    value = excludes.modules or [];
+  in
+    if isAttrs value
+    then {
+      nixos = value.nixos or [];
+      darwin = value.darwin or [];
+      home = value.home or [];
+    }
+    else {
+      nixos = value;
+      darwin = value;
+      home = value;
+    };
 
-  classified =
+  classified = type:
     filterAttrs
-    (input: _: !(elem input excluded))
+    (name: _: !(elem name (excluded.${type} or [])))
     inputs.classified.modules;
 
-  normalized = let
-    mk = type: collectModules type classified;
-  in {
-    nixos = mk "nixos";
-    darwin = mk "darwin";
-    home = mk "home";
+  normalized = {
+    nixos = collectModules "nixos" (classified "nixos");
+    darwin = collectModules "darwin" (classified "darwin");
+    home = collectModules "home" (classified "home");
   };
 
-  merged = classified // normalized;
+  classifiedByType = {
+    nixos = classified "nixos";
+    darwin = classified "darwin";
+    home = classified "home";
+  };
+
+  merged = classifiedByType // normalized;
 
   mkHM = type: let
     key =
