@@ -6,7 +6,7 @@ lix.importModules (base
       "ai"
       "api"
       "applications"
-      "interface"
+      # "interface"
       "secrets"
     ];
   })

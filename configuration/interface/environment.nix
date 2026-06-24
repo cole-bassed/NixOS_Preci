@@ -1,23 +1,22 @@
 {
-  inputs,
   lix,
-  pkgs,
   top,
   host,
   dom,
   mod,
   ...
 }: let
-  inherit (inputs.niri) nixosModules overlays;
-
+  # inherit (inputs.niri) nixosModules overlays;
   inherit (lix.lists) elem optionals;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) listOf enum;
 in {
-  imports = [nixosModules.niri];
-
-  core = {config, ...}: let
+  core = {
+    config,
+    pkgs,
+    ...
+  }: let
     args = mkModuleArgs {inherit config top dom mod;};
     inherit (args) cfg opt;
     env = host.interface.environment or {};
@@ -57,8 +56,6 @@ in {
     };
 
     config = {
-      nixpkgs.overlays = mkIf cfg.niri.enable [overlays.niri];
-
       programs = {
         hyprland = {inherit (cfg.hyprland) enable withUWSM;};
 
