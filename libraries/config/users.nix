@@ -36,12 +36,16 @@
   inherit (environment) mkSrc;
   inherit (lists) asList;
 
+  usersOf = host:
+    if host.users ? values
+    then host.users
+    else getUsers host.users;
+
+  homeOf = user:
+    user.homeDirectory or user.home or "/home/${user.name}";
+
   mkCoreUsers = host: let
-    principals =
-      if host.users ? values
-      then host.users.values
-      else (getUsers host.users).values;
-    # principals = (host.users or getUsers host.users).values;
+    principals = (usersOf host).values;
 
     #| Role-based user classification
     #  administrator → full system access (wheel, networkmanager)
@@ -58,7 +62,8 @@
       mapAttrs (_: user: let
         role = roleOf user;
       in {
-        inherit (user) description home;
+        inherit (user) description;
+        home = homeOf user;
         group = user.group or user.name;
 
         #| NixOS user type classification
@@ -77,7 +82,7 @@
       })
       principals;
 
-    groups = mapAttrs (_: user: {}) principals;
+    groups = mapAttrs (_: _: {}) principals;
   };
 
   mkHomeUsers = host:
@@ -103,8 +108,10 @@
         {
           _module.args.userName = name;
           _module.args.userHome = osConfig.users.users.${name}.home;
+
           home.username = lib.mkForce name;
           home.homeDirectory = lib.mkForce osConfig.users.users.${name}.home;
+
           programs.home-manager.enable = true;
         }
         (
@@ -113,8 +120,7 @@
           {home = {inherit (osConfig.system) stateVersion;};}
         )
       ]
-      ++ asList (spec.imports or null)
-      ++ asList (spec.home or null);
+      ++ asList (spec.imports or []);
   };
 
   mkSudoRules = host:

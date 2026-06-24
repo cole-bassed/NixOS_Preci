@@ -29,18 +29,14 @@
           (wayland.windowManager.hyprland.enable or false)
         ]
       )
-      ++ (
-        with cfg.desktopEnvironment; [
-          (gnome.enable or false)
-          (plasma.enable or false)
-        ]
-      )
-      ++ (
-        with cfg.windowManagement; [
-          (hyprland.enable or false)
-          (niri.enable or false)
-        ]
-      ));
+      ++ [
+        (cfg.desktopEnvironment.gnome.enable or false)
+        (cfg.desktopEnvironment.plasma.enable or false)
+      ]
+      ++ [
+        (cfg.windowManagement.hyprland.enable or false)
+        (cfg.windowManagement.niri.enable or false)
+      ]);
 
   mkHyprland = displays:
     mapAttrsToList (

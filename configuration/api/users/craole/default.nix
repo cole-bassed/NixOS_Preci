@@ -14,7 +14,7 @@
 in {
   imports = [
     # ./applications.nix
-    ./paths.nix
+    # ./paths.nix
   ];
 
   inherit applications;

@@ -344,8 +344,9 @@
   }: let
     _name = "filesystem::mkUserPaths";
     home =
-      user.home
-      or (throw "${_name}: 'user' is missing a 'home' string.");
+      user.home or "/home/${user.name}"; # TODO: Remove the manual fallback once `user.home` is guaranteed to exist in the API
+    # user.home
+    # or (throw "${_name}: 'user' is missing a 'home' string.");
     defaults = {
       downloads = "${home}/Downloads";
       pictures = "${home}/Pictures";

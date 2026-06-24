@@ -17,10 +17,7 @@
       hostAPI = hosts;
       userAPI = users;
       displayAPI = displays;
-      inherit
-        getAdminUsers
-        getNormalUsers
-        ;
+      inherit getAdminUsers getNormalUsers;
     };
   };
 
@@ -105,7 +102,7 @@
           user
           // {
             inherit name;
-            home = user.home or "/home/${name}";
+            # home = user.home or "/home/${name}";
             description = user.description or name;
           })
         attrs;
