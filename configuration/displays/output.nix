@@ -23,9 +23,9 @@
     config =
       if scope == "core"
       then {
-        programs.niri.settings.outputs =
-          mkIf config.programs.niri.enable
-          (mkNiri displays);
+        # programs.niri.settings.outputs =
+        #   mkIf config.programs.niri.enable
+        #   (mkNiri displays);
       }
       else
         mkIf (isRequired config) {
