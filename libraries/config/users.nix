@@ -32,20 +32,15 @@
     mapAttrs
     optionalAttrs
     ;
-  inherit (api) getUsers getAdminUsers getNormalUsers;
+  inherit (api) getEnabledUsers getNormalUsers getAdminUsers;
   inherit (environment) mkSrc;
   inherit (lists) asList;
-
-  usersOf = host:
-    if host.users ? values
-    then host.users
-    else getUsers host.users;
 
   homeOf = user:
     user.homeDirectory or user.home or "/home/${user.name}";
 
   mkCoreUsers = host: let
-    principals = (usersOf host).values;
+    principals = getEnabledUsers host;
 
     #| Role-based user classification
     #  administrator → full system access (wheel, networkmanager)
@@ -56,7 +51,6 @@
     isAdmin = role: role == "administrator";
     isGuest = role: role == "guest";
     isService = role: role == "service";
-    isNormal = role: !(isAdmin role || isGuest role || isService role);
   in {
     users =
       mapAttrs (_: user: let
@@ -67,8 +61,8 @@
         group = user.group or user.name;
 
         #| NixOS user type classification
-        isNormalUser = isNormal role; # can log in
-        isSystemUser = isService role; # daemon account
+        isNormalUser = !isService role;
+        isSystemUser = isService role;
 
         #| Supplementary groups based on role privileges
         extraGroups =

@@ -128,7 +128,7 @@
               # inherit src;
               inherit (src) paths;
             }
-            // (removeAttrs src ["lib"]);
+            // (removeAttrs src ["lib" "name"]);
         in {
           inherit class specialArgs;
           modules =
@@ -140,13 +140,19 @@
             # ++ (args.modules.core or [])
             ++ [
               {
+                environment.pathsToLink = [
+                  "/share/applications"
+                  "/share/xdg-desktop-portal"
+                ];
+
                 home-manager = {
                   extraSpecialArgs = specialArgs;
                   backupFileExtension = concat {
                     delim = "-";
                     parts = [src.name "backup"];
                   };
-                  sharedModules = (mkFlakeModules "home")
+                  sharedModules =
+                    (mkFlakeModules "home")
                     ++ (args.modules.home or []);
                   # sharedModules =
                   #   (mkFlakeModules "home")

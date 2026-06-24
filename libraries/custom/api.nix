@@ -12,13 +12,19 @@
       inherit hosts users displays;
       admins = getAdminUsers;
       normalUsers = getNormalUsers;
+      enabledUsers = getEnabledUsers;
     };
 
     global = {
       hostAPI = hosts;
       userAPI = users;
       displayAPI = displays;
-      inherit getAdminUsers getNormalUsers;
+      inherit
+        getUsers
+        getEnabledUsers
+        getAdminUsers
+        getNormalUsers
+        ;
     };
   };
 
@@ -159,25 +165,19 @@
       byRole = mkRoleIndex users;
     };
 
+  usersOf = host:
+    if host.users ? values
+    then host.users
+    else getUsers host.users;
+
+  getEnabledUsers = host:
+    (usersOf host).byStatus.enabled.values;
+
   getAdminUsers = host:
-    (
-      if host.users ? values
-      then host.users
-      else getUsers host.users
-    )
-    .byRole
-    .administrator
-    .values;
+    (usersOf host).byStatus.enabled.byRole.administrator.values;
 
   getNormalUsers = host:
-    filterAttrs
-    (_: user: (user.role or "") != "service")
-    (
-      if host.users ? values
-      then host.users
-      else getUsers host.users
-    )
-    .values;
+    (usersOf host).byStatus.enabled.byRole.normal.values;
 
   resolveUsers = host: let
     hostPath = "api/hosts/${host.name}";
@@ -335,7 +335,11 @@
     resolved =
       if isList raw
       then listToAttrs (imap0 resolveDisplay raw)
-      else raw;
+      else
+        mapAttrs
+        (output: cfg:
+          (resolveDisplay 0 (cfg // {inherit output;})).value)
+        raw;
 
     ordered =
       sort
@@ -404,7 +408,7 @@
         display
         // {
           layout =
-            display.layout
+            (display.layout or {})
             // {
               position = point;
             };
