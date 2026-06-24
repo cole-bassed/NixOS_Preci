@@ -32,7 +32,7 @@
     mapAttrs
     optionalAttrs
     ;
-  inherit (api) getEnabledUsers getNormalUsers getAdminUsers;
+  inherit (api) getEnabledUsers getInteractiveUsers getAdminUsers;
   inherit (environment) mkSrc;
   inherit (lists) asList;
 
@@ -87,7 +87,7 @@
           spec = user;
         }
     )
-    (getNormalUsers host);
+    (getInteractiveUsers host);
 
   mkHomeUser = {
     name,

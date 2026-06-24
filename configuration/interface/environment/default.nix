@@ -6,7 +6,7 @@
   mod,
   ...
 }: let
-  inherit (lix.api) getNormalUsers;
+  inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) asAttrs namesOf valuesOf;
   inherit (lix.lists) elem maps optionals;
   inherit (lix.modules) mkIf;
@@ -25,7 +25,7 @@
 
   spec = let
     host' = host.interface.environment or {};
-    users = maps (user: [get user]) (valuesOf (getNormalUsers host));
+    users = maps (user: [get user]) (valuesOf (getInteractiveUsers host));
 
     managers = {
       x11 = [

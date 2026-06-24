@@ -13,6 +13,7 @@
       admins = getAdminUsers;
       normalUsers = getNormalUsers;
       enabledUsers = getEnabledUsers;
+      loginUsers = getInteractiveUsers;
     };
 
     global = {
@@ -24,6 +25,7 @@
         getEnabledUsers
         getAdminUsers
         getNormalUsers
+        getInteractiveUsers
         ;
     };
   };
@@ -178,6 +180,13 @@
 
   getNormalUsers = host:
     (usersOf host).byStatus.enabled.byRole.normal.values;
+
+  getInteractiveUsers = host: let
+    users = (usersOf host).byStatus.enabled.byRole;
+  in
+    users.administrator.values
+    // users.normal.values
+    // users.guest.values;
 
   resolveUsers = host: let
     hostPath = "api/hosts/${host.name}";
