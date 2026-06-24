@@ -192,16 +192,14 @@
         listToAttrs (
           imap0
           (
-            i: user: let
-              uName = user.name or (fail "user at index ${toString i} missing 'name'");
-              uAttrs =
+            idx: user: {
+              name =
+                user.name or (
+                  fail "user at index ${toString idx} missing 'name'"
+                );
+              value =
                 removeAttrs user ["name"]
-                // {
-                  primary = user.primary or (i == 0);
-                };
-            in {
-              name = uName;
-              value = uAttrs;
+                // {primary = user.primary or (idx == 0);};
             }
           )
           rawUsers
@@ -268,38 +266,33 @@
   resolveDisplays = host: let
     hostPath = "api/hosts/${host.name}";
     fail = msg: throw "${hostPath}: ${msg}";
-
     raw = (host.devices or {}).display or [];
+
+    cleanDisplay = display: removeAttrs display ["name" "tags"];
 
     resolveDisplay = idx: cfg: let
       output =
-        cfg.output or (
-          fail "display at index ${toString idx} missing 'output'"
-        );
+        cfg.output
+      or (fail "display at index ${toString idx} missing 'output'");
 
-      displayName =
-        cfg.display or cfg.monitor or (
-          fail "display '${output}' missing 'display'"
-        );
-
-      display =
-        displays.${
-          displayName
-        } or (
-          fail "display '${output}' references unknown display '${displayName}'"
-        );
-
-      local = removeAttrs cfg ["display" "monitor" "output"];
+      display = let
+        name =
+          cfg.display or (cfg.monitor or (
+            fail "display '${output}' missing 'display'"
+          ));
+      in
+        displays.${name}
+      or (fail "display '${output}' references unknown display '${name}'");
     in {
       name = output;
       value =
-        display
+        cleanDisplay display
         // {
           priority = cfg.priority or idx;
           primary = idx == 0;
           position = cfg.position or "right";
         }
-        // local;
+        // (removeAttrs cfg ["display" "monitor" "output"]);
     };
   in
     if isList raw

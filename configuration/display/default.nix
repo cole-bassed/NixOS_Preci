@@ -1,6 +1,6 @@
 {lix, ...} @ base: let
   inherit (lix.options) mkOption mkEnableOption;
-  inherit (lix.types) asFloat nullOr int str submodule enum;
+  inherit (lix.types) asFloat nullOr int str submodule;
 in
   lix.importModules (
     base
@@ -56,10 +56,7 @@ in
                 description = "Display ordering priority; derived from API list order.";
               };
 
-              primary = mkEnableOption null {
-                default = false;
-                description = "Whether this display is the primary output. Derived from API list order.";
-              };
+              primary = mkEnableOption "Whether this display is the primary output. Derived from API list order.";
             };
           };
         };
