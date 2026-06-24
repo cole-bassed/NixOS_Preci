@@ -7,85 +7,104 @@
   ...
 }: let
   inherit (lix.api) getAdminUsers;
-  inherit (lix.attrsets) attrValues;
+  inherit (lix.attrsets) attrValues optionalAttrs;
   inherit (lix.lists) elem elemAt length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
 
+  registry = import ./registry.nix;
+
   args = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
-
-  hostLogin = (host.interface or {}).login or {};
-
-  primary = host.users.primary.value or null;
-
-  admins = attrValues (getAdminUsers host);
-
-  fallbackAdmin =
-    if primary != null && (primary.role or "") == "administrator"
-    then primary
-    else if length admins > 0
-    then elemAt admins 0
-    else primary;
-
-  fallbackUser =
-    if fallbackAdmin != null
-    then fallbackAdmin.name
-    else null;
-
-  autoLoginUser =
-    hostLogin.autoLogin.user or fallbackUser;
-
-  autoLoginEnable =
-    hostLogin.autoLogin.enable or false;
 
   has = value: list:
     elem value list;
 
-  getSession = spec:
-    (spec.interface or {}).session
-    or (spec.interface or {}).environment
-    or {};
-
-  hostSession =
-    (host.interface or {}).session
-    or (host.interface or {}).environment
-    or {};
-
-  userByName = name:
-    if name == null
-    then null
-    else (host.users.values.${name} or null);
-
-  orderedSessions = user: let
-    userSession =
-      if user == null
-      then {}
-      else getSession user;
-  in
-    (userSession.managers or [])
-    ++ (userSession.desktops or [])
-    ++ (hostSession.managers or [])
-    ++ (hostSession.desktops or []);
-
-  firstOrNull = list:
+  first = list:
     if length list > 0
     then elemAt list 0
     else null;
 
-  sessionFiles =
-    hostLogin.sessions or {};
+  login = (host.interface or {}).login or {};
 
-  toSessionName = name:
+  primary = host.users.primary.value or null;
+  admins = attrValues (getAdminUsers host);
+
+  fallback = {
+    admin =
+      if primary != null && (primary.role or "") == "administrator"
+      then primary
+      else if length admins > 0
+      then elemAt admins 0
+      else primary;
+
+    user =
+      if fallback.admin != null
+      then fallback.admin.name
+      else null;
+  };
+
+  auto = {
+    enable = login.autoLogin.enable or false;
+    user = login.autoLogin.user or fallback.user;
+  };
+
+  userByName = name:
     if name == null
     then null
-    else sessionFiles.${name} or name;
+    else host.users.values.${name} or null;
 
-  defaultSessionFor = user:
-    toSessionName (firstOrNull (orderedSessions user));
+  getEnvironment = spec:
+    (spec.interface or {}).environment
+    or (spec.interface or {}).session
+    or {};
 
-  opts = manager: defaultSession: {
+  hostEnvironment =
+    (host.interface or {}).environment
+    or (host.interface or {}).session
+    or {};
+
+  ordered = user: let
+    env =
+      if user == null
+      then {}
+      else getEnvironment user;
+  in
+    (env.managers or [])
+    ++ (env.desktops or [])
+    ++ (hostEnvironment.managers or [])
+    ++ (hostEnvironment.desktops or []);
+
+  entry = name:
+    registry.managers.${name}
+    or registry.desktops.${name}
+    or {};
+
+  sessionName = name:
+    if name == null
+    then null
+    else login.sessions.${name} or (entry name).session or name;
+
+  preferred = user:
+    first (ordered user);
+
+  defaultSession = user:
+    sessionName (preferred user);
+
+  managerFor = environment: let
+    names = environment.managers ++ environment.desktops;
+    name = first names;
+  in
+    login.manager
+    or host.interface.displayManager
+    or (
+      if name != null
+      then (entry name).login or "regreet"
+      else "none"
+    );
+
+  opts = manager: session: {
     manager = mkOption {
       type = enum [
         "none"
@@ -101,54 +120,41 @@
 
     defaultSession = mkOption {
       type = nullOr str;
-      default = defaultSession;
+      default = session;
       description = "Default graphical session selected by the display manager.";
     };
 
     autoLogin = {
       enable =
         mkEnableOption "automatic login"
-        // {default = autoLoginEnable;};
+        // {default = auto.enable;};
 
       user = mkOption {
         type = nullOr str;
-        default = autoLoginUser;
+        default = auto.user;
         description = "User to automatically log in when autologin is enabled.";
       };
     };
   };
-in {
-  core = {config, ...}: let
-    inherit ((args config "core")) cfg opt;
 
-    session = config.${top}.${dom}.session;
-    loginUser = userByName autoLoginUser;
-
-    manager =
-      hostLogin.manager
-      or host.interface.displayManager
-      or (
-        if has "gnome" session.desktops
-        then "gdm"
-        else if has "plasma" session.desktops
-        then "sddm"
-        else if session.managers != []
-        then "regreet"
-        else "none"
-      );
-
-    defaultSession = hostLogin.defaultSession
-      or defaultSessionFor loginUser;
+  mk = scope: {config, ...}: let
+    inherit ((args config scope)) cfg opt;
+    env = config.${top}.${dom}.environment;
+    user = userByName auto.user;
+    session = login.defaultSession or (defaultSession user);
   in {
-    options = opt (opts manager defaultSession);
+    options = opt (opts (managerFor env) session);
 
-    config = {
+    config = optionalAttrs (scope == "core") {
       services = {
         displayManager = mkIf (cfg.manager != "none") {
           gdm.enable = cfg.manager == "gdm";
           sddm.enable = cfg.manager == "sddm";
 
-          defaultSession = mkIf (cfg.defaultSession != null) cfg.defaultSession;
+          defaultSession =
+            mkIf
+            (cfg.defaultSession != null)
+            cfg.defaultSession;
 
           autoLogin = mkIf cfg.autoLogin.enable {
             enable = true;
@@ -156,21 +162,21 @@ in {
           };
         };
 
-        xserver.displayManager.lightdm.enable = cfg.manager == "lightdm";
+        xserver = {
+          displayManager.lightdm.enable = cfg.manager == "lightdm";
+        };
 
         greetd = mkIf (cfg.manager == "greetd" || cfg.manager == "regreet") {
           enable = true;
         };
       };
 
-      programs.regreet.enable = cfg.manager == "regreet";
+      programs = {
+        regreet.enable = cfg.manager == "regreet";
+      };
     };
   };
-
-  home = {config, ...}: let
-    inherit ((args config "home")) opt;
-  in {
-    options = opt {};
-    config = {};
-  };
+in {
+  core = mk "core";
+  home = mk "home";
 }
