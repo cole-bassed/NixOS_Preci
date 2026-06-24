@@ -4,20 +4,18 @@
   host,
   dom,
   mod,
+  registry,
   ...
 }: let
   inherit (lix.api) getAdminUsers;
   inherit (lix.attrsets) attrValues optionalAttrs;
-  inherit (lix.lists) elem elemAt length;
+  inherit (lix.lists) elemAt length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
 
   args = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
-
-  has = value: list:
-    elem value list;
 
   first = list:
     if length list > 0

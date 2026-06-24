@@ -28,6 +28,8 @@
         recursiveUpdate {
           paths =
             [
+              "_"
+              "_.nix"
               "archive"
               "backup"
               "bootstrap"

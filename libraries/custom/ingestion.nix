@@ -8,6 +8,8 @@
 {
   attrsets,
   defaults,
+  excludes,
+  paths,
   filesystem,
   lists,
   strings,
@@ -46,11 +48,17 @@
   candidates = entrypoints.nix.candidates or ["default.nix"];
 
   pathExcludes =
-    defaults.excludes.paths or [
+    excludes.paths
+    or paths.excludes
+    or defaults.excludes.paths
+    or [
+      "_"
       "archive"
       "backup"
+      "bootstrap"
       "review"
       "temp"
+      "default"
       "default.nix"
       "flake.nix"
     ];
@@ -58,37 +66,48 @@
   readDirAttrs = {
     base,
     excludes ? pathExcludes,
+    includes ? [],
     predicate ? null,
     includeFiles ? false,
-  }:
+  }: let
+    normalize = name: removeSuffix ".nix" name;
+
+    excluded = map normalize excludes;
+    included = map normalize includes;
+
+    isExcluded = name:
+      elem (normalize name) excluded;
+
+    isIncluded = name:
+      elem (normalize name) included;
+
+    isDefault = name:
+      normalize name == "default";
+
+    defaultPredicate = name: type:
+      (type == "directory")
+      || (
+        includeFiles
+        && type == "regular"
+        && hasSuffix ".nix" name
+        && !isDefault name
+      );
+
+    hasEntrypoint = name: type:
+      if type == "directory"
+      then any (f: pathExists (base + "/${name}/${f}")) candidates
+      else true;
+  in
     filterAttrs
     (
-      name: type: let
-        defaultPredicate =
-          (type == "directory")
-          || (
-            if includeFiles
-            then
-              (type == "regular")
-              && hasSuffix ".nix" name
-              && name != "default.nix"
-            else false
-          );
-      in
+      name: type:
         (
           if predicate != null
           then predicate name type
-          else defaultPredicate
+          else defaultPredicate name type
         )
-        && !(elem name excludes)
-        && (
-          if type == "directory"
-          then
-            any
-            (f: pathExists (base + "/${name}/${f}"))
-            candidates
-          else true
-        )
+        && (!isExcluded name || isIncluded name)
+        && hasEntrypoint name type
     )
     (readDir base);
 
@@ -129,11 +148,12 @@
     extraArgs ? {},
     base,
     excludes ? pathExcludes,
+    includes ? [],
     tags ? defaults.tags,
     includeFiles ? false,
     rawTag ? "core",
   }: let
-    entries = readDirAttrs {inherit base excludes includeFiles;};
+    entries = readDirAttrs {inherit base excludes includes includeFiles;};
     specs =
       mapAttrsToList
       (
@@ -170,11 +190,12 @@
     extraArgs ? {},
     base,
     excludes ? pathExcludes,
+    includes ? [],
     tags ? defaults.tags,
     includeFiles ? false,
     rekey ? false,
   }: let
-    entries = readDirAttrs {inherit base excludes includeFiles;};
+    entries = readDirAttrs {inherit base excludes includes includeFiles;};
     raw =
       mapAttrs
       (
@@ -219,14 +240,15 @@
   importAll = args @ {
     base,
     excludes ? pathExcludes,
+    includes ? [],
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? false,
     ...
   }: let
-    specs = collectSpecs {
-      inherit args base excludes tags extraArgs includeFiles;
-    };
+    specs =
+      collectSpecs
+      {inherit args base excludes includes tags extraArgs includeFiles;};
   in {
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
@@ -235,11 +257,12 @@
   importModules = args @ {
     base,
     excludes ? pathExcludes,
+    includes ? [],
     tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? true,
     ...
   }:
-    importAll (args // {inherit base excludes tags extraArgs includeFiles;});
+    importAll (args // {inherit base excludes includes tags extraArgs includeFiles;});
 in
   exports

@@ -4,6 +4,7 @@
   top,
   dom,
   mod,
+  # registry,
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs;
@@ -86,7 +87,7 @@
             wayland-utils
             wl-clipboard-rs
           ]
-          ++ optionals environment.niri.enable [
+          ++ optionals env.niri.enable [
             xwayland-satellite-unstable
           ];
       };

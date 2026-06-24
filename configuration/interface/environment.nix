@@ -201,7 +201,7 @@ in {
     options = opt (opts.core spec.core cfg);
     config = {
       services = {
-        xserver = mkIf protocol.x11.enable {
+        xserver = mkIf protocol.x11 {
           desktopManager = {
             xterm.enable = false;
             cinnamon.enable = elem "cinnamon" cfg.desktops;
@@ -216,7 +216,7 @@ in {
           };
         };
 
-        desktopManager = mkIf protocol.wayland.enable {
+        desktopManager = mkIf protocol.wayland {
           gnome.enable = elem "gnome" cfg.desktops;
           plasma6.enable = elem "plasma" cfg.desktops;
         };
