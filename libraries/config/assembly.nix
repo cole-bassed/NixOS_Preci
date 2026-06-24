@@ -133,7 +133,7 @@
           inherit class specialArgs;
           modules =
             (mkFlakeModules class)
-            ++ (src.modules.core or [])
+            # ++ (src.modules.core or [])
             ++ (extraArgs.modules.core or [])
             # ++ (args.modules.core or [])
             ++ (host.imports or [])
@@ -147,7 +147,7 @@
                   };
                   sharedModules =
                     (mkFlakeModules "home")
-                    ++ (src.modules.home or [])
+                    # ++ (src.modules.home or [])
                     ++ (extraArgs.modules.home or []);
                   useGlobalPkgs = true;
                   useUserPackages = true;
