@@ -1,5 +1,4 @@
 {
-  lib,
   lix,
   top,
   host,
@@ -7,261 +6,171 @@
   mod,
   ...
 }: let
-  inherit (lix.api) getInteractiveUsers;
-  inherit (lix.attrsets) asAttrs namesOf valuesOf;
-  inherit (lix.lists) elem;
+  inherit (lix.api) getAdminUsers;
+  inherit (lix.attrsets) attrValues;
+  inherit (lix.lists) elem elemAt length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
-  inherit (lix.types) enum listOf;
-
-  inherit (lib) concatMap;
-
-  setOf = list: namesOf (asAttrs list);
-
-  getUI = base: let
-    ui = base.interface or {};
-  in
-    ui.session or ui.environment or {};
-
-  collect = field: specs:
-    setOf (concatMap (spec: spec.${field} or []) specs);
-
-  merge = specs: {
-    managers = collect "managers" specs;
-    desktops = collect "desktops" specs;
-  };
-
-  spec = let
-    host' = getUI host;
-    users = map getUI (valuesOf (getInteractiveUsers host));
-
-    managers = {
-      x11 = [
-        "awesome"
-        "i3"
-        "qtile"
-        "xmonad"
-      ];
-
-      wayland = [
-        "hyprland"
-        "labwc"
-        "mango"
-        "niri"
-        "river"
-        "sway"
-        "wayfire"
-      ];
-    };
-
-    desktops = {
-      x11 = [
-        "cinnamon"
-        "xfce"
-      ];
-
-      wayland = [
-        "gnome"
-        "plasma"
-      ];
-    };
-  in {
-    inherit managers desktops;
-
-    all = {
-      managers = with managers; x11 ++ wayland;
-      desktops = with desktops; x11 ++ wayland;
-      x11 = managers.x11 ++ desktops.x11;
-      wayland = managers.wayland ++ desktops.wayland;
-    };
-
-    host = host';
-    inherit users;
-
-    core = merge ([host'] ++ users);
-
-    home = user: let
-      user' = getUI user;
-    in
-      merge [host' user'];
-  };
-
-  opts = {
-    base = preset: cfg: {
-      managers = mkOption {
-        type = listOf (enum spec.all.managers);
-        default = preset.managers;
-        description = "Enabled standalone compositors/window managers.";
-      };
-
-      desktops = mkOption {
-        type = listOf (enum spec.all.desktops);
-        default = preset.desktops;
-        description = "Enabled full desktop environments.";
-      };
-
-      hyprland = {
-        enable =
-          mkEnableOption "Hyprland compositor"
-          // {default = elem "hyprland" cfg.managers;};
-
-        withUWSM =
-          mkEnableOption "launching Hyprland through UWSM"
-          // {default = cfg.hyprland.enable;};
-      };
-
-      niri = {
-        enable =
-          mkEnableOption "Niri compositor"
-          // {default = elem "niri" cfg.managers;};
-      };
-
-      sway = {
-        enable =
-          mkEnableOption "Sway compositor"
-          // {default = elem "sway" cfg.managers;};
-      };
-
-      river = {
-        enable =
-          mkEnableOption "River compositor"
-          // {default = elem "river" cfg.managers;};
-      };
-
-      wayfire = {
-        enable =
-          mkEnableOption "Wayfire compositor"
-          // {default = elem "wayfire" cfg.managers;};
-      };
-
-      labwc = {
-        enable =
-          mkEnableOption "Labwc compositor"
-          // {default = elem "labwc" cfg.managers;};
-      };
-
-      mango = {
-        enable =
-          mkEnableOption "Mango compositor"
-          // {default = elem "mango" cfg.managers;};
-      };
-
-      qtile = {
-        enable =
-          mkEnableOption "Qtile window manager"
-          // {default = elem "qtile" cfg.managers;};
-      };
-
-      xmonad = {
-        enable =
-          mkEnableOption "XMonad window manager"
-          // {default = elem "xmonad" cfg.managers;};
-      };
-
-      awesome = {
-        enable =
-          mkEnableOption "Awesome window manager"
-          // {default = elem "awesome" cfg.managers;};
-      };
-
-      i3 = {
-        enable =
-          mkEnableOption "i3 window manager"
-          // {default = elem "i3" cfg.managers;};
-      };
-    };
-
-    core = preset: cfg:
-      opts.base preset cfg;
-
-    home = preset: cfg: let
-      base = opts.base preset cfg;
-    in
-      base
-      // {
-        hyprland =
-          base.hyprland
-          // {
-            configType = mkOption {
-              type = enum ["hyprlang" "lua"];
-              default = "hyprlang";
-              description = "Home Manager Hyprland configuration format.";
-            };
-          };
-      };
-  };
+  inherit (lix.types) enum nullOr str;
 
   args = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
-in {
-  core = {config, ...}: let
-    inherit ((args config "core")) cfg opt;
-    protocol = config.${top}.${dom}.protocol;
-  in {
-    options = opt (opts.core spec.core cfg);
-    config = {
-      services = {
-        xserver = mkIf protocol.x11.enable {
-          desktopManager = {
-            xterm.enable = false;
-            cinnamon.enable = elem "cinnamon" cfg.desktops;
-            xfce.enable = elem "xfce" cfg.desktops;
-          };
 
-          windowManager = {
-            awesome.enable = cfg.awesome.enable;
-            i3.enable = cfg.i3.enable;
-            qtile.enable = cfg.qtile.enable;
-            xmonad.enable = cfg.xmonad.enable;
-          };
-        };
+  hostLogin = (host.interface or {}).login or {};
 
-        desktopManager = mkIf protocol.wayland.enable {
-          gnome.enable = elem "gnome" cfg.desktops;
-          plasma6.enable = elem "plasma" cfg.desktops;
-        };
-      };
+  primary = host.users.primary.value or null;
 
-      programs = {
-        hyprland = {inherit (cfg.hyprland) enable withUWSM;};
-        niri = {inherit (cfg.niri) enable;};
-        sway = {enable = cfg.sway.enable;};
-        mango = {enable = cfg.mango.enable;};
+  admins = attrValues (getAdminUsers host);
 
-        uwsm.waylandCompositors = {
-          hyprland = mkIf cfg.hyprland.enable {
-            prettyName = "Hyprland";
-            comment = "Hyprland compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/Hyprland";
-          };
+  fallbackAdmin =
+    if primary != null && (primary.role or "") == "administrator"
+    then primary
+    else if length admins > 0
+    then elemAt admins 0
+    else primary;
 
-          niri = mkIf cfg.niri.enable {
-            prettyName = "Niri";
-            comment = "Niri compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/niri-session";
-          };
+  fallbackUser =
+    if fallbackAdmin != null
+    then fallbackAdmin.name
+    else null;
 
-          sway = mkIf cfg.sway.enable {
-            prettyName = "Sway";
-            comment = "Sway compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/sway";
-          };
-        };
+  autoLoginUser =
+    hostLogin.autoLogin.user or fallbackUser;
+
+  autoLoginEnable =
+    hostLogin.autoLogin.enable or false;
+
+  has = value: list:
+    elem value list;
+
+  getSession = spec:
+    (spec.interface or {}).session
+    or (spec.interface or {}).environment
+    or {};
+
+  hostSession =
+    (host.interface or {}).session
+    or (host.interface or {}).environment
+    or {};
+
+  userByName = name:
+    if name == null
+    then null
+    else (host.users.values.${name} or null);
+
+  orderedSessions = user: let
+    userSession =
+      if user == null
+      then {}
+      else getSession user;
+  in
+    (userSession.managers or [])
+    ++ (userSession.desktops or [])
+    ++ (hostSession.managers or [])
+    ++ (hostSession.desktops or []);
+
+  firstOrNull = list:
+    if length list > 0
+    then elemAt list 0
+    else null;
+
+  sessionFiles =
+    hostLogin.sessions or {};
+
+  toSessionName = name:
+    if name == null
+    then null
+    else sessionFiles.${name} or name;
+
+  defaultSessionFor = user:
+    toSessionName (firstOrNull (orderedSessions user));
+
+  opts = manager: defaultSession: {
+    manager = mkOption {
+      type = enum [
+        "none"
+        "gdm"
+        "sddm"
+        "greetd"
+        "regreet"
+        "lightdm"
+      ];
+      default = manager;
+      description = "Display manager or greeter used to start graphical sessions.";
+    };
+
+    defaultSession = mkOption {
+      type = nullOr str;
+      default = defaultSession;
+      description = "Default graphical session selected by the display manager.";
+    };
+
+    autoLogin = {
+      enable =
+        mkEnableOption "automatic login"
+        // {default = autoLoginEnable;};
+
+      user = mkOption {
+        type = nullOr str;
+        default = autoLoginUser;
+        description = "User to automatically log in when autologin is enabled.";
       };
     };
   };
+in {
+  core = {config, ...}: let
+    inherit ((args config "core")) cfg opt;
 
-  home = {
-    config,
-    user ? {},
-    ...
-  }: let
-    inherit ((args config "home")) cfg opt;
+    session = config.${top}.${dom}.session;
+    loginUser = userByName autoLoginUser;
+
+    manager =
+      hostLogin.manager
+      or host.interface.displayManager
+      or (
+        if has "gnome" session.desktops
+        then "gdm"
+        else if has "plasma" session.desktops
+        then "sddm"
+        else if session.managers != []
+        then "regreet"
+        else "none"
+      );
+
+    defaultSession = hostLogin.defaultSession
+      or defaultSessionFor loginUser;
   in {
-    options = opt (opts.home (spec.home user) cfg);
+    options = opt (opts manager defaultSession);
+
     config = {
-      wayland.windowManager.hyprland = {inherit (cfg.hyprland) enable configType;};
-      programs.niri = {inherit (cfg.niri) enable;};
+      services = {
+        displayManager = mkIf (cfg.manager != "none") {
+          gdm.enable = cfg.manager == "gdm";
+          sddm.enable = cfg.manager == "sddm";
+
+          defaultSession = mkIf (cfg.defaultSession != null) cfg.defaultSession;
+
+          autoLogin = mkIf cfg.autoLogin.enable {
+            enable = true;
+            user = cfg.autoLogin.user;
+          };
+        };
+
+        xserver.displayManager.lightdm.enable = cfg.manager == "lightdm";
+
+        greetd = mkIf (cfg.manager == "greetd" || cfg.manager == "regreet") {
+          enable = true;
+        };
+      };
+
+      programs.regreet.enable = cfg.manager == "regreet";
     };
+  };
+
+  home = {config, ...}: let
+    inherit ((args config "home")) opt;
+  in {
+    options = opt {};
+    config = {};
   };
 }

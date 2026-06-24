@@ -15,42 +15,44 @@
   hasAny = values: names:
     builtins.any (name: elem name values) names;
 
-  opts = cfg: session: {
+  wantsX11 = session:
+    hasAny session.managers [
+      "awesome"
+      "i3"
+      "qtile"
+      "xmonad"
+    ]
+    || hasAny session.desktops [
+      "cinnamon"
+      "xfce"
+    ];
+
+  wantsWayland = session:
+    hasAny session.managers [
+      "hyprland"
+      "labwc"
+      "mango"
+      "niri"
+      "river"
+      "sway"
+      "wayfire"
+    ]
+    || hasAny session.desktops [
+      "gnome"
+      "plasma"
+    ];
+
+  opts = session: {
     x11 =
       mkEnableOption "X11 protocol/session support"
       // {
-        default =
-          cfg.x11.enable
-          || hasAny session.managers [
-            "awesome"
-            "i3"
-            "qtile"
-            "xmonad"
-          ]
-          || hasAny session.desktops [
-            "cinnamon"
-            "xfce"
-          ];
+        default = wantsX11 session;
       };
 
     wayland =
       mkEnableOption "Wayland protocol/session support"
       // {
-        default =
-          cfg.wayland.enable
-          || hasAny session.managers [
-            "hyprland"
-            "labwc"
-            "mango"
-            "niri"
-            "river"
-            "sway"
-            "wayfire"
-          ]
-          || hasAny session.desktops [
-            "gnome"
-            "plasma"
-          ];
+        default = wantsWayland session;
       };
   };
 in {
@@ -62,22 +64,20 @@ in {
     inherit ((args config "core")) cfg opt;
     session = config.${top}.${dom}.session;
   in {
-    options = opt (opts cfg session);
+    options = opt (opts session);
 
     config = {
-      services.xserver.enable = cfg.x11.enable;
-      programs.uwsm.enable = cfg.wayland.enable;
+      services.xserver.enable = cfg.x11;
+
+      programs.uwsm.enable = cfg.wayland;
 
       environment = {
-        sessionVariables = mkIf cfg.wayland.enable {
+        sessionVariables = mkIf cfg.wayland {
           NIXOS_OZONE_WL = "1";
-          MOZ_ENABLE_WAYLAND = "1";
-          QT_QPA_PLATFORM = "wayland;xcb";
-          SDL_VIDEODRIVER = "wayland,x11";
         };
 
         systemPackages = with pkgs;
-          optionals cfg.wayland.enable [
+          optionals cfg.wayland [
             cage
             libsecret
             wayland-utils
@@ -91,11 +91,10 @@ in {
   };
 
   home = {config, ...}: let
-    inherit ((args config "home")) cfg opt;
+    inherit ((args config "home")) opt;
     session = config.${top}.${dom}.session;
   in {
-    options = opt (opts cfg session);
-
+    options = opt (opts session);
     config = {};
   };
 }
