@@ -22,6 +22,7 @@
         preferDefault
         select
         ;
+      optionalAttrs = asIf;
       defaultOrAll = preferDefault;
       defaultOrAllValues = preferDefaultValues;
       filter = select;

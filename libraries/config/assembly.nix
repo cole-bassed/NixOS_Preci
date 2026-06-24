@@ -133,7 +133,7 @@
           inherit class specialArgs;
           modules =
             (mkFlakeModules class)
-            # ++ (args.modules.core or [])
+            ++ (args.modules.core or [])
             # ++ (host.imports or [])
             # ++ (src.modules.core or [])
             # ++ (extraArgs.modules.core or [])
@@ -146,10 +146,8 @@
                     delim = "-";
                     parts = [src.name "backup"];
                   };
-                  sharedModules = (
-                    (mkFlakeModules "home")
-                    ++ (args.modules.home or [])
-                  );
+                  sharedModules = (mkFlakeModules "home")
+                    ++ (args.modules.home or []);
                   # sharedModules =
                   #   (mkFlakeModules "home")
                   #   # ++ (src.modules.home or [])

@@ -5,18 +5,43 @@
     nixpkgs = "nixCore";
     defaults = {allowUnfree = true;};
 
-    excludes = let
-      core = ["nixCore" "nixLegacy" "nixDarwin" "nixEdge"];
-    in {
-      modules = {
-        nixos = ["compositorNiri"];
+    core = ["nixCore" "nixLegacy" "nixDarwin" "nixEdge"];
+
+    modules = {
+      includes = {
+        nixos = ["wmMango"];
+        darwin = [];
+        home = ["wmNiri"];
+      };
+
+      excludes = {
+        nixos = [];
         home = [];
         darwin = [];
       };
+
+      select = {
+        nixos = {
+          wmMango = ["mango"];
+        };
+
+        home = {
+          wmNiri = ["niri"];
+        };
+      };
+
+      all = {
+        nixos = [];
+        home = [];
+        darwin = [];
+      };
+    };
+
+    excludes = {
       overlays = core ++ ["nixHM" "home-manager"];
     };
 
-    src = import ./. {flake = {inherit defaults excludes inputs nixpkgs;};};
+    src = import ./. {flake = {inherit defaults excludes modules inputs nixpkgs;};};
     base = src.${src.names.src};
     libs = src.${src.names.lib};
   in
@@ -59,9 +84,15 @@
     };
 
     #~@ Display/Window Managers
-    compositorNiri = {
+    wmNiri = {
       repo = "niri-flake";
       owner = "sodiboo";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    wmMango = {
+      repo = "mango";
+      owner = "mangowm";
       type = "github";
       inputs.nixpkgs.follows = "nixCore";
     };

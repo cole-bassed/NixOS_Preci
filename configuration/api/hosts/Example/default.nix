@@ -572,7 +572,7 @@ in {
     }
     {
       name = "cc";
-      enable = true;
+      enable = false;
       autoLogin = false;
       role = "administrator";
     }

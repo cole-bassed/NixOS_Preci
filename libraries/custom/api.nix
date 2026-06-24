@@ -4,6 +4,7 @@
   lists,
   paths,
   ingestion,
+  strings,
   ...
 }: let
   exports = {
@@ -21,9 +22,10 @@
     };
   };
 
-  inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs;
-  inherit (lists) head isList imap0 elemAt filter length;
+  inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs mapAttrsToList;
+  inherit (lists) foldl' head isList imap0 elemAt filter length sort;
   inherit (ingestion) collectNamedSpecs;
+  inherit (strings) isString splitString toInt;
   inherit (specs) users displays;
 
   api = let
@@ -267,6 +269,23 @@
 
     cleanDisplay = display: removeAttrs display ["name" "tags"];
 
+    parseSize = resolution: let
+      parts = splitString "x" resolution;
+    in {
+      width = toInt (elemAt parts 0);
+      height = toInt (elemAt parts 1);
+    };
+
+    parsePoint = position: let
+      parts = splitString "x" position;
+    in {
+      x = toInt (elemAt parts 0);
+      y = toInt (elemAt parts 1);
+    };
+
+    isPoint = position:
+      isString position && length (splitString "x" position) == 2;
+
     resolveDisplay = idx: cfg: let
       output =
         cfg.output
@@ -280,20 +299,118 @@
       in
         displays.${name}
       or (fail "display '${output}' references unknown display '${name}'");
-    in {
-      name = output;
-      value =
+
+      merged =
         cleanDisplay display
         // {
+          enable = cfg.enable or true;
           priority = cfg.priority or idx;
-          primary = idx == 0;
+          primary = cfg.primary or (idx == 0);
           position = cfg.position or "right";
         }
         // (removeAttrs cfg ["display" "monitor" "output"]);
+
+      size =
+        if merged.resolution != null
+        then parseSize merged.resolution
+        else {
+          width = 0;
+          height = 0;
+        };
+    in {
+      name = output;
+      value =
+        merged
+        // {
+          layout = {
+            inherit size;
+            position = {
+              x = 0;
+              y = 0;
+            };
+          };
+        };
+    };
+
+    resolved =
+      if isList raw
+      then listToAttrs (imap0 resolveDisplay raw)
+      else raw;
+
+    ordered =
+      sort
+      (a: b: a.value.priority < b.value.priority)
+      (mapAttrsToList (name: value: {inherit name value;}) resolved);
+
+    leftWidth =
+      foldl'
+      (total: item:
+        if item.value.position == "left"
+        then total + item.value.layout.size.width
+        else total)
+      0
+      ordered;
+
+    topHeight =
+      foldl'
+      (total: item:
+        if item.value.position == "top"
+        then total + item.value.layout.size.height
+        else total)
+      0
+      ordered;
+
+    place = item: let
+      display = item.value;
+      inherit (display) position;
+
+      point =
+        if position == null
+        then {
+          x = 0;
+          y = 0;
+        }
+        else if isPoint position
+        then parsePoint position
+        else if position == "left"
+        then {
+          x = 0;
+          y = topHeight;
+        }
+        else if position == "right"
+        then {
+          x = leftWidth;
+          y = topHeight;
+        }
+        else if position == "top"
+        then {
+          x = 0;
+          y = 0;
+        }
+        else if position == "bottom"
+        then {
+          x = 0;
+          y = topHeight;
+        }
+        else if position == "center"
+        then {
+          x = leftWidth;
+          y = topHeight;
+        }
+        else fail "display '${item.name}' has invalid position '${position}'";
+    in {
+      inherit (item) name;
+      value =
+        display
+        // {
+          layout =
+            display.layout
+            // {
+              position = point;
+            };
+        };
     };
   in
-    if isList raw
-    then listToAttrs (imap0 resolveDisplay raw)
-    else raw;
+    listToAttrs (map place ordered);
 in
   exports

@@ -4,15 +4,17 @@
   defaults ? {},
   flake ? {},
   names ? {},
+  types ? {},
   ...
 }: let
   exports =
     {
       inputs = {inherit raw classified normalized;};
-      inherit types;
+      types = predicates;
+      inherit modulePolicy;
     }
-    // types;
-  types = {
+    // predicates;
+  predicates = {
     inherit
       collectModules
       getPackages
@@ -31,7 +33,16 @@
   };
   inputs = flake.inputs or {};
 
-  inherit (builtins) attrNames elem filter head isAttrs listToAttrs isString;
+  modulePolicy = {
+    includes = flake.modules.includes or {};
+    excludes = flake.modules.excludes or {};
+    select = flake.modules.select or {};
+    all = flake.modules.all or {};
+  };
+
+  inherit (attrsets) attrNames getAttr hasAttr listToAttrs isAttrs maps orEmpty attrValues;
+  inherit (lists) concatLists elem filter head length unique;
+  inherit (types) concatStringsSep isString;
 
   filterAttrs =
     attrsets.filterAttrs or (predicate: set:
@@ -73,22 +84,83 @@
         else head (attrValues set)
     );
 
-  defaultOrAllValues =
-    attrsets.defaultOrAllValues or (
-      set:
-        if isAttrs set
-        then
-          if set ? default
-          then [set.default]
-          else attrValues set
-        else []
-    );
+  getOr = name: set: fallback:
+    if isAttrs set && hasAttr name set
+    then getAttr name set
+    else fallback;
 
+  pickModules = type: name: set: let
+    selected = getOr name (getOr type modulePolicy.select {}) [];
+    allowAll = elem name (getOr type modulePolicy.all []);
+    values = attrValues set;
+
+    missing =
+      filter
+      (key: !(hasAttr key set))
+      selected;
+  in
+    if !isAttrs set
+    then []
+    else if selected != []
+    then
+      if missing == []
+      then map (key: getAttr key set) selected
+      else throw "flakes.collectModules: ${name}.${type} selected missing module(s): ${concatStringsSep ", " missing}"
+    else if set ? default
+    then [set.default]
+    else if length values == 1
+    then values
+    else if allowAll
+    then values
+    else throw "flakes.collectModules: ${name}.${type} has multiple modules and no default; set flake.modules.select.${type}.${name} or add '${name}' to flake.modules.all.${type}";
   raw =
     filterAttrs
     (input: _: !(elem input ["self" (flake.name or names.src)]))
     inputs;
 
+  /**
+  Collect modules of a given type from a set of flake inputs.
+
+  Supported types:
+  - `nixos`
+  - `darwin`
+  - `home`
+
+  # Type
+
+  ```nix
+  collect :: String -> AttrSet -> List
+  ```
+
+  # Dependencies
+
+  - lists.asIf
+  - lists.unique
+  - modules.preferDefault
+  */
+  collectModules = type: inputs: let
+    attr =
+      if type == "nixos"
+      then "nixosModules"
+      else if type == "darwin"
+      then "darwinModules"
+      else if type == "home"
+      then "homeModules"
+      else throw "flakes.collectModules:= unsupported type '${type}'";
+
+    legacy =
+      if type == "home"
+      then "homeManagerModules"
+      else null;
+
+    get = name: input:
+      if hasAttr attr input
+      then pickModules type name (getAttr attr input)
+      else if legacy != null && hasAttr legacy input
+      then pickModules type name (getAttr legacy input)
+      else [];
+  in
+    concatLists (attrValues (maps get inputs));
   classified = {
     nixpkgs = filterAttrs (_: isNixpkgsLike) raw;
     nix-darwin = filterAttrs (_: isNixDarwinLike) raw;
@@ -156,97 +228,6 @@
       nixos-anywhere = firstOf classified."nixos-anywhere";
     };
   };
-
-  inherit (attrsets) getAttr hasAttr maps orEmpty attrValues;
-  inherit (lists) asIf concat concatLists unique;
-
-  /**
-  Collect modules of a given type from a set of flake inputs.
-
-  Supported types:
-  - `nixos`
-  - `darwin`
-  - `home`
-
-  # Type
-
-  ```nix
-  collect :: String -> AttrSet -> List
-  ```
-
-  # Dependencies
-
-  - lists.asIf
-  - lists.unique
-  - modules.preferDefault
-  */
-  # collectModules = type: modules: let
-  #   moduleAttr =
-  #     if type == "nixos"
-  #     then "nixosModules"
-  #     else if type == "darwin"
-  #     then "darwinModules"
-  #     else if type == "home"
-  #     then "homeModules"
-  #     else throw "modules.collect:= unsupported type '${type}'";
-
-  #   rawCollected =
-  #     if type == "home"
-  #     then
-  #       concat (
-  #         attrValues (
-  #           maps
-  #           (
-  #             _: input: let
-  #               mods =
-  #                 if hasAttr "homeModules" input
-  #                 then input.homeModules
-  #                 else input.homeManagerModules or {};
-  #             in
-  #               defaultOrAllValues mods
-  #           )
-  #           modules
-  #         )
-  #       )
-  #     else
-  #       concat (
-  #         attrValues (
-  #           maps
-  #           (
-  #             _: input:
-  #               asIf
-  #               (hasAttr moduleAttr input)
-  #               (defaultOrAllValues (getAttr moduleAttr input))
-  #           )
-  #           modules
-  #         )
-  #       );
-  # in
-  #   unique rawCollected;
-
-  collectModules = type: inputs: let
-    attr =
-      if type == "nixos"
-      then "nixosModules"
-      else if type == "darwin"
-      then "darwinModules"
-      else if type == "home"
-      then "homeModules"
-      else throw "flakes.collectModules:= unsupported type '${type}'";
-
-    legacy =
-      if type == "home"
-      then "homeManagerModules"
-      else null;
-
-    get = input:
-      if hasAttr attr input
-      then defaultOrAllValues (getAttr attr input)
-      else if legacy != null && hasAttr legacy input
-      then defaultOrAllValues (getAttr legacy input)
-      else [];
-  in
-    concatLists (map get (attrValues inputs));
 
   /**
   Normalize package exports from a flake-like input.

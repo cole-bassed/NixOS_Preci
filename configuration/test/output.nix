@@ -73,12 +73,12 @@
         mkIf (isRequired config) {
           wayland.windowManager.hyprland.settings =
             mkIf
-            (config.wayland.windowManager.hyprland.enable)
+            config.wayland.windowManager.hyprland.enable
             {monitor = mkHyprland displays;};
 
           programs.niri.settings.outputs =
             mkIf
-            (config.programs.niri.enable)
+            config.programs.niri.enable
             (mkNiri displays);
         };
   };

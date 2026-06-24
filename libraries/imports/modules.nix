@@ -2,7 +2,6 @@
   bootstrap,
   attrsets,
   lists,
-  excludes,
   defaults,
   ...
 }: let
@@ -11,6 +10,7 @@
       inherit
         classified
         normalized
+        merged
         excluded
         ;
       hasFlake = hasFlakeModules;
@@ -18,9 +18,9 @@
       hasCore = hasCoreModules;
       mkFlake = mkModules;
       collectFlake = collectModules;
-      merged = classified // normalized;
       default = normalized;
     };
+
     global = {
       inherit hasFlakeModules;
       mkFlakeModules = mkModules;
@@ -29,6 +29,7 @@
       collectFlakeModules = collectModules;
     };
   };
+
   inherit
     (bootstrap)
     inputs
@@ -37,11 +38,12 @@
     hasHomeModules
     hasCoreModules
     ;
+
   inherit (attrsets) attrNames filterAttrs isAttrs;
   inherit (lists) asListIf elem;
 
   excluded = let
-    value = excludes.modules or [];
+    value = bootstrap.modulePolicy.excludes or [];
   in
     if isAttrs value
     then {
@@ -55,10 +57,22 @@
       home = value;
     };
 
+  included = bootstrap.modulePolicy.includes or {};
+
+  isIncluded = type: name: let
+    scope = included.${type} or null;
+  in
+    !(elem name (excluded.${type} or []))
+    && (
+      scope
+      == null
+      || elem name scope
+    );
+
   classified = let
     classify = type:
       filterAttrs
-      (name: _: !(elem name (excluded.${type} or [])))
+      (name: _: isIncluded type name)
       inputs.classified.modules;
   in {
     nixos = classify "nixos";
@@ -81,6 +95,7 @@
       else if type == "darwin"
       then "darwinModules"
       else null;
+
     input = inputs.normalized.home-manager;
   in
     asListIf
@@ -100,8 +115,8 @@
     );
 
   mkModules = type:
-    if (elem type (attrNames merged))
-    then merged.${type} ++ (mkCore type)
+    if elem type (attrNames normalized)
+    then normalized.${type} ++ (mkCore type)
     else throw "external.modules.mkMods: unknown type '${type}'";
 in
   exports

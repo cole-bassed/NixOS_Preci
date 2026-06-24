@@ -1,7 +1,6 @@
 {
   attrsets,
   lists,
-  strings,
   names,
   ...
 }: let
@@ -14,8 +13,7 @@
   };
 
   inherit (attrsets) mapAttrs mapAttrsToList optionalAttrs;
-  inherit (lists) any elemAt;
-  inherit (strings) splitString toInt;
+  inherit (lists) any;
 
   isRequired = args: let
     config = args.config or args;
@@ -45,14 +43,16 @@
           if display.resolution != null
           then display.resolution
           else "preferred";
+
         refreshRate =
           if display.refreshRate != null
           then "@${toString display.refreshRate}"
           else "";
-        position =
-          if display.position != null
-          then display.position
-          else "auto";
+
+        position = let
+          inherit (display.layout.position) x y;
+        in "${toString x}x${toString y}";
+
         scale = toString display.scale;
       in "${name}, ${resolution}${refreshRate}, ${position}, ${scale}"
     )
@@ -64,21 +64,16 @@
         {}
         // optionalAttrs (display.resolution != null && display.refreshRate != null) {
           mode = {
-            #TODO: Refactor for width and height
-            width = toInt (elemAt (splitString "x" display.resolution) 0);
-            height = toInt (elemAt (splitString "x" display.resolution) 1);
+            inherit (display.layout.size) width height;
             refresh = display.refreshRate * 1000.0;
           };
         }
-        // optionalAttrs (display.position != null) {
-          position = {
-            #TODO: Refactor for x and y, same function as width and height
-            x = toInt (elemAt (splitString "x" display.position) 0);
-            y = toInt (elemAt (splitString "x" display.position) 1);
-          };
-        }
         // {
-          scale = display.scale;
+          position = {
+            inherit (display.layout.position) x y;
+          };
+
+          inherit (display) scale;
         }
       ))
     displays;
