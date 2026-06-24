@@ -538,7 +538,7 @@ in {
   # ---------------------------------------------------------
   # SYSTEM IDENTITY
   # ---------------------------------------------------------
-  # name = "  ";
+  name = "TheExample";
   id = "cfd69003";
   description = "Dell Precision M2800";
   type = "laptop";
@@ -676,8 +676,8 @@ in {
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
     environment = {
-      managers = [];
-      desktops = [];
+      # managers = [];
+      # desktops = [];
     };
     keyboard = {
       modifier = "SUPER";

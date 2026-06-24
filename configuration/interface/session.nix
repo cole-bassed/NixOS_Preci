@@ -1,4 +1,5 @@
 {
+  lib,
   lix,
   top,
   host,
@@ -8,24 +9,31 @@
 }: let
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) asAttrs namesOf valuesOf;
-  inherit (lix.lists) elem maps optionals;
+  inherit (lix.lists) elem;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum listOf;
 
+  inherit (lib) concatMap;
+
   setOf = list: namesOf (asAttrs list);
 
-  get = user:
-    (user.interface or {}).environment or {};
+  getUI = base: let
+    ui = base.interface or {};
+  in
+    ui.session or ui.environment or {};
+
+  collect = field: specs:
+    setOf (concatMap (spec: spec.${field} or []) specs);
 
   merge = specs: {
-    managers = setOf (maps (spec: spec.managers or []) specs);
-    desktops = setOf (maps (spec: spec.desktops or []) specs);
+    managers = collect "managers" specs;
+    desktops = collect "desktops" specs;
   };
 
   spec = let
-    host' = host.interface.environment or {};
-    users = maps (user: [get user]) (valuesOf (getInteractiveUsers host));
+    host' = getUI host;
+    users = map getUI (valuesOf (getInteractiveUsers host));
 
     managers = {
       x11 = [
@@ -61,8 +69,8 @@
     inherit managers desktops;
 
     all = {
-      managers = managers.x11 ++ managers.wayland;
-      desktops = desktops.x11 ++ desktops.wayland;
+      managers = with managers; x11 ++ wayland;
+      desktops = with desktops; x11 ++ wayland;
       x11 = managers.x11 ++ desktops.x11;
       wayland = managers.wayland ++ desktops.wayland;
     };
@@ -73,7 +81,7 @@
     core = merge ([host'] ++ users);
 
     home = user: let
-      user' = get user;
+      user' = getUI user;
     in
       merge [host' user'];
   };
@@ -99,7 +107,7 @@
 
         withUWSM =
           mkEnableOption "launching Hyprland through UWSM"
-          // {default = true;};
+          // {default = cfg.hyprland.enable;};
       };
 
       niri = {
@@ -161,33 +169,6 @@
           mkEnableOption "i3 window manager"
           // {default = elem "i3" cfg.managers;};
       };
-
-      x11 =
-        mkEnableOption "X11 session support"
-        // {
-          default =
-            cfg.qtile.enable
-            || cfg.xmonad.enable
-            || cfg.awesome.enable
-            || cfg.i3.enable
-            || elem "cinnamon" cfg.desktops
-            || elem "xfce" cfg.desktops;
-        };
-
-      wayland =
-        mkEnableOption "Wayland protocol/session support"
-        // {
-          default =
-            cfg.hyprland.enable
-            || cfg.niri.enable
-            || cfg.sway.enable
-            || cfg.river.enable
-            || cfg.wayfire.enable
-            || cfg.labwc.enable
-            || cfg.mango.enable
-            || elem "gnome" cfg.desktops
-            || elem "plasma" cfg.desktops;
-        };
     };
 
     core = preset: cfg:
@@ -213,20 +194,14 @@
   args = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
 in {
-  core = {
-    config,
-    pkgs,
-    ...
-  }: let
+  core = {config, ...}: let
     inherit ((args config "core")) cfg opt;
+    protocol = config.${top}.${dom}.protocol;
   in {
     options = opt (opts.core spec.core cfg);
-
     config = {
       services = {
-        xserver = mkIf cfg.x11 {
-          enable = true;
-
+        xserver = mkIf protocol.x11.enable {
           desktopManager = {
             xterm.enable = false;
             cinnamon.enable = elem "cinnamon" cfg.desktops;
@@ -241,65 +216,37 @@ in {
           };
         };
 
-        desktopManager = mkIf cfg.wayland {
+        desktopManager = mkIf protocol.wayland.enable {
           gnome.enable = elem "gnome" cfg.desktops;
           plasma6.enable = elem "plasma" cfg.desktops;
         };
       };
 
       programs = {
-        hyprland = {
-          inherit (cfg.hyprland) enable withUWSM;
-        };
+        hyprland = {inherit (cfg.hyprland) enable withUWSM;};
+        niri = {inherit (cfg.niri) enable;};
+        sway = {enable = cfg.sway.enable;};
+        mango = {enable = cfg.mango.enable;};
 
-        niri = {
-          inherit (cfg.niri) enable;
-        };
+        uwsm.waylandCompositors = {
+          hyprland = mkIf cfg.hyprland.enable {
+            prettyName = "Hyprland";
+            comment = "Hyprland compositor managed by UWSM";
+            binPath = "/run/current-system/sw/bin/Hyprland";
+          };
 
-        sway = {
-          enable = cfg.sway.enable;
-        };
+          niri = mkIf cfg.niri.enable {
+            prettyName = "Niri";
+            comment = "Niri compositor managed by UWSM";
+            binPath = "/run/current-system/sw/bin/niri-session";
+          };
 
-        uwsm = {
-          enable = cfg.wayland;
-
-          waylandCompositors = {
-            hyprland = mkIf cfg.hyprland.enable {
-              prettyName = "Hyprland";
-              comment = "Hyprland compositor managed by UWSM";
-              binPath = "/run/current-system/sw/bin/Hyprland";
-            };
-
-            niri = mkIf cfg.niri.enable {
-              prettyName = "Niri";
-              comment = "Niri compositor managed by UWSM";
-              binPath = "/run/current-system/sw/bin/niri-session";
-            };
-
-            sway = mkIf cfg.sway.enable {
-              prettyName = "Sway";
-              comment = "Sway compositor managed by UWSM";
-              binPath = "/run/current-system/sw/bin/sway";
-            };
+          sway = mkIf cfg.sway.enable {
+            prettyName = "Sway";
+            comment = "Sway compositor managed by UWSM";
+            binPath = "/run/current-system/sw/bin/sway";
           };
         };
-      };
-
-      environment = {
-        sessionVariables = mkIf cfg.wayland {
-          NIXOS_OZONE_WL = "1";
-        };
-
-        systemPackages = with pkgs;
-          optionals cfg.wayland [
-            cage
-            libsecret
-            wayland-utils
-            wl-clipboard-rs
-          ]
-          ++ optionals cfg.niri.enable [
-            xwayland-satellite-unstable
-          ];
       };
     };
   };
@@ -312,15 +259,9 @@ in {
     inherit ((args config "home")) cfg opt;
   in {
     options = opt (opts.home (spec.home user) cfg);
-
     config = {
-      wayland.windowManager.hyprland = {
-        inherit (cfg.hyprland) enable configType;
-      };
-
-      programs.niri = {
-        inherit (cfg.niri) enable;
-      };
+      wayland.windowManager.hyprland = {inherit (cfg.hyprland) enable configType;};
+      programs.niri = {inherit (cfg.niri) enable;};
     };
   };
 }

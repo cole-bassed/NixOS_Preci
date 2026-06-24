@@ -21,7 +21,6 @@
         flake;
 
       defaults = recursiveUpdate {
-        host = "TheExample";
         tags = ["core" "home"];
       } (recursiveUpdate defaults (flake.defaults or {}));
 
