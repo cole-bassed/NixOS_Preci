@@ -13,8 +13,6 @@
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
 
-  registry = import ./registry.nix;
-
   args = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};
 

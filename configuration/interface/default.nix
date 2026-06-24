@@ -3,16 +3,16 @@ lix.importModules (
   args
   // {
     base = ./.;
+
     excludes = [
+      "_"
       "browsers"
       "control"
+      "default"
       "gaming"
       "keyd"
-      "login"
-      "protocols"
-      "sessions"
-      "default.nix"
     ];
-    # includeFiles = true;
+
+    extraArgs = (args.extraArgs or {}) // {registry = import ./_.nix;};
   }
 )
