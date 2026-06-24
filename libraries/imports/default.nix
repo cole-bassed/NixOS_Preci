@@ -110,7 +110,9 @@
         input: value:
           hasFlakeModules value
           && !(isNixpkgsLike value)
-        # && input != "nixHM"
+          && !(isHomeManagerLike value)
+          && !(isNixDarwinLike value)
+          && !(isTreefmtLike value)
       )
       raw;
 

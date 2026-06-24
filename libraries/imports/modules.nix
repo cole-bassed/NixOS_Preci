@@ -55,24 +55,24 @@
       home = value;
     };
 
-  classified = type:
-    filterAttrs
-    (name: _: !(elem name (excluded.${type} or [])))
-    inputs.classified.modules;
+  classified = let
+    classify = type:
+      filterAttrs
+      (name: _: !(elem name (excluded.${type} or [])))
+      inputs.classified.modules;
+  in {
+    nixos = classify "nixos";
+    darwin = classify "darwin";
+    home = classify "home";
+  };
 
   normalized = {
-    nixos = collectModules "nixos" (classified "nixos");
-    darwin = collectModules "darwin" (classified "darwin");
-    home = collectModules "home" (classified "home");
+    nixos = collectModules "nixos" classified.nixos;
+    darwin = collectModules "darwin" classified.darwin;
+    home = collectModules "home" classified.home;
   };
 
-  classifiedByType = {
-    nixos = classified "nixos";
-    darwin = classified "darwin";
-    home = classified "home";
-  };
-
-  merged = classifiedByType // normalized;
+  merged = classified // normalized;
 
   mkHM = type: let
     key =

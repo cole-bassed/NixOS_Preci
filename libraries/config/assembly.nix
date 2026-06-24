@@ -133,10 +133,11 @@
           inherit class specialArgs;
           modules =
             (mkFlakeModules class)
-            # ++ (src.modules.core or [])
-            ++ (extraArgs.modules.core or [])
             # ++ (args.modules.core or [])
-            ++ (host.imports or [])
+            # ++ (host.imports or [])
+            # ++ (src.modules.core or [])
+            # ++ (extraArgs.modules.core or [])
+            # ++ (args.modules.core or [])
             ++ [
               {
                 home-manager = {
@@ -145,10 +146,14 @@
                     delim = "-";
                     parts = [src.name "backup"];
                   };
-                  sharedModules =
+                  sharedModules = (
                     (mkFlakeModules "home")
-                    # ++ (src.modules.home or [])
-                    ++ (extraArgs.modules.home or []);
+                    ++ (args.modules.home or [])
+                  );
+                  # sharedModules =
+                  #   (mkFlakeModules "home")
+                  #   # ++ (src.modules.home or [])
+                  #   ++ (extraArgs.modules.home or []);
                   useGlobalPkgs = true;
                   useUserPackages = true;
                 };
