@@ -221,33 +221,6 @@ in {
           plasma6.enable = elem "plasma" cfg.desktops;
         };
       };
-
-      programs = {
-        hyprland = {inherit (cfg.hyprland) enable withUWSM;};
-        niri = {inherit (cfg.niri) enable;};
-        sway = {enable = cfg.sway.enable;};
-        mango = {enable = cfg.mango.enable;};
-
-        uwsm.waylandCompositors = {
-          hyprland = mkIf cfg.hyprland.enable {
-            prettyName = "Hyprland";
-            comment = "Hyprland compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/Hyprland";
-          };
-
-          niri = mkIf cfg.niri.enable {
-            prettyName = "Niri";
-            comment = "Niri compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/niri-session";
-          };
-
-          sway = mkIf cfg.sway.enable {
-            prettyName = "Sway";
-            comment = "Sway compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/sway";
-          };
-        };
-      };
     };
   };
 
@@ -259,9 +232,6 @@ in {
     inherit ((args config "home")) cfg opt;
   in {
     options = opt (opts.home (spec.home user) cfg);
-    config = {
-      wayland.windowManager.hyprland = {inherit (cfg.hyprland) enable configType;};
-      programs.niri = {inherit (cfg.niri) enable;};
-    };
+    config = {};
   };
 }
