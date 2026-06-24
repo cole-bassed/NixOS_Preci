@@ -125,12 +125,12 @@ in {
     ];
 
     display = [
-      # {
-      #   enable = true;
-      #   output = "eDP-1";
-      #   monitor = "dell-m2800";
-      #   position = "center";
-      # }
+      {
+        enable = true;
+        output = "eDP-1";
+        monitor = "dell-m2800";
+        position = "center";
+      }
 
       {
         enable = true;
