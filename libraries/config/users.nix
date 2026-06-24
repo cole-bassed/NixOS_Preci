@@ -32,12 +32,16 @@
     mapAttrs
     optionalAttrs
     ;
-  inherit (api) getUsers getAdminUsers getNormalUsers hosts;
+  inherit (api) getUsers getAdminUsers getNormalUsers;
   inherit (environment) mkSrc;
   inherit (lists) asList;
 
   mkCoreUsers = host: let
-    principals = (host.users or getUsers host.users).values;
+    principals =
+      if host.users ? values
+      then host.users.values
+      else (getUsers host.users).values;
+    # principals = (host.users or getUsers host.users).values;
 
     #| Role-based user classification
     #  administrator → full system access (wheel, networkmanager)

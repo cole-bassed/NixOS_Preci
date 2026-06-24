@@ -546,7 +546,7 @@ in {
   inherit arch os;
   system = "${arch}-${os}";
   stateVersion = "25.11";
-  paths.src = "/home/${admin}/.dots";
+  paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";
 
   # ---------------------------------------------------------
   # LOCALIZATION

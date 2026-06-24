@@ -33,7 +33,7 @@
     base = paths.store.api or paths.api or ../../configuration/api;
     hosts = base + "/hosts";
     users = base + "/users";
-    displays = base + "/display";
+    displays = base + "/displays";
   in {
     inherit hosts users displays;
   };
