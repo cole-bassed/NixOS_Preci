@@ -147,28 +147,55 @@ in {
       "wlo1"
     ];
 
-    display = {
-      "eDP-1" = {
-        brand = "AUO";
-        resolution = "1920x1080";
-        refreshRate = 144.15;
-        scale = 1;
-        position = "0x0";
-        size = 15.6;
-        priority = 0;
-      };
+    display = [
+      {
+        enable = true;
+        output = "eDP-1";
+        monitor = "dell-m2800";
+        position = "center";
+      }
+      {
+        enable = false;
+        output = "HDMI-A-3";
+        monitor = "ktc-27";
+        position = "right";
+      }
+      {
+        enable = false;
+        output = "DP-3";
+        monitor = "dell-19";
+        position = "left";
+      }
+      {
+        enable = false;
+        output = "HDMI-A-3";
+        monitor = "acer-24";
+        position = "right";
+      }
+    ];
 
-      "HDMI-A-1" = {
-        brand = "ACER";
-        resolution = "1920x1080";
-        refreshRate = 100;
-        scale = 1;
-        position = "0x1080";
-        # transform = 3;
-        size = 24.5;
-        priority = 2;
-      };
-    };
+    # display = {
+    #   "eDP-1" = {
+    #     brand = "AUO";
+    #     resolution = "1920x1080";
+    #     refreshRate = 144.15;
+    #     scale = 1;
+    #     position = "0x0";
+    #     size = 15.6;
+    #     priority = 0;
+    #   };
+
+    #   "HDMI-A-1" = {
+    #     brand = "ACER";
+    #     resolution = "1920x1080";
+    #     refreshRate = 100;
+    #     scale = 1;
+    #     position = "0x1080";
+    #     # transform = 3;
+    #     size = 24.5;
+    #     priority = 2;
+    #   };
+    # };
   };
 
   # ---------------------------------------------------------

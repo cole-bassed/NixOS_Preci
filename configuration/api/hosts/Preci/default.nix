@@ -131,21 +131,18 @@ in {
         monitor = "dell-m2800";
         position = "center";
       }
-
       {
-        enable = true;
+        enable = false;
         output = "HDMI-A-3";
         monitor = "ktc-27";
         position = "right";
       }
-
       {
-        enable = true;
+        enable = false;
         output = "DP-3";
         monitor = "dell-19";
         position = "left";
       }
-
       {
         enable = false;
         output = "HDMI-A-3";
