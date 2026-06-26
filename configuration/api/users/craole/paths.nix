@@ -2,8 +2,6 @@
   lib,
   top,
   config,
-  osConfig,
-  userName,
   userHome,
   ...
 }: let

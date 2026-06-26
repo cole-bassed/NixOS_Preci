@@ -1,7 +1,6 @@
 {
   lix,
   top,
-  host,
   dom,
   mod,
   ...

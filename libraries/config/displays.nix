@@ -59,7 +59,7 @@
     displays;
 
   mkNiri = displays:
-    mapAttrs (name: display:
+    mapAttrs (_name: display:
       optionalAttrs display.enable (
         {}
         // optionalAttrs (display.resolution != null && display.refreshRate != null) {

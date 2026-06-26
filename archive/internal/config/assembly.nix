@@ -39,7 +39,7 @@
 
   mkPaths = base:
     mapAttrs (
-      name: value:
+      _name: value:
         expect {
           type = "path";
           inherit value;

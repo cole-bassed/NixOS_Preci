@@ -1,5 +1,4 @@
 {
-  config,
   top,
   userHome,
   ...

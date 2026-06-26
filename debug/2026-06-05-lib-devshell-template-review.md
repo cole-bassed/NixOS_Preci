@@ -31,10 +31,10 @@ Output shape:
 
 ```json
 {
-  "checks": {"x86_64-linux": {"formatting": {"type": "derivation"}}},
-  "formatter": {"x86_64-linux": {"type": "derivation"}},
-  "nixosConfigurations": {"Preci": {"type": "nixos-configuration"}},
-  "src": {"type": "unknown"}
+  "checks": { "x86_64-linux": { "formatting": { "type": "derivation" } } },
+  "formatter": { "x86_64-linux": { "type": "derivation" } },
+  "nixosConfigurations": { "Preci": { "type": "nixos-configuration" } },
+  "src": { "type": "unknown" }
 }
 ```
 
@@ -56,7 +56,7 @@ Result: PASS for shallow assembly.
 Output:
 
 ```json
-["devShells","packages","templates"]
+["devShells", "packages", "templates"]
 ```
 
 ### `nix eval` assembled templates only
@@ -102,7 +102,7 @@ Cause: `packages/default.nix` receives the repo base attrset as its single argum
 Low-risk fix options:
 
 1. In `packages/default.nix`, replace `inherit (flake) name;` with `name = flake.names.src;`.
-2. Or add `name = names.src;` to the base attrset returned by root `default.nix`.
+1. Or add `name = names.src;` to the base attrset returned by root `default.nix`.
 
 A no-code-edit hypothetical test using `base = f.src // { name = "dots"; }` succeeded:
 
@@ -161,7 +161,7 @@ No switch was run.
    - The intended source name appears to be `flake.names.src` (`"dots"`).
    - Verified that adding `name = "dots"` only in the evaluation expression lets the devShell derivation evaluate and build.
 
-2. `flake.nix:74-77` appears to import overlapping niri Home Manager modules.
+1. `flake.nix:74-77` appears to import overlapping niri Home Manager modules.
    - `nix flake check --no-build` and the Preci toplevel build both fail because `home-manager.users.craole.programs.niri.finalConfig` is declared twice from niri's upstream `nixos/common.nix`.
    - This blocks safe build verification.
 
@@ -171,11 +171,11 @@ No switch was run.
    - This is convenient for debugging, but `nix flake check` warns: `unknown flake output 'src'`.
    - Not a functional blocker, but if you want clean flake checks, consider hiding/debug-gating `src` or accepting the warning during this refactor.
 
-2. `stylix.homeManagerModules.stylix` still works but emits a deprecation warning.
+1. `stylix.homeManagerModules.stylix` still works but emits a deprecation warning.
    - Nix reports: `stylix: flake output homeManagerModules has been renamed to homeModules and will be removed after 26.05`.
    - Prefer `stylix.homeModules.stylix` when ready.
 
-3. `templates/default.nix` currently exposes no templates.
+1. `templates/default.nix` currently exposes no templates.
    - The template importer works structurally, but enabling `templates = true` produces `templates = {}`.
 
 ### Looks good
@@ -190,11 +190,11 @@ No switch was run.
 1. Fix `packages/default.nix` shell name:
    - preferred: `name = flake.names.src;`
    - or add top-level `name = names.src;` in root `default.nix`.
-2. Temporarily enable `devShells = true; templates = true;` in `flake.nix` and rerun:
+1. Temporarily enable `devShells = true; templates = true;` in `flake.nix` and rerun:
    - `nix flake show --all-systems`
    - `nix eval .#devShells.x86_64-linux.default.name --raw`
    - `nix build .#devShells.x86_64-linux.default --no-link`
-3. Resolve the niri duplicate HM module import, then rerun:
+1. Resolve the niri duplicate HM module import, then rerun:
    - `nix flake check --no-build`
    - `nix build .#nixosConfigurations.Preci.config.system.build.toplevel --no-link`
-4. Only after those pass should switching be considered. This review intentionally did not switch.
+1. Only after those pass should switching be considered. This review intentionally did not switch.

@@ -28,7 +28,7 @@ There is also an independent formatting check failure in `libraries/debug.nix`.
 The likely main architectural issue is that the new shared import helper path mixes two incompatible module shapes:
 
 1. repository assembly/orchestration functions shaped like `flake: ...`, expecting a full repository flake context with `libraries`, `modules`, `defaults`, etc.
-2. NixOS/Home Manager module functions shaped like `{ config, lib/lix, pkgs, top, ... }: ...`, expecting module-system arguments.
+1. NixOS/Home Manager module functions shaped like `{ config, lib/lix, pkgs, top, ... }: ...`, expecting module-system arguments.
 
 When `libraries/modules.nix.importModules` recursively scans folders, it imports `assembly/configurations/base/default.nix` as if it were a normal collected module. During NixOS module evaluation that file is called without the complete repo flake context, so `flake.libraries` is missing.
 
@@ -354,8 +354,8 @@ Key current behavior:
 Concerns:
 
 1. It has no clear distinction between repository-level wrapper functions and module-spec functions.
-2. `collectSpecs` currently drops wrapper outputs that return module-shaped attrsets without `core`/`home` tags, but during NixOS module evaluation the wrapper still gets forced in the trace.
-3. `importProfiles` and `mkHomeUsers` appear stale relative to the newer `getUsers` shape:
+1. `collectSpecs` currently drops wrapper outputs that return module-shaped attrsets without `core`/`home` tags, but during NixOS module evaluation the wrapper still gets forced in the trace.
+1. `importProfiles` and `mkHomeUsers` appear stale relative to the newer `getUsers` shape:
    - `mkHomeUsers` reads `(getUsers host).normal.raw`, but `getUsers` returns `.values`, `.byStatus`, and `.byRole`, not `.normal.raw`.
    - `importProfiles` calls `mkHomeUser { inherit config name profile; }`, but `mkHomeUser` expects `{ user, config, osConfig, top }`.
 
@@ -439,13 +439,13 @@ Evidence:
 Secondary root causes and expected next blockers:
 
 1. Formatting blocker in `libraries/debug.nix`.
-2. Custom namespace mismatch: code uses both `lix` and `lib` for custom library helpers.
-3. `top` namespace mismatch: user preference and module code want `dots`, but `default.nix` has `info.names.top = "_"` and root flake context does not expose `top` directly.
-4. Stale Home Manager helper code in `libraries/modules.nix` (`mkHomeUsers`, `mkHomeUser`, `importProfiles`) does not match current `getUsers` output shape or call signatures.
-5. `libraries/attrsets.nix` references `isNull` but does not inherit it from `types`; this may surface after the first blocker is fixed.
-6. `assembly/configurations/base/default.nix` and `assembly/secrets/default.nix` are wrapper-style recursive importers. They should not be collected as ordinary child modules unless the collector understands this shape.
-7. `api/users/craole/default.nix` imports extensionless `./applications` and `./paths`; Nix resolves these today, but for consistency and readability use `./applications.nix` and `./paths.nix` if/when editing.
-8. Root-level tracked files were deleted and new untracked scratch files exist; decide whether these are intentional before any commit.
+1. Custom namespace mismatch: code uses both `lix` and `lib` for custom library helpers.
+1. `top` namespace mismatch: user preference and module code want `dots`, but `default.nix` has `info.names.top = "_"` and root flake context does not expose `top` directly.
+1. Stale Home Manager helper code in `libraries/modules.nix` (`mkHomeUsers`, `mkHomeUser`, `importProfiles`) does not match current `getUsers` output shape or call signatures.
+1. `libraries/attrsets.nix` references `isNull` but does not inherit it from `types`; this may surface after the first blocker is fixed.
+1. `assembly/configurations/base/default.nix` and `assembly/secrets/default.nix` are wrapper-style recursive importers. They should not be collected as ordinary child modules unless the collector understands this shape.
+1. `api/users/craole/default.nix` imports extensionless `./applications` and `./paths`; Nix resolves these today, but for consistency and readability use `./applications.nix` and `./paths.nix` if/when editing.
+1. Root-level tracked files were deleted and new untracked scratch files exist; decide whether these are intentional before any commit.
 
 ## Detailed repair plan
 
@@ -466,8 +466,8 @@ Files to inspect only:
 Steps:
 
 1. Decide whether root `USER.md`, `dump.txt`, and `secrets.yaml` deletions are intentional.
-2. Decide whether `.tree` and `.txt` should be ignored, kept as debug artifacts, or removed.
-3. Do not commit these until the repo owner confirms intent.
+1. Decide whether `.tree` and `.txt` should be ignored, kept as debug artifacts, or removed.
+1. Do not commit these until the repo owner confirms intent.
 
 Verification:
 
@@ -522,8 +522,8 @@ Files likely involved:
 Required decisions:
 
 1. Keep custom library arg named `lix` as currently indicated by `info.names.lib = "lix"`.
-2. Do not override nixpkgs `lib` with custom helpers unless intentionally planned.
-3. Set/pass `top = "dots"`, not `_`, for both NixOS and Home Manager modules.
+1. Do not override nixpkgs `lib` with custom helpers unless intentionally planned.
+1. Set/pass `top = "dots"`, not `_`, for both NixOS and Home Manager modules.
 
 Recommended shape:
 
@@ -557,9 +557,9 @@ Files likely involved:
 Recommended direction:
 
 1. Decide which directories are assembly orchestration layers and which directories are spec/module layers.
-2. Keep `assembly/configurations/default.nix` as the orchestration entrypoint.
-3. Ensure the children it collects return explicit `{ core = ...; home = ...; }` specs, or adjust `importModules` to accept already-module-shaped outputs safely.
-4. Do not allow wrapper files like `base/default.nix` to be called by the module system with incomplete module args.
+1. Keep `assembly/configurations/default.nix` as the orchestration entrypoint.
+1. Ensure the children it collects return explicit `{ core = ...; home = ...; }` specs, or adjust `importModules` to accept already-module-shaped outputs safely.
+1. Do not allow wrapper files like `base/default.nix` to be called by the module system with incomplete module args.
 
 Low-risk options:
 
@@ -662,9 +662,9 @@ Current active top-level excludes:
 Recommended sequence:
 
 1. Get `base` and `secrets` evaluating first.
-2. Enable `applications` next, after fixing `lib` vs `lix` importer use.
-3. Enable `interface` after application option declarations exist.
-4. Enable `ai` last because it includes Hermes module/document paths and likely depends on the rest of the graph.
+1. Enable `applications` next, after fixing `lib` vs `lix` importer use.
+1. Enable `interface` after application option declarations exist.
+1. Enable `ai` last because it includes Hermes module/document paths and likely depends on the rest of the graph.
 
 Verification at each step:
 

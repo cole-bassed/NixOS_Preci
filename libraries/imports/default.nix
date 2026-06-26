@@ -171,7 +171,7 @@
     home-manager =
       filterAttrs
       (
-        input: isHomeManagerLike
+        _input: isHomeManagerLike
         # || input == "nixHM"
       )
       raw;
@@ -179,7 +179,7 @@
     modules =
       filterAttrs
       (
-        input: value:
+        _input: value:
           hasFlakeModules value
           && !(isNixpkgsLike value)
           && !(isHomeManagerLike value)

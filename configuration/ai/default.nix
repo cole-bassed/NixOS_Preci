@@ -1,6 +1,5 @@
 {
   lix,
-  pkgs,
   inputs,
   ...
 } @ args:

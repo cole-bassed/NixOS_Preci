@@ -389,12 +389,6 @@
           efi.canTouchEfiVariables = true;
         }
         else {}; #TODO: Allow other bootloders
-
-      hasFsConfig =
-        (cfg.devices.file != {})
-        || cfg.devices.swap != []
-        || cfg.modules != []
-        || cfg.devices.boot != {};
     in
       {
         assertions = [

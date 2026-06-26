@@ -8,8 +8,7 @@
 }: let
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkOption;
-  inherit (lix.types) listOf str enum;
-  inherit (lix.lists) hasAny;
+  inherit (lix.types) listOf str;
 
   mk = scope: {config, ...}: let
     args = mkModuleArgs {inherit config top dom mod scope;};

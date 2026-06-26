@@ -1,5 +1,4 @@
 {
-  config,
   host,
   lib,
   ...

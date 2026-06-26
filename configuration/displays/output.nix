@@ -7,7 +7,7 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.displays) isRequired mkHyprland mkNiri;
+  inherit (lix.displays) mkHyprland mkNiri;
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf;
 

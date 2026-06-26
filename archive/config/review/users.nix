@@ -140,7 +140,7 @@
       })
       principals;
 
-    groups = mapAttrs (_: user: {}) principals;
+    groups = mapAttrs (_: _user: {}) principals;
   };
 
   /**
@@ -158,7 +158,7 @@
     };
   in
     mapAttrs (
-      name: user:
+      name: _user:
         mkHomeUser (byName.${name} or {})
     ) (getNonService host);
 

@@ -6,7 +6,7 @@
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs;
-  inherit (lix.modules) mkDefault mkIf;
+  inherit (lix.modules) mkDefault;
   inherit (lix.lists) elem;
   inherit (lix.options) mkOption mkEnableOption;
   inherit (lix.types) str nullOr listOf attrsOf enum int float submodule;
@@ -389,12 +389,6 @@
           efi.canTouchEfiVariables = true;
         }
         else {}; #TODO: Allow other bootloders
-
-      hasFsConfig =
-        (cfg.devices.file != {})
-        || cfg.devices.swap != []
-        || cfg.modules != []
-        || cfg.devices.boot != {};
     in
       {
         assertions = [

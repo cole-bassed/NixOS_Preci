@@ -3,6 +3,7 @@
 
   settings.excludes = [
     "flake.lock"
+    ".envrc"
     "secrets/secrets.yaml"
     ".sops.yaml"
     "secrets/ssh/**"

@@ -5,7 +5,7 @@
   defaults,
   names,
 }: let
-  inherit (bootstrap.attrsets) gets maps merge;
+  inherit (bootstrap.attrsets) maps merge;
   inherit (bootstrap.config) mkLib;
 
   flake = external.flake or {};
