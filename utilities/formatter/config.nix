@@ -2,17 +2,17 @@
   projectRootFile = "flake.nix";
 
   settings.excludes = [
-    "flake.lock"
-    ".envrc"
-    "secrets/secrets.yaml"
-    ".sops.yaml"
-    "secrets/ssh/**"
-    "*.min.js"
     "*.min.css"
-    "node_modules/*"
-    "target/*"
-    "result*"
+    "*.min.js"
     ".direnv/*"
+    ".envrc"
+    ".sops.yaml"
+    "flake.lock"
+    "node_modules/*"
+    "result*"
+    "secrets/secrets.yaml"
+    "secrets/ssh/**"
+    "target/*"
   ];
 
   programs = {
