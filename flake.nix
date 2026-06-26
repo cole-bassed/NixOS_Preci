@@ -59,7 +59,7 @@
   inputs = {
     #~@ Core/Nix Infrastructure
     nixCore.url = "nixpkgs/nixos-unstable";
-    nixLegacy.url = "nixpkgs/nixos-25.11";
+    nixLegacy.url = "nixpkgs/nixos-26.05";
     nixDarwin = {
       repo = "nix-darwin";
       owner = "LnL7";
@@ -73,10 +73,10 @@
       type = "github";
       inputs = {
         nixpkgs.follows = "nixCore";
-        home-manager.follows = "nixHM";
+        home-manager.follows = "nixHome";
       };
     };
-    nixHM = {
+    nixHome = {
       repo = "home-manager";
       owner = "nix-community";
       type = "github";
@@ -97,19 +97,31 @@
       inputs.nixpkgs.follows = "nixCore";
     };
 
-    # #~@ Deployment
-    # deployColmena = {
-    #   repo = "colmena";
-    #   owner = "zhaofengli";
-    #   type = "github";
-    #   inputs.nixpkgs.follows = "nixCore";
-    # };
-    # deployNixosAnywhere = {
-    #   repo = "nixos-anywhere";
-    #   owner = "nix-community";
-    #   type = "github";
-    #   inputs.nixpkgs.follows = "nixCore";
-    # };
+    #~@ Deployment
+    deployDisks = {
+      repo = "disko";
+      owner = "nix-community";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    deployRS = {
+      repo = "deploy-rs";
+      owner = "serokell";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    deployColmena = {
+      repo = "colmena";
+      owner = "zhaofengli";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    deployAnywhere = {
+      repo = "nixos-anywhere";
+      owner = "nix-community";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
 
     #~@ Utilities:= formatting, tooling, secrets
     aiToolkit = {
@@ -165,7 +177,7 @@
       inputs.nixpkgs.follows = "nixCore";
     };
     shellNoctalia = {
-      repo = "noctalia-shell";
+      repo = "noctalia";
       owner = "noctalia-dev";
       type = "github";
       inputs.nixpkgs.follows = "nixCore";
@@ -177,22 +189,30 @@
       inputs.nixpkgs.follows = "nixCore";
     };
     styleManager = {
-      url = "github:nix-community/stylix";
+      repo = "stylix";
+      owner = "nix-community";
+      type = "github";
       inputs.nixpkgs.follows = "nixCore";
     };
 
     #~@ Applications
-    zenBrowser = {
-      url = "github:0xc000022070/zen-browser-flake";
-      inputs = {
-        nixpkgs.follows = "nixCore";
-        home-manager.follows = "nixHM";
-      };
-    };
     vicinae = {
       repo = "vicinae";
       owner = "vicinaehq";
       type = "github";
+    };
+    vscodeServer = {
+      repo = "nixos-vscode-server";
+      owner = "nix-community";
+      inputs.nixpkgs.follows = "nixCore";
+      type = "github";
+    };
+    browserZen = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs = {
+        nixpkgs.follows = "nixCore";
+        home-manager.follows = "nixHome";
+      };
     };
   };
 }
