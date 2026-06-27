@@ -7,6 +7,6 @@ lix.importModules (base
       "api"
       "applications"
       "test"
-      "secrets"
+      # "secrets"
     ];
   })
