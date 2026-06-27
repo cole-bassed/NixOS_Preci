@@ -4,164 +4,122 @@ flake: {
   pkgs,
   ...
 }: let
-  inherit (flake) inputs libraries;
-  inherit (inputs) sops;
-  inherit (libraries.attrsets) attrValues mapAttrs mapAttrs' nameValuePair;
-  inherit (libraries.lists) optionals toList unique;
-  inherit (libraries.strings) concatStringsSep;
+  inherit (builtins) attrNames concatLists listToAttrs pathExists;
 
-  names = {
-    user = host.users.primary.name;
-    host = host.name;
+  hostName = host.name;
+  enabledUsers = host.users.byStatus.enabled.values or {};
+  enabledUserNames = attrNames enabledUsers;
+
+  hostSecretFile = let
+    canonical = ../../api/hosts/${hostName}/secrets.yaml;
+    review = ../../api/hosts/review/${hostName}/secrets.yaml;
+  in
+    if pathExists canonical
+    then canonical
+    else review;
+
+  userSecretFile = userName: ../../api/users/${userName}/secrets.yaml;
+
+  homeDir = userName: "/home/${userName}";
+  sshDir = userName: "${homeDir userName}/.ssh";
+  githubDir = userName: "${sshDir userName}/github";
+
+  githubIdentities = userName:
+    attrNames (enabledUsers.${userName}.git or {});
+
+  mkAttrs = listToAttrs;
+
+  mkDirRules = userName: let
+    identities = githubIdentities userName;
+  in
+    ["d ${sshDir userName} 0700 ${userName} users - -"]
+    ++ (if identities == [] then [] else ["d ${githubDir userName} 0700 ${userName} users - -"]);
+
+  dirRules = concatLists (map mkDirRules enabledUserNames);
+
+  hostSecrets = {
+    "services/hermes/env" = {
+      sopsFile = hostSecretFile;
+    };
+    "services/tailscale/authKey" = {
+      sopsFile = hostSecretFile;
+    };
   };
 
-  join = {
-    prefix ? [],
-    name,
-    suffix ? [],
-    sep ? "-",
-  }:
-    concatStringsSep sep (
-      optionals (prefix != null) (toList prefix)
-      ++ [name]
-      ++ optionals (suffix != null) (toList suffix)
-    );
-
-  resolved = config.sops.secrets;
-
-  ssh = {
-    host.paths.key = join {
-      name = "ssh_host_ed25519_key";
-      prefix = ["/etc" "ssh"];
-      sep = "/";
+  mkPasswordSecret = userName: {
+    name = "users/${userName}/passwordHash";
+    value = {
+      sopsFile = userSecretFile userName;
+      neededForUsers = true;
     };
+  };
 
-    user = let
-      name = names.user;
-      sys = names.host;
-      home = "/home/${name}";
-
-      mk = {
-        secret = {
-          prefix,
-          suffix ? null,
-        }:
-          join {
-            inherit name prefix suffix;
-            sep = "/";
-          };
-
-        path = {
-          base ? [],
-          file,
-          ext ? null,
-        }:
-          join {
-            name =
-              if ext != null
-              then file + ext
-              else file;
-            prefix = [home] ++ base;
-            sep = "/";
-          };
+  mkPrimarySshSecrets = userName: [
+    {
+      name = "ssh/${userName}/id_ed25519/private";
+      value = {
+        sopsFile = userSecretFile userName;
+        owner = userName;
+        path = "${sshDir userName}/id_ed25519";
+        mode = "0600";
       };
-
-      github = let
-        base = [".ssh" "github"];
-      in {
-        craole = {
-          inherit base;
-          file = "craole";
-        };
-        craole-cc = {
-          inherit base;
-          file = "craole-cc";
-        };
-        cole-bassed = {
-          inherit base;
-          file = "cole-bassed";
-        };
+    }
+    {
+      name = "ssh/${userName}/id_ed25519/public";
+      value = {
+        sopsFile = userSecretFile userName;
+        owner = userName;
+        path = "${sshDir userName}/id_ed25519.pub";
+        mode = "0644";
       };
+    }
+  ];
 
-      spec =
+  mkGithubSecrets = userName:
+    concatLists (
+      map
+      (identity: [
         {
-          ${sys} = {
-            base = [".ssh"];
-            file = "id_ed25519";
+          name = "ssh/${userName}/github/${identity}/private";
+          value = {
+            sopsFile = userSecretFile userName;
+            owner = userName;
+            path = "${githubDir userName}/${identity}";
+            mode = "0600";
           };
         }
-        // mapAttrs' (n: v: nameValuePair "github-${n}" v) github;
-
-      keys =
-        mapAttrs (_: key: {
-          private = mk.secret {
-            prefix = ["ssh"];
-            suffix = [key.file "private"];
+        {
+          name = "ssh/${userName}/github/${identity}/public";
+          value = {
+            sopsFile = userSecretFile userName;
+            owner = userName;
+            path = "${githubDir userName}/${identity}.pub";
+            mode = "0644";
           };
-          public = mk.secret {
-            prefix = ["ssh"];
-            suffix = [key.file "public"];
-          };
-        })
-        spec;
+        }
+      ])
+      (githubIdentities userName)
+    );
 
-      paths =
-        mapAttrs (_: key: {
-          private = mk.path {
-            base = key.base or [".ssh"];
-            inherit (key) file;
-          };
-          public = mk.path {
-            base = key.base or [".ssh"];
-            inherit (key) file;
-            ext = key.ext or ".pub";
-          };
-        })
-        spec;
+  userSecrets = mkAttrs (
+    concatLists (
+      map
+      (userName:
+        [mkPasswordSecret userName]
+        ++ mkPrimarySshSecrets userName
+        ++ mkGithubSecrets userName)
+      enabledUserNames
+    )
+  );
 
-      secrets = mapAttrs' (n: _:
-        nameValuePair keys.${n}.private {
-          owner = name;
-          path = paths.${n}.private;
-          mode = "0600";
-        })
-      spec;
-
-      dirs = unique (
-        map (key:
-          join {
-            name = concatStringsSep "/" (key.base or [".ssh"]);
-            prefix = [home];
-            sep = "/";
-          })
-        (attrValues spec)
-      );
-
-      dirRules = map (dir: "d ${dir} 0700 ${name} users - -") dirs;
-    in {inherit spec keys paths secrets dirs dirRules;};
-  };
-
-  user = {
-    name = names.user;
-    sys = names.host;
-    home = "/home/${names.user}";
-    keys.login.${names.host} = join {
-      name = names.user;
-      prefix = ["users"];
-      suffix = "passwordHash";
-      sep = "/";
-    };
-    inherit (ssh) user;
-  };
-
-  secrets = {
-    login = user.keys.login.${names.host};
-    ssh = ssh.user.secrets;
-    hermes.env = "services/hermes/env";
-  };
+  passwordAssignments = mkAttrs (
+    map (userName: {
+      name = userName;
+      value.hashedPasswordFile =
+        config.sops.secrets."users/${userName}/passwordHash".path;
+    }) enabledUserNames
+  );
 in {
-  imports = [sops.nixosModules.sops];
-
   environment.systemPackages = with pkgs; [
     age
     ssh-to-age
@@ -171,22 +129,13 @@ in {
     openssh
   ];
 
-  systemd.tmpfiles.rules = ssh.user.dirRules;
+  systemd.tmpfiles.rules = dirRules;
 
   sops = {
-    defaultSopsFile = ./secrets.yaml;
     defaultSopsFormat = "yaml";
-
-    age.sshKeyPaths = [ssh.host.paths.key];
-
-    secrets =
-      {
-        ${secrets.login}.neededForUsers = true;
-        ${secrets.hermes.env} = {};
-      }
-      // secrets.ssh;
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+    secrets = hostSecrets // userSecrets;
   };
 
-  users.users.${names.user}.hashedPasswordFile =
-    resolved.${secrets.login}.path;
+  users.users = passwordAssignments;
 }

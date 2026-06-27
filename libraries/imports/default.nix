@@ -32,6 +32,11 @@
       ;
   };
   inputs = flake.inputs or {};
+  registry = flake.registry or {};
+  registryInputs =
+    if registry ? inputs
+    then registry.inputs
+    else flake.imports or {};
 
   modulePolicy = {
     includes = flake.modules.includes or {};
@@ -40,7 +45,7 @@
     all = flake.modules.all or {};
   };
 
-  inherit (attrsets) attrNames getAttr hasAttr listToAttrs isAttrs maps orEmpty attrValues;
+  inherit (attrsets) attrNames getAttr hasAttr listToAttrs isAttrs maps mapAttrs orEmpty attrValues;
   inherit (lists) concatLists elem filter head length unique;
   inherit (types) concatStringsSep isString;
 
@@ -88,6 +93,17 @@
     if isAttrs set && hasAttr name set
     then getAttr name set
     else fallback;
+
+  unwrapRegistryInput = entry:
+    if isAttrs entry && entry ? value
+    then let
+      value = entry.value;
+      meta = builtins.removeAttrs entry ["value"];
+    in
+      if isAttrs value
+      then value // meta
+      else entry
+    else entry;
 
   pickModules = type: name: set: let
     selected = getOr name (getOr type modulePolicy.select {}) [];
@@ -161,12 +177,12 @@
       else [];
   in
     concatLists (attrValues (maps get inputs));
-  classified = {
+  autoClassified = {
     nixpkgs = filterAttrs (_: isNixpkgsLike) raw;
     nix-darwin = filterAttrs (_: isNixDarwinLike) raw;
     treefmt = filterAttrs (_: isTreefmtLike) raw;
     colmena = filterAttrs (input: _: input == "deployColmena") raw;
-    nixos-anywhere = filterAttrs (input: _: input == "deployNixosAnywhere") raw;
+    nixos-anywhere = filterAttrs (input: _: input == "deployAnywhere") raw;
 
     home-manager =
       filterAttrs
@@ -199,11 +215,13 @@
     infrastructure = filterAttrs (_: isNixpkgsInfrastructure) raw;
     deployment =
       filterAttrs
-      (input: _: elem input ["deployColmena" "deployNixosAnywhere"])
+      (input: _: elem input ["deployColmena" "deployAnywhere"])
       raw;
   };
 
-  normalized = recursiveUpdate classified {
+  classified = autoClassified;
+
+  autoNormalized = recursiveUpdate classified {
     inherit raw;
     nixpkgs =
       if flake ? nixpkgs
@@ -228,6 +246,8 @@
       nixos-anywhere = firstOf classified."nixos-anywhere";
     };
   };
+
+  normalized = autoNormalized // (mapAttrs (_: unwrapRegistryInput) registryInputs);
 
   /**
   Normalize package exports from a flake-like input.

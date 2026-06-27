@@ -1,6 +1,7 @@
 {
   bootstrap,
   attrsets,
+  flake,
   paths,
   excludes,
   ...
@@ -14,6 +15,11 @@
   };
   inherit (bootstrap) inputs hasLibraries;
   inherit (attrsets) asAttrsIf mapAttrs filterAttrs removeAttrPaths;
+  registry = flake.registry or {};
+  registryLibraries =
+    if registry ? libraries
+    then mapAttrs (_: entry: entry.value) registry.libraries
+    else {};
 
   excluded =
     excludes
@@ -51,7 +57,8 @@
     inputs.classified.libraries;
 
   normalized = stripExclusions (
-    (
+    registryLibraries
+    // (
       mapAttrs
       (_: input: input.lib)
       (

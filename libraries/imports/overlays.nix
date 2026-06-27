@@ -1,6 +1,7 @@
 {
   bootstrap,
   attrsets,
+  flake,
   lists,
   excludes,
   ...
@@ -16,7 +17,7 @@
 
   inherit (bootstrap) hasOverlays inputs;
   inherit (lists) concatLists elem;
-  inherit (attrsets) defaultOrAllValues filterAttrs mapAttrs attrValues;
+  inherit (attrsets) attrValues defaultOrAllValues filterAttrs mapAttrs;
 
   excluded = excludes.overlays or [];
 
@@ -25,13 +26,28 @@
     (input: _: !(elem input excluded))
     inputs.classified.overlays;
 
-  classified =
+  autoClassified =
     filterAttrs
     (_: value: value != {})
     (mapAttrs (_: input: input.overlays or {}) raw);
 
-  normalized =
+  classified = autoClassified;
+
+  autoNormalized =
     concatLists
     (map defaultOrAllValues (attrValues classified));
+
+  registry = flake.registry or {};
+  registryOverlays =
+    if registry ? overlays
+    then registry.overlays
+    else if flake.overlays ? registry
+    then builtins.mapAttrs (_: value: {inherit value;}) flake.overlays.registry
+    else {};
+
+  normalized =
+    if registryOverlays != {}
+    then map (entry: entry.value) (attrValues registryOverlays)
+    else autoNormalized;
 in
   exports

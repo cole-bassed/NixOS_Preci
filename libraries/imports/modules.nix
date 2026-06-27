@@ -1,6 +1,7 @@
 {
   bootstrap,
   attrsets,
+  flake,
   lists,
   defaults,
   ...
@@ -39,8 +40,14 @@
     hasCoreModules
     ;
 
-  inherit (attrsets) attrNames filterAttrs isAttrs;
+  inherit (attrsets) attrNames attrValues filterAttrs isAttrs;
   inherit (lists) asListIf elem;
+  registry = flake.registry or {};
+  registryModules =
+    if registry ? modules
+    then registry.modules
+    else flake.modules.registry or {};
+  hasManualRegistry = registryModules != {};
 
   excluded = let
     value = bootstrap.modulePolicy.excludes or [];
@@ -69,7 +76,7 @@
       || elem name scope
     );
 
-  classified = let
+  autoClassified = let
     classify = type:
       filterAttrs
       (name: _: isIncluded type name)
@@ -80,11 +87,22 @@
     home = classify "home";
   };
 
-  normalized = {
+  classified = autoClassified;
+
+  autoNormalized = {
     nixos = collectModules "nixos" classified.nixos;
     darwin = collectModules "darwin" classified.darwin;
     home = collectModules "home" classified.home;
   };
+
+  normalized =
+    if hasManualRegistry
+    then {
+      nixos = map (entry: entry.value) (attrValues (filterAttrs (_: entry: (entry.class or null) == "nixos") registryModules));
+      darwin = map (entry: entry.value) (attrValues (filterAttrs (_: entry: (entry.class or null) == "darwin") registryModules));
+      home = map (entry: entry.value) (attrValues (filterAttrs (_: entry: (entry.class or null) == "home") registryModules));
+    }
+    else autoNormalized;
 
   merged = classified // normalized;
 
@@ -108,7 +126,7 @@
 
   mkCore = type:
     asListIf
-    (elem type ["nixos" "darwin"])
+    ((elem type ["nixos" "darwin"]) && !hasManualRegistry)
     (
       [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
       ++ (mkHM type)

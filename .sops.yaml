@@ -1,11 +1,48 @@
 keys:
-- &host age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
-- &craole age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+  - &user_craole age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+  - &user_cc age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+  - &host_TheOracle age14ju8288fj59hh3xw5zqx8tklpyhp23gzc8fhj9m5l46h0vwxtuuqugmxzz
 
 creation_rules:
-- path_regex: configuration/secrets/core/secrets\.ya?ml$
-  key_groups:
-  - age: [ *host, *craole ]
-- path_regex: configuration/secrets/home/secrets\.ya?ml$
-  key_groups:
-  - age: [ *craole ]
+  - path_regex: configuration/api/hosts/Preci/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *user_craole
+          - *user_cc
+
+  - path_regex: configuration/api/hosts/QBX/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *user_craole
+          - *user_cc
+
+  - path_regex: configuration/api/hosts/Victus/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *user_craole
+          - *user_cc
+
+  - path_regex: configuration/api/hosts/review/TheOracle/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *host_TheOracle
+          - *user_craole
+          - *user_cc
+
+  - path_regex: configuration/api/users/craole/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *user_craole
+          - *user_cc
+
+  - path_regex: configuration/api/users/cc/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *user_craole
+          - *user_cc
+
+  - path_regex: configuration/api/users/qyatt/secrets\.ya?ml$
+    key_groups:
+      - age:
+          - *user_craole
+          - *user_cc
