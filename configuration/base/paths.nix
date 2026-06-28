@@ -1,15 +1,13 @@
 {
   lix,
   top,
-  dom,
-  mod,
   paths,
   ...
 }: let
   inherit (lix.attrsets) filterAttrs mapAttrs mapAttrs';
   inherit (lix.environment) mkVariables mkCdAliases;
   inherit (lix.lists) elem;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf anything;
 
   paths' = {
@@ -51,17 +49,8 @@
     aliases = mkCdAliases attrs;
   };
 
-  opts = mkOption {
-    type = attrsOf anything;
-    default = {};
-    description = "Staged path data for dots: raw local/store maps, core.{variables,aliases}, and a per-user home.<user>.{variables,aliases} breakdown -- the single source injected into environment/home options.";
-  };
-
-  mkArgs = config: scope:
-    mkModuleArgs {inherit config top dom mod scope;};
-
   mk = scope: {config, ...}: let
-    inherit ((mkArgs config scope)) cfg opt;
+    cfg = config.${top}.paths or {};
     group = mkGroup (
       if scope == "core"
       then let
@@ -77,18 +66,22 @@
       else pick "home" (cfg.local or paths'.local)
     );
   in {
-    options = opt opts;
+    options.${top}.paths = mkOption {
+      type = attrsOf anything;
+      default = {};
+      description = "Staged path data for dots: raw local/store maps, core.{variables,aliases}, and a per-user home.<user>.{variables,aliases} breakdown -- the single source injected into environment/home options.";
+    };
 
     config =
       {
-        ${top}.${dom}.${mod} =
+        ${top}.paths =
           {inherit (paths') local store;}
           // (
             if scope == "core"
             then {
               core = group;
               home = mapAttrs (
-                _: userCfg: userCfg.${top}.${dom}.${mod}.home or {}
+                _: userCfg: userCfg.${top}.paths.home or {}
               ) (config.home-manager.users or {});
             }
             else {home = group;}

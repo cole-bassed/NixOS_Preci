@@ -2,21 +2,20 @@
   lix,
   top,
   host,
-  dom,
-  mod,
+  config,
   ...
 }: let
   inherit (lix.attrsets) removeEmpty;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.options) mkOption;
   inherit (lix.types) str nullOr float enum;
-
+  mod = "localization";
   src = host.${mod} or {};
 
   #? One options declaration, reused for both `core` and `home`
   #  scopes below -- they are separate module-system evaluations
   #  (NixOS vs home-manager), so each needs its own copy of the
   #  option tree, but the shape and defaults are identical.
-  opts = {
+  options.${top}.${mod} = {
     #? Schema S3
     latitude = mkOption {
       type = nullOr float;
@@ -74,33 +73,33 @@
     );
   };
 
-  mkArgs = config: scope:
-    mkModuleArgs {inherit config top dom mod scope;};
-in {
   #? `core` (NixOS) sets geoclue location, the system timezone, and
   #  the system default locale. `home` (home-manager) only sets the
   #  user-facing language base -- there is no equivalent of
   #  `location`/`time.timeZone` at that scope.
-  core = {config, ...}: let
-    inherit ((mkArgs config "core")) cfg opt;
-  in {
-    options = opt opts;
-    config = {
-      location = removeEmpty {
-        inherit (cfg) latitude longitude;
-        provider = cfg.locator;
+  mk = scope: {
+    inherit options;
+    config = let
+      #? Read back the RESOLVED option values for *this scope's own*
+      #  config tree, not raw `host.*` -- so a value set directly on
+      #  `${top}.localization.*` (with no `host.nix` entry at all)
+      #  behaves identically to one sourced from the host file.
+      cfg = config.${top}.${mod};
+    in
+      if scope == "core"
+      then {
+        location = removeEmpty {
+          inherit (cfg) latitude longitude;
+          provider = cfg.locator;
+        };
+        time.timeZone = cfg.timeZone;
+        i18n.defaultLocale = cfg.defaultLocale;
+      }
+      else {
+        home.language.base = cfg.defaultLocale;
       };
-      time.timeZone = cfg.timeZone;
-      i18n.defaultLocale = cfg.defaultLocale;
-    };
   };
-
-  home = {config, ...}: let
-    inherit ((mkArgs config "home")) cfg opt;
-  in {
-    options = opt opts;
-    config = {
-      home.language.base = cfg.defaultLocale;
-    };
-  };
+in {
+  core = mk "core";
+  home = mk "home";
 }
