@@ -121,9 +121,7 @@
     };
 
     autoLogin = {
-      enable =
-        mkEnableOption "automatic login"
-        // {default = auto.enable;};
+      enable = mkEnableOption "automatic login" // {default = auto.enable;};
 
       user = mkOption {
         type = nullOr str;

@@ -79,7 +79,6 @@
   #  `location`/`time.timeZone` at that scope.
   mk = scope: {
     inherit options;
-
     config = let
       #? Read back the RESOLVED option values for *this scope's own*
       #  config tree, not raw `host.*` -- so a value set directly on
@@ -96,7 +95,9 @@
         time.timeZone = cfg.timeZone;
         i18n.defaultLocale = cfg.defaultLocale;
       }
-      else {home.language.base = cfg.defaultLocale;};
+      else {
+        home.language.base = cfg.defaultLocale;
+      };
   };
 in {
   core = mk "core";
