@@ -10,6 +10,7 @@ _: let
         head
         length
         map
+        optionalList
         partition
         sort
         tail
@@ -28,19 +29,14 @@ _: let
     };
 
     global = {
+      optionalList = asIf;
       asModuleList = asModule;
       asList = as;
       asListIf = asIf;
       orEmptyList = orEmpty;
       uniqueList = unique;
       listLength = builtins.length;
-      inherit
-        (builtins)
-        concatLists
-        concatMap
-        genList
-        isList
-        ;
+      inherit (builtins) concatLists concatMap genList isList;
     };
   };
 

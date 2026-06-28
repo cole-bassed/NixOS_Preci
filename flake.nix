@@ -369,7 +369,10 @@
     in
       genAttrs
       classes.names
-      (class: genAttrs (optionals (elem class includes) [class]) (_: modulesOf class));
+      (class: modulesOf class);
+    # genAttrs
+    # classes.names
+    # (class: genAttrs (optionals (elem class includes) [class]) (_: modulesOf class));
 
     registerLibraries = source: let
       set = source.lib or {};
