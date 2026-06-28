@@ -66,9 +66,7 @@
 
         #| Supplementary groups based on role privileges
         extraGroups =
-          if isService role
-          then []
-          else if isGuest role
+          if isService role || isGuest role
           then []
           else if isAdmin role
           then ["wheel" "networkmanager"]

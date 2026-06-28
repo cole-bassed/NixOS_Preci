@@ -65,9 +65,11 @@
         mods;
     in
       mergeAttrsList (
-        mapAttrsToList (
+        mapAttrsToList
+        (
           name: args:
-            import resolved.paths.store.${name} (base // {args = normalize args;})
+            import resolved.paths.store.${name}
+            (base // {args = normalize args;})
         )
         enabled
       )
@@ -80,9 +82,7 @@
               inherit base;
               args = {
                 modules = {
-                  core = [
-                    resolved.paths.store.configuration
-                  ];
+                  core = [resolved.paths.store.configuration];
                   home = [];
                 };
               };
@@ -158,7 +158,7 @@
                   #   (mkFlakeModules "home")
                   #   # ++ (src.modules.home or [])
                   #   ++ (extraArgs.modules.home or []);
-                  useGlobalPkgs = false;
+                  # useGlobalPkgs = false;
                   useUserPackages = true;
                 };
               }
