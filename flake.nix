@@ -369,7 +369,8 @@
     in
       genAttrs
       classes.names
-      (class: modulesOf class);
+      modulesOf;
+    # (class: modulesOf class);
     # genAttrs
     # classes.names
     # (class: genAttrs (optionals (elem class includes) [class]) (_: modulesOf class));
@@ -465,8 +466,9 @@
     base = src.${src.names.src};
     libs = src.${src.names.lib};
   in
-    {lib = base;}
-    // flake
+    {}
+    # {lib = base;}
+    # // flake
     // libs.mkFlake {
       inherit base;
       mods = {
@@ -475,5 +477,6 @@
         shells = true;
         templates = true;
       };
-    };
+    }
+    // {};
 }
