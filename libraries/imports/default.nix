@@ -33,16 +33,35 @@
   };
   inputs = flake.inputs or {};
   registry = flake.registry or {};
-  registryInputs =
+  isRegistryEntry = entry:
+    isAttrs entry
+    && entry ? source;
+  registryEntries =
     if registry ? inputs
     then registry.inputs
-    else flake.imports or {};
+    else filterAttrs (_: isRegistryEntry) registry;
+  unwrapRegistryEntry = name: entry: let
+    source = entry.source or entry.value or null;
+    meta = builtins.removeAttrs entry ["source" "modules" "overlays" "libraries" "value"];
+  in
+    if isAttrs source
+    then source // meta // {inherit name;}
+    else entry;
+  registryInputs =
+    if flake ? imports
+    then flake.imports
+    else mapAttrs unwrapRegistryEntry registryEntries;
 
-  modulePolicy = {
-    includes = flake.modules.includes or {};
-    excludes = flake.modules.excludes or {};
-    select = flake.modules.select or {};
-    all = flake.modules.all or {};
+  modulePolicy = let
+    modules =
+      if flake ? modules
+      then flake.modules
+      else {};
+  in {
+    includes = modules.includes or {};
+    excludes = modules.excludes or {};
+    select = modules.select or {};
+    all = modules.all or {};
   };
 
   inherit (attrsets) attrNames getAttr hasAttr listToAttrs isAttrs maps mapAttrs orEmpty attrValues;
@@ -177,6 +196,18 @@
       else [];
   in
     concatLists (attrValues (maps get inputs));
+  flattenRegistryModules = modules:
+    concatLists (
+      map
+      (value:
+        if isAttrs value
+        then concatLists (attrValues value)
+        else value)
+      (attrValues modules)
+    );
+  hasRegistryModules = entry:
+    flattenRegistryModules (entry.modules or {}) != [];
+
   autoClassified = {
     nixpkgs = filterAttrs (_: isNixpkgsLike) raw;
     nix-darwin = filterAttrs (_: isNixDarwinLike) raw;
@@ -219,7 +250,25 @@
       raw;
   };
 
-  classified = autoClassified;
+  registryClassified = {
+    nixpkgs = filterAttrs (_: isNixpkgsLike) registryInputs;
+    nix-darwin = filterAttrs (_: isNixDarwinLike) registryInputs;
+    treefmt = filterAttrs (_: isTreefmtLike) registryInputs;
+    colmena = filterAttrs (name: _: name == "colmena") registryInputs;
+    nixos-anywhere = filterAttrs (name: _: name == "nixos-anywhere") registryInputs;
+    home-manager = filterAttrs (_: isHomeManagerLike) registryInputs;
+    modules = filterAttrs (name: _: hasRegistryModules (registryEntries.${name} or {})) registryInputs;
+    overlays = filterAttrs (name: _: (registryEntries.${name}.overlays or {}) != {}) registryInputs;
+    packages = filterAttrs (_: value: getPackages value != {}) registryInputs;
+    libraries = filterAttrs (_: hasLibraries) registryInputs;
+    infrastructure = filterAttrs (name: _: elem "infrastructure" (registryEntries.${name}.profiles or [])) registryInputs;
+    deployment = filterAttrs (name: _: elem "deployment" (registryEntries.${name}.profiles or [])) registryInputs;
+  };
+
+  classified =
+    if registryInputs != {}
+    then registryClassified
+    else autoClassified;
 
   autoNormalized = recursiveUpdate classified {
     inherit raw;

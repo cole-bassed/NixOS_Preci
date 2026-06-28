@@ -276,7 +276,13 @@
     fail = msg: throw "${hostPath}: ${msg}";
     raw = (host.devices or {}).display or [];
 
-    cleanDisplay = display: removeAttrs display ["name" "tags"];
+    cleanDisplay = display: removeAttrs display [
+      "display"
+      "monitor"
+      "name"
+      "output"
+      "tags"
+    ];
 
     parseSize = resolution: let
       parts = splitString "x" resolution;
@@ -300,14 +306,17 @@
         cfg.output
       or (fail "display at index ${toString idx} missing 'output'");
 
-      display = let
-        name =
-          cfg.display or (cfg.monitor or (
-            fail "display '${output}' missing 'display'"
-          ));
-      in
-        displays.${name}
-      or (fail "display '${output}' references unknown display '${name}'");
+      display =
+        if cfg ? display || cfg ? monitor
+        then let
+          name =
+            cfg.display or (cfg.monitor or (
+              fail "display '${output}' missing 'display'"
+            ));
+        in
+          displays.${name}
+          or (fail "display '${output}' references unknown display '${name}'")
+        else cfg;
 
       merged =
         cleanDisplay display

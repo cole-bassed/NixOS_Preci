@@ -88,7 +88,7 @@
             wl-clipboard-rs
           ]
           ++ optionals env.niri.enable [
-            xwayland-satellite-unstable
+            xwayland-satellite
           ];
       };
     };

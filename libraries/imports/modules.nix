@@ -42,12 +42,34 @@
 
   inherit (attrsets) attrNames attrValues filterAttrs isAttrs;
   inherit (lists) asListIf elem;
+  firstNonEmpty = lists.firstOf or (
+    sets:
+      if sets == []
+      then []
+      else let
+        nonEmpty = builtins.filter (set: set != []) sets;
+      in
+        if nonEmpty == []
+        then []
+        else builtins.head nonEmpty
+  );
   registry = flake.registry or {};
-  registryModules =
-    if registry ? modules
-    then registry.modules
-    else flake.modules.registry or {};
-  hasManualRegistry = registryModules != {};
+  registryEntries =
+    if flake ? modules && flake.modules ? registry
+    then filterAttrs (_: entry: isAttrs entry && entry ? source) flake.modules.registry
+    else if registry ? inputs
+    then filterAttrs (_: entry: isAttrs entry && entry ? source) registry.inputs
+    else filterAttrs (_: entry: isAttrs entry && entry ? source) registry;
+  hasManualRegistry = registryEntries != {};
+  flattenRegistryModules = modules:
+    builtins.concatLists (
+      map
+      (value:
+        if isAttrs value
+        then builtins.concatLists (attrValues value)
+        else value)
+      (attrValues modules)
+    );
 
   excluded = let
     value = bootstrap.modulePolicy.excludes or [];
@@ -73,21 +95,15 @@
     && (
       scope
       == null
+      || scope == []
       || elem name scope
     );
 
-  autoClassified = let
-    classify = type:
-      filterAttrs
-      (name: _: isIncluded type name)
-      inputs.classified.modules;
-  in {
-    nixos = classify "nixos";
-    darwin = classify "darwin";
-    home = classify "home";
+  classified = {
+    nixos = filterAttrs (name: _: isIncluded "nixos" name) inputs.classified.modules;
+    darwin = filterAttrs (name: _: isIncluded "darwin" name) inputs.classified.modules;
+    home = filterAttrs (name: _: isIncluded "home" name) inputs.classified.modules;
   };
-
-  classified = autoClassified;
 
   autoNormalized = {
     nixos = collectModules "nixos" classified.nixos;
@@ -98,9 +114,30 @@
   normalized =
     if hasManualRegistry
     then {
-      nixos = map (entry: entry.value) (attrValues (filterAttrs (_: entry: (entry.class or null) == "nixos") registryModules));
-      darwin = map (entry: entry.value) (attrValues (filterAttrs (_: entry: (entry.class or null) == "darwin") registryModules));
-      home = map (entry: entry.value) (attrValues (filterAttrs (_: entry: (entry.class or null) == "home") registryModules));
+      nixos = builtins.concatLists (
+        map
+        (name:
+          if isIncluded "nixos" name
+          then firstNonEmpty (attrValues (registryEntries.${name}.modules.nixos or {}))
+          else [])
+        (attrNames registryEntries)
+      );
+      darwin = builtins.concatLists (
+        map
+        (name:
+          if isIncluded "darwin" name
+          then firstNonEmpty (attrValues (registryEntries.${name}.modules.darwin or {}))
+          else [])
+        (attrNames registryEntries)
+      );
+      home = builtins.concatLists (
+        map
+        (name:
+          if isIncluded "home" name
+          then firstNonEmpty (attrValues (registryEntries.${name}.modules.home or {}))
+          else [])
+        (attrNames registryEntries)
+      );
     }
     else autoNormalized;
 
@@ -126,10 +163,14 @@
 
   mkCore = type:
     asListIf
-    ((elem type ["nixos" "darwin"]) && !hasManualRegistry)
+    (elem type ["nixos" "darwin"])
     (
       [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
-      ++ (mkHM type)
+      ++ (
+        if hasManualRegistry
+        then []
+        else mkHM type
+      )
     );
 
   mkModules = type:

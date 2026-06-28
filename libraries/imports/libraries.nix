@@ -19,6 +19,8 @@
   registryLibraries =
     if registry ? libraries
     then mapAttrs (_: entry: entry.value) registry.libraries
+    else if flake ? libraries && flake.libraries ? registry
+    then flake.libraries.registry
     else {};
 
   excluded =
@@ -52,9 +54,12 @@
   stripExclusions = libraries: removeAttrPaths libraries exclusions;
 
   classified =
-    mapAttrs
-    (_: input: input.lib)
-    inputs.classified.libraries;
+    if registryLibraries != {}
+    then registryLibraries
+    else
+      mapAttrs
+      (_: input: input.lib)
+      inputs.classified.libraries;
 
   normalized = stripExclusions (
     registryLibraries

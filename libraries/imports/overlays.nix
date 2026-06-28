@@ -31,8 +31,6 @@
     (_: value: value != {})
     (mapAttrs (_: input: input.overlays or {}) raw);
 
-  classified = autoClassified;
-
   autoNormalized =
     concatLists
     (map defaultOrAllValues (attrValues classified));
@@ -44,6 +42,11 @@
     else if flake.overlays ? registry
     then builtins.mapAttrs (_: value: {inherit value;}) flake.overlays.registry
     else {};
+
+  classified =
+    if registryOverlays != {}
+    then builtins.mapAttrs (_: entry: {default = entry.value;}) registryOverlays
+    else autoClassified;
 
   normalized =
     if registryOverlays != {}

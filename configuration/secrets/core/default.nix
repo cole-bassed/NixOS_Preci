@@ -16,7 +16,9 @@ flake: {
   in
     if pathExists canonical
     then canonical
-    else review;
+    else if pathExists review
+    then review
+    else null;
 
   userSecretFile = userName: ../../api/users/${userName}/secrets.yaml;
 
@@ -37,14 +39,17 @@ flake: {
 
   dirRules = concatLists (map mkDirRules enabledUserNames);
 
-  hostSecrets = {
-    "services/hermes/env" = {
-      sopsFile = hostSecretFile;
+  hostSecrets =
+    if hostSecretFile == null
+    then {}
+    else {
+      "services/hermes/env" = {
+        sopsFile = hostSecretFile;
+      };
+      "services/tailscale/authKey" = {
+        sopsFile = hostSecretFile;
+      };
     };
-    "services/tailscale/authKey" = {
-      sopsFile = hostSecretFile;
-    };
-  };
 
   mkPasswordSecret = userName: {
     name = "users/${userName}/passwordHash";
@@ -105,7 +110,7 @@ flake: {
     concatLists (
       map
       (userName:
-        [mkPasswordSecret userName]
+        [(mkPasswordSecret userName)]
         ++ mkPrimarySshSecrets userName
         ++ mkGithubSecrets userName)
       enabledUserNames
