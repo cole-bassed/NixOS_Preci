@@ -276,13 +276,14 @@
     fail = msg: throw "${hostPath}: ${msg}";
     raw = (host.devices or {}).display or [];
 
-    cleanDisplay = display: removeAttrs display [
-      "display"
-      "monitor"
-      "name"
-      "output"
-      "tags"
-    ];
+    cleanDisplay = display:
+      removeAttrs display [
+        "display"
+        "monitor"
+        "name"
+        "output"
+        "tags"
+      ];
 
     parseSize = resolution: let
       parts = splitString "x" resolution;

@@ -158,7 +158,7 @@
                   #   (mkFlakeModules "home")
                   #   # ++ (src.modules.home or [])
                   #   ++ (extraArgs.modules.home or []);
-                  useGlobalPkgs = true;
+                  useGlobalPkgs = false;
                   useUserPackages = true;
                 };
               }

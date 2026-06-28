@@ -198,6 +198,12 @@ in {
     options = opt (opts.core spec.core cfg);
 
     config = {
+      home-manager.sharedModules = mkIf cfg.niri.enable [
+        {
+          options.programs.niri.enable = mkEnableOption "Niri compositor";
+        }
+      ];
+
       services = {
         xserver = mkIf protocol.x11 {
           desktopManager = {
@@ -232,6 +238,8 @@ in {
     inherit ((mkArgs config "home")) cfg opt;
   in {
     options = opt (opts.home (spec.home user) cfg);
-    config = {};
+    config = {
+      programs.niri.enable = cfg.niri.enable;
+    };
   };
 }

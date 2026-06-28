@@ -163,6 +163,58 @@
 
   outputs = inputs: let
     inputs' = {
+      caelestia-shell = {
+        input = "shellCaelestia";
+        scopes = ["desktop" "ui" "shell"];
+      };
+      colmena = {
+        input = "deployColmena";
+        scopes = ["deployment" "nixos"];
+      };
+      dank-material-shell = {
+        input = "shellDankMaterial";
+        scopes = ["desktop" "ui" "shell"];
+      };
+      deploy-rs = {
+        input = "deployRS";
+        scopes = ["deployment"];
+      };
+      disko = {
+        input = "deployDisks";
+        scopes = ["deployment" "storage" "nixos"];
+      };
+      dms-plugin-registry = {
+        input = "shellDankMaterialPlugins";
+        scopes = ["desktop" "ui" "shell"];
+      };
+      hermes-agent = {
+        input = "aiHermes";
+        scopes = ["development" "ai"];
+      };
+      home-manager = {
+        input = "nixHome";
+        scopes = ["core" "nixos" "darwin"];
+      };
+      llm-agents = {
+        input = "aiToolkit";
+        scopes = ["development" "ai"];
+      };
+      mango = {
+        input = "wmMango";
+        scopes = ["desktop" "window-manager" "nixos"];
+      };
+      niri = {
+        input = "wmNiri";
+        scopes = ["desktop" "window-manager" "nixos"];
+      };
+      nix-darwin = {
+        input = "nixDarwin";
+        scopes = ["core" "infrastructure" "darwin"];
+      };
+      nixos-anywhere = {
+        input = "deployAnywhere";
+        scopes = ["deployment"];
+      };
       nixpkgs = {
         input = "nixCore";
         scopes = ["core" "infrastructure"];
@@ -171,85 +223,33 @@
         input = "nixLegacy";
         scopes = ["core" "infrastructure"];
       };
-      nix-darwin = {
-        input = "nixDarwin";
-        scopes = ["core" "infrastructure"];
+      noctalia = {
+        input = "shellNoctalia";
+        scopes = ["desktop" "ui" "shell"];
       };
       nyx = {
         input = "nixEdge";
         scopes = ["core" "infrastructure"];
       };
-      home-manager = {
-        input = "nixHome";
-        scopes = ["core"];
-      };
-      niri = {
-        input = "wmNiri";
-        scopes = ["desktop" "window-manager"];
-      };
-      mango = {
-        input = "wmMango";
-        scopes = ["desktop" "window-manager"];
-      };
-      disko = {
-        input = "deployDisks";
-        scopes = ["deployment" "storage"];
-      };
-      deploy-rs = {
-        input = "deployRS";
-        scopes = ["deployment"];
-      };
-      colmena = {
-        input = "deployColmena";
-        scopes = ["deployment"];
-      };
-      nixos-anywhere = {
-        input = "deployAnywhere";
-        scopes = ["deployment"];
-      };
-      llm-agents = {
-        input = "aiToolkit";
-        scopes = ["development" "ai"];
-      };
-      hermes-agent = {
-        input = "aiHermes";
-        scopes = ["development" "ai"];
+      quickshell = {
+        input = "shellQuick";
+        scopes = ["desktop" "ui" "shell"];
       };
       rust-overlay = {
         input = "langRust";
         scopes = ["development" "code" "language"];
       };
-      treefmt = {
-        input = "treeFormatter";
-        scopes = ["development" "code" "formatter"];
-      };
       sops = {
         input = "secretsManager";
-        scopes = ["secrets"];
-      };
-      caelestia-shell = {
-        input = "shellCaelestia";
-        scopes = ["desktop" "ui" "shell"];
-      };
-      dank-material-shell = {
-        input = "shellDankMaterial";
-        scopes = ["desktop" "ui" "shell"];
-      };
-      dms-plugin-registry = {
-        input = "shellDankMaterialPlugins";
-        scopes = ["desktop" "ui" "shell"];
-      };
-      noctalia = {
-        input = "shellNoctalia";
-        scopes = ["desktop" "ui" "shell"];
-      };
-      quickshell = {
-        input = "shellQuick";
-        scopes = ["desktop" "ui" "shell"];
+        scopes = ["secrets" "nixos" "darwin" "home"];
       };
       stylix = {
         input = "styleManager";
-        scopes = ["desktop" "theming" "ui"];
+        scopes = ["desktop" "theming" "ui" "nixos" "darwin" "home"];
+      };
+      treefmt = {
+        input = "treeFormatter";
+        scopes = ["development" "code" "formatter"];
       };
       vicinae = {
         input = "vicinae";
@@ -266,10 +266,25 @@
     };
 
     lib = inputs.${inputs'.nixpkgs.input}.lib;
-    inherit (lib.attrsets) attrNames attrValues filterAttrs genAttrs mapAttrs optionalAttrs recursiveUpdate;
-    inherit (lib.lists) any elem concatMap filter findFirst foldl' optionals toList;
-    inherit (builtins) isFunction isPath;
+    inherit (lib.attrsets) attrNames attrValues filterAttrs getAttr genAttrs hasAttr mapAttrs optionalAttrs recursiveUpdate;
+    inherit (lib.lists) concatMap elem filter findFirst foldl' length optionals toList;
+    inherit (lib.strings) isAttrs isPath concatStringsSep;
+    inherit (lib.trivial) isFunction;
+
     optionalList = check: value: optionals check (toList value);
+    modulePolicy = {
+      excludes = {darwin = ["nix-darwin"];};
+      select = {
+        nixos = {
+          colmena = [
+            "deploymentOptions"
+            "assertionModule"
+            "keyChownModule"
+            "keyServiceModule"
+          ];
+        };
+      };
+    };
 
     classes = {
       modules = {
@@ -283,7 +298,7 @@
     registerInputs = name: {
       input,
       scopes,
-      modules ? [], #TODO: This should eventually be removed as scopes should drive entries
+      modules ? [], #TODO: This should eventually be removed as scopes should drive class participation
     }: let
       source = inputs.${input} // {name = input;};
     in {
@@ -300,72 +315,61 @@
       scopes,
       modules,
     }: let
-      excludes = {
-        entry = [
-          # TODO: This is noise as well, it's obviously all the infrastructure inputs (filter entries with intrstructure in scope)
-          "nixpkgs"
-          "nixpkgs-stable"
-          "nix-darwin"
-          "nyx"
-        ];
-
-        # TODO: Why are we blocking scopes, or is this a test? At this rate maybe we need an excludes, but then why not comment our the inputs' we want to exclude. i uunderstand this is jts for modules, so why even is is not defined inside register modules. HAVING THIS STILL DOESN"T FIX        error: The option `nixpkgs' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/flake.nix' would be a parent of the following options, but its type `unspecified value' does not support nested options.
-        # - option(s) with prefix `nixpkgs.buildPlatform' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.config' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.crossSystem' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.flake' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs-flake.nix'
-        # - option(s) with prefix `nixpkgs.hostPlatform' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.initialSystem' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.localSystem' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.overlays' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.pkgs' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        # - option(s) with prefix `nixpkgs.system' in module `/nix/store/pfwrb65dsv8phlsf1m98bvz11cvgb290-source/nixos/modules/misc/nixpkgs.nix'
-        scope = [
-          "ai"
-          "browser"
-          "code"
-          "editor"
-          "formatter"
-          "language"
-          "launcher"
-          "shell"
-        ];
-      };
+      pickModules = type: set: let
+        selected = (modulePolicy.select.${type} or {}).${name} or [];
+        allowAll = elem name ((modulePolicy.all or {}).${type} or []);
+        values = attrValues set;
+        missing = filter (key: !(hasAttr key set)) selected;
+      in
+        if !isAttrs set
+        then []
+        else if selected != []
+        then
+          if missing == []
+          then map (key: getAttr key set) selected
+          else throw "flake.registry.modules: ${name}.${type} selected missing module(s): ${concatStringsSep ", " missing}"
+        else if set ? default
+        then [set.default]
+        else if length values == 1
+        then values
+        else if allowAll
+        then values
+        else throw "flake.registry.modules: ${name}.${type} has multiple modules and no default; set flake.modules.select.${type}.${name} or add '${name}' to flake.modules.all.${type}";
 
       fromClass = class: let
         key = findFirst (k: source ? ${k}) null classes.modules.${class};
       in
         optionalAttrs (key != null) source.${key};
 
+      detected = filter (class: fromClass class != {}) classes.names;
+
       includes = let
         explicit = toList modules;
-        hasBlockedScope = any (scope: elem scope excludes.scope) scopes;
-        hasBlockedEntry = elem name excludes.entry;
+        fromScopes = filter (scope: elem scope classes.names) scopes;
       in
         if explicit != []
         then explicit
-        else if hasBlockedEntry || hasBlockedScope
-        then []
-        else filter (class: fromClass class != {}) classes.names;
+        else filter (class: elem class fromScopes) detected;
 
-      fromSet = set: let
+      fromSet = class: set: let
         candidate = set.${name} or (set.default or set);
       in
         if isFunction candidate || isPath candidate
         then toList candidate
         else if (candidate ? config || candidate ? options || candidate ? imports)
         then toList candidate
-        else attrValues candidate;
+        else pickModules class candidate;
 
       modulesOf = class: let
         resolved = fromClass class;
-        shouldInclude = resolved != {} && elem class includes;
+        isExcluded = elem name ((modulePolicy.excludes or {}).${class} or []);
+        shouldInclude = resolved != {} && elem class includes && !isExcluded;
       in
-        optionals shouldInclude (fromSet resolved);
+        optionals shouldInclude (fromSet class resolved);
     in
       genAttrs
-      (classes.names)
-      (class: genAttrs scopes (_: modulesOf class));
+      classes.names
+      (class: genAttrs (optionals (elem class includes) [class]) (_: modulesOf class));
 
     registerLibraries = source: let
       set = source.lib or {};
@@ -391,37 +395,10 @@
     registerPackages = source:
       source.packages or {};
 
-    # mkInput = name: {
-    #   input,
-    #   scopes ? [],
-    #   ...
-    # }: let
-    #   source = inputs.${input} // {name = input;};
-    # in {
-    #   inherit scopes source;
-    #   overlays = registerOverlays {inherit name source;};
-    #   libraries = registerLibraries source;
-    #   packages = registerPackages source;
-    # };
-
-    # mkModules = name: {
-    #   input,
-    #   scopes ? [],
-    #   modules ? [],
-    #   ...
-    # }: let
-    #   source = inputs.${input} // {name = input;};
-    # in
-    #   registerModules {
-    #     inherit name source scopes;
-    #     modules = toList modules;
-    #   };
-
     registry = let
       entries =
         mapAttrs
         (name: spec: (registerInputs name spec))
-        # (name: spec: (mkInput name spec) // {modules = mkModules name spec;})
         inputs';
 
       skip = ["nixpkgs-stable" "nyx"];
@@ -475,8 +452,12 @@
       };
     in
       entries // {inherit aggregated;};
+
     defaults = {allowUnfree = true;};
-    flake = {inherit defaults registry;};
+    flake = {
+      inherit defaults registry;
+      modules = modulePolicy;
+    };
     src = import ./. {inherit flake;};
     base = src.${src.names.src};
     libs = src.${src.names.lib};

@@ -1,24 +1,56 @@
-flake: {
+_flake: {
   config,
   host,
   pkgs,
   ...
 }: let
-  inherit (builtins) attrNames concatLists listToAttrs pathExists;
+  inherit (builtins) attrNames concatLists filter listToAttrs map pathExists readDir;
 
   hostName = host.name;
   enabledUsers = host.users.byStatus.enabled.values or {};
   enabledUserNames = attrNames enabledUsers;
 
   hostSecretFile = let
-    canonical = ../../api/hosts/${hostName}/secrets.yaml;
-    review = ../../api/hosts/review/${hostName}/secrets.yaml;
+    hostRoots = [
+      ../../api/hosts
+      ../../api/hosts/review
+    ];
+
+    dirNames = root:
+      filter
+      (name:
+        ((readDir root).${name} == "directory")
+        && pathExists (root + "/${name}/default.nix"))
+      (attrNames (readDir root));
+
+    nameMapped = root: dirName: let
+      specPath = root + "/${dirName}/default.nix";
+      spec = import specPath;
+    in
+      if (spec.name or dirName) == hostName
+      then root + "/${dirName}/secrets.yaml"
+      else null;
+
+    discovered = concatLists (
+      map
+      (root:
+        map
+        (dirName: nameMapped root dirName)
+        (dirNames root))
+      hostRoots
+    );
+
+    existing = filter (path: path != null && pathExists path) (
+      [
+        ../../api/hosts/${hostName}/secrets.yaml
+        ../../api/hosts/review/${hostName}/secrets.yaml
+      ]
+      ++ discovered
+    );
   in
-    if pathExists canonical
-    then canonical
-    else if pathExists review
-    then review
-    else null;
+    if existing == []
+    then null
+    else builtins.head existing;
 
   userSecretFile = userName: ../../api/users/${userName}/secrets.yaml;
 
@@ -35,7 +67,11 @@ flake: {
     identities = githubIdentities userName;
   in
     ["d ${sshDir userName} 0700 ${userName} users - -"]
-    ++ (if identities == [] then [] else ["d ${githubDir userName} 0700 ${userName} users - -"]);
+    ++ (
+      if identities == []
+      then []
+      else ["d ${githubDir userName} 0700 ${userName} users - -"]
+    );
 
   dirRules = concatLists (map mkDirRules enabledUserNames);
 
@@ -122,7 +158,8 @@ flake: {
       name = userName;
       value.hashedPasswordFile =
         config.sops.secrets."users/${userName}/passwordHash".path;
-    }) enabledUserNames
+    })
+    enabledUserNames
   );
 in {
   environment.systemPackages = with pkgs; [
@@ -136,11 +173,17 @@ in {
 
   systemd.tmpfiles.rules = dirRules;
 
-  sops = {
-    defaultSopsFormat = "yaml";
-    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
-    secrets = hostSecrets // userSecrets;
-  };
+  sops =
+    {
+      defaultSopsFormat = "yaml";
+      age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+      secrets = hostSecrets // userSecrets;
+    }
+    // (
+      if hostSecretFile == null
+      then {}
+      else {defaultSopsFile = hostSecretFile;}
+    );
 
   users.users = passwordAssignments;
 }

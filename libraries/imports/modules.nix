@@ -42,17 +42,18 @@
 
   inherit (attrsets) attrNames attrValues filterAttrs isAttrs;
   inherit (lists) asListIf elem;
-  firstNonEmpty = lists.firstOf or (
-    sets:
-      if sets == []
-      then []
-      else let
-        nonEmpty = builtins.filter (set: set != []) sets;
-      in
-        if nonEmpty == []
+  firstNonEmpty =
+    lists.firstOf or (
+      sets:
+        if sets == []
         then []
-        else builtins.head nonEmpty
-  );
+        else let
+          nonEmpty = builtins.filter (set: set != []) sets;
+        in
+          if nonEmpty == []
+          then []
+          else builtins.head nonEmpty
+    );
   registry = flake.registry or {};
   registryEntries =
     if flake ? modules && flake.modules ? registry
@@ -61,15 +62,6 @@
     then filterAttrs (_: entry: isAttrs entry && entry ? source) registry.inputs
     else filterAttrs (_: entry: isAttrs entry && entry ? source) registry;
   hasManualRegistry = registryEntries != {};
-  flattenRegistryModules = modules:
-    builtins.concatLists (
-      map
-      (value:
-        if isAttrs value
-        then builtins.concatLists (attrValues value)
-        else value)
-      (attrValues modules)
-    );
 
   excluded = let
     value = bootstrap.modulePolicy.excludes or [];

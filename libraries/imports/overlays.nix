@@ -37,11 +37,11 @@
 
   registry = flake.registry or {};
   registryOverlays =
-    if registry ? overlays
-    then registry.overlays
-    else if flake.overlays ? registry
-    then builtins.mapAttrs (_: value: {inherit value;}) flake.overlays.registry
-    else {};
+    registry.overlays or (
+      if flake.overlays ? registry
+      then builtins.mapAttrs (_: value: {inherit value;}) flake.overlays.registry
+      else {}
+    );
 
   classified =
     if registryOverlays != {}

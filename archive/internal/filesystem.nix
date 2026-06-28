@@ -1,9 +1,4 @@
-{
-  attrsets,
-  lists,
-  strings,
-  ...
-}: let
+{lists, ...}: let
   exports = {
     scoped = {inherit entrypoint entrypoints;};
     global = {inherit entrypoint entrypoints;};
@@ -24,7 +19,6 @@
     primary = head candidates;
   in {inherit ext candidates primary;};
   entrypoint = entrypoints.nix.primary;
-
   /**
   Maps a set of pure store paths into absolute local path strings relative to local.src
   */

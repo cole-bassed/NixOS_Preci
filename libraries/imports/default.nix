@@ -37,9 +37,7 @@
     isAttrs entry
     && entry ? source;
   registryEntries =
-    if registry ? inputs
-    then registry.inputs
-    else filterAttrs (_: isRegistryEntry) registry;
+    registry.inputs or (filterAttrs (_: isRegistryEntry) registry);
   unwrapRegistryEntry = name: entry: let
     source = entry.source or entry.value or null;
     meta = builtins.removeAttrs entry ["source" "modules" "overlays" "libraries" "value"];
@@ -48,15 +46,11 @@
     then source // meta // {inherit name;}
     else entry;
   registryInputs =
-    if flake ? imports
-    then flake.imports
-    else mapAttrs unwrapRegistryEntry registryEntries;
+    flake.imports or (mapAttrs unwrapRegistryEntry registryEntries);
 
   modulePolicy = let
     modules =
-      if flake ? modules
-      then flake.modules
-      else {};
+      flake.modules or {};
   in {
     includes = modules.includes or {};
     excludes = modules.excludes or {};
@@ -116,7 +110,7 @@
   unwrapRegistryInput = entry:
     if isAttrs entry && entry ? value
     then let
-      value = entry.value;
+      inherit (entry) value;
       meta = builtins.removeAttrs entry ["value"];
     in
       if isAttrs value
