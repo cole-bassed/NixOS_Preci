@@ -50,16 +50,17 @@
           local = base.paths.local or (paths.local or null);
         };
       };
+      paths' = removeAttrs resolved.paths.store ["api"];
 
       enabled =
         filterAttrs (
           name: value:
             assert withContext {
               inherit name;
-              assertion = resolved.paths.store ? ${name};
+              assertion = paths' ? ${name};
               message = "'${name}' is not a known path in paths.store. Known paths are [${concat {
                 delim = ", ";
-                parts = attrNames resolved.paths.store;
+                parts = attrNames paths';
               }}]";
               context = "resolving path for '${name}' in assemble";
             };
@@ -71,7 +72,7 @@
         mapAttrsToList
         (
           name: args:
-            import resolved.paths.store.${name}
+            import paths'.${name}
             (base // {args = normalize args;})
         )
         enabled
