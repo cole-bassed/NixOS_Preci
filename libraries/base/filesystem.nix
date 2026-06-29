@@ -48,12 +48,10 @@
     concatLists
     elem
     elemAt
-    filter
     head
     isAttrs
     isPath
     isString
-    listToAttrs
     mapAttrs
     match
     path
@@ -66,7 +64,7 @@
     tail
     ;
   inherit (strings) hasPrefix hasSuffix matchRegex;
-  inherit (attrsets) filterAttrs;
+  inherit (attrsets) filterAttrs recursiveUpdate;
 
   /**
   Build a normalized pair of path sets — one for the Nix store, one for the
@@ -419,116 +417,111 @@
   }: let
     _name = "filesystem::mkPaths";
 
-    # One recursion level. `storeRoot`/`localRoot` are this level's own
-    # `src` (as a {path; asStr;} pair, and a string, respectively).
-    # `rawStore`/`rawLocal` are the sibling keys (with `src` stripped)
-    # contributed by `store` and `paths.local` at this level.
-    buildLevel = storeRoot: localRoot: rawStore: rawLocal: let
-      allNames = attrNames (rawStore // rawLocal);
+    inherit (builtins) attrNames concatMap foldl' head isAttrs isPath stringLength substring tail;
 
-      isGroup = name: isAttrs (rawStore.${name} or null) || isAttrs (rawLocal.${name} or null);
-      groupNames = filter isGroup allNames;
-      leafNames = filter (n: !isGroup n) allNames;
+    hasPrefix = pre: str: let
+      preLen = stringLength pre;
+    in
+      preLen <= stringLength str && substring 0 preLen str == pre;
 
-      leafStore = filterAttrs (n: _: elem n leafNames) rawStore;
-      leafLocal = filterAttrs (n: _: elem n leafNames) rawLocal;
+    nest = path: value:
+      if path == []
+      then value
+      else {${head path} = nest (tail path) value;};
 
-      isRelative = value: hasPrefix storeRoot.asStr (toString value);
+    # Walk an arbitrarily nested attrset of paths/strings into a flat list
+    # of { path :: [String]; value :: Path|String; } leaf entries. A node
+    # is a leaf if its value isn't an attrset; an attrset's own `src` key
+    # (if present) is also captured as a leaf at that branch's path.
+    walk = prefix: node:
+      if isAttrs node
+      then concatMap (name: walk (prefix ++ [name]) node.${name}) (attrNames node)
+      else [
+        {
+          path = prefix;
+          value = node;
+        }
+      ];
 
-      # leaves in `store`: relative ones get the usual stem treatment
-      # (computed off this level's root); absolute ones pass through.
-      storeLeafRelative = filterAttrs (_: isRelative) leafStore;
-      storeLeafAbsolute = filterAttrs (_: v: !isRelative v) leafStore;
-
-      stems =
-        mapAttrs (
-          _: v:
-            substring (stringLength storeRoot.asStr) (-1) (toString v)
-        )
-        storeLeafRelative;
-
-      leafStoreOut = mapAttrs (_: stem: storeRoot.path + stem) stems;
-      leafLocalFromStore = mapAttrs (_: stem: localRoot + stem) stems;
-
-      # leaves present only under `paths.local` (no `store` counterpart)
-      # are absolute local-only overrides, same as the flat case.
-      localOnlyNames = filter (n: !(leafStore ? ${n})) (attrNames leafLocal);
-      leafLocalOnly = filterAttrs (n: _: elem n localOnlyNames) leafLocal;
-
-      leafLocalOut =
-        leafLocalFromStore
-        // mapAttrs (_: toString) storeLeafAbsolute
-        // mapAttrs (_: toString) leafLocalOnly;
-
-      groupOut = listToAttrs (map (
-          name: let
-            gStore =
-              if isAttrs (rawStore.${name} or null)
-              then rawStore.${name}
-              else {};
-            gLocal =
-              if isAttrs (rawLocal.${name} or null)
-              then rawLocal.${name}
-              else {};
-
-            gStoreSrc =
-              if gStore ? src
-              then gStore.src
-              else if gStore != {}
-              then throw "${_name}: nested group '${name}' is missing 'src'."
-              else null;
-
-            # a local-only nested group (no store.src) is rooted at
-            # the matching stem under storeRoot, mirroring leaves.
-            effectiveStoreSrc =
-              if gStoreSrc != null
-              then gStoreSrc
-              else storeRoot.path + ("/" + name);
-
-            gStoreRoot = {
-              path = effectiveStoreSrc;
-              asStr = toString effectiveStoreSrc;
-            };
-
-            gLocalRoot =
-              if gLocal ? src
-              then toString gLocal.src
-              else if isRelative effectiveStoreSrc
-              then localRoot + substring (stringLength storeRoot.asStr) (-1) (toString effectiveStoreSrc)
-              else toString effectiveStoreSrc;
-          in {
-            inherit name;
-            value = buildLevel gStoreRoot gLocalRoot (removeAttrs gStore ["src"]) (removeAttrs gLocal ["src"]);
-          }
-        )
-        groupNames);
-
-      storeChildren = mapAttrs (_: g: g.store) groupOut;
-      localChildren = mapAttrs (_: g: g.local) groupOut;
-    in {
-      store = {src = storeRoot.path;} // leafStoreOut // storeChildren;
-      local = {src = localRoot;} // leafLocalOut // localChildren;
-    };
+    unwrapLocalSrc = l:
+      if l == null
+      then null
+      else if isAttrs l
+      then l.src or null
+      else l;
 
     root = {
       path = store.src or store;
       asStr = toString root.path;
     };
 
-    localSrc =
-      if local == null
+    localRoot = let
+      unwrapped = unwrapLocalSrc local;
+    in
+      if unwrapped == null
       then toString root.path
-      else toString local;
+      else toString unwrapped;
 
-    rawStore =
-      if isAttrs store
-      then removeAttrs store ["src"]
-      else {};
+    storeLeaves = walk [] store;
 
-    rawLocal =
-      if isAttrs (paths.local or null)
-      then removeAttrs paths.local ["src"]
-      else {};
+    # local-only extras (no `store` counterpart) can arrive nested under
+    # `paths.local`, or directly via the `local` parameter when callers
+    # pass `store`/`local` independently. Merge both if present.
+    localExtrasRaw =
+      (
+        if isAttrs (paths.local or null)
+        then removeAttrs paths.local ["src"]
+        else {}
+      )
+      // (
+        if isAttrs local
+        then removeAttrs local ["src"]
+        else {}
+      );
+    localExtraLeaves = walk [] localExtrasRaw;
+
+    # Every store path is relative to the single top-level root, so the
+    # stem is computed once, here, against that one root — no per-level
+    # root-tracking needed. A value with no root prefix (absolute path
+    # outside the project) has no stem and passes through unchanged.
+    toStem = value: let
+      str = toString value;
+    in
+      if hasPrefix root.asStr str
+      then substring (stringLength root.asStr) (-1) str
+      else null;
+
+    storeTree =
+      foldl' (acc: leaf: recursiveUpdate acc (nest leaf.path leaf.value)) {} storeLeaves;
+
+    localTree = let
+      fromStore =
+        foldl'
+        (
+          acc: leaf: let
+            stem = toStem leaf.value;
+            localValue =
+              if stem == null
+              then toString leaf.value
+              else localRoot + stem;
+          in
+            recursiveUpdate acc (nest leaf.path localValue)
+        )
+        {}
+        storeLeaves;
+
+      fromExtras =
+        foldl'
+        (
+          acc: leaf:
+            recursiveUpdate
+            acc
+            (nest leaf.path (toString leaf.value))
+        )
+        {}
+        localExtraLeaves;
+    in
+      recursiveUpdate fromStore fromExtras;
   in
     assert if isAttrs paths
     then true
@@ -538,7 +531,9 @@
     else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
     assert !isAttrs store
     || (store ? src && isPath store.src)
-    || throw "${_name}: 'store' set is missing a valid path for 'src'.";
-      buildLevel root localSrc rawStore rawLocal;
+    || throw "${_name}: 'store' set is missing a valid path for 'src'."; {
+      store = storeTree;
+      local = localTree;
+    };
 in
   exports

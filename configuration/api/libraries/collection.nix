@@ -8,7 +8,7 @@
 }: let
   exports = {
     scoped = {
-      paths = paths.resolved;
+      paths = paths';
       inherit hosts users displays;
     };
     # global = {paths = paths';};
@@ -19,15 +19,16 @@
   inherit (ingestion) collectNamedSpecs;
 
   paths' = let
-    base = ../.;
-    hosts = base + "/hosts";
-    users = base + "/users";
-    displays = base + "/displays";
+    src = ../.;
+    hosts = src + "/hosts";
+    users = src + "/users";
+    displays = src + "/displays";
     expanded = recursiveUpdate paths {
-      store.api = {inherit base hosts users displays;};
+      store.api = {inherit src hosts users displays;};
     };
     resolved = mkPaths' {inherit (expanded) store local;};
-  in {inherit expanded resolved;};
+  in
+    resolved;
 
   collect = base:
     collectNamedSpecs {
@@ -37,8 +38,8 @@
       inherit args;
     };
 
-  hosts = collect paths'.expanded.store.api.hosts;
-  users = collect paths'.expanded.store.api.users;
-  displays = collect paths'.expanded.store.api.displays;
+  hosts = collect paths'.store.api.hosts;
+  users = collect paths'.store.api.users;
+  displays = collect paths'.store.api.displays;
 in
   exports
