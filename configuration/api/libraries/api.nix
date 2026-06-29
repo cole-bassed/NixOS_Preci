@@ -1,3 +1,4 @@
+# TODO: Breakout into domains
 {
   attrsets,
   defaults,
@@ -426,13 +427,7 @@
       inherit (item) name;
       value =
         display
-        // {
-          layout =
-            (display.layout or {})
-            // {
-              position = point;
-            };
-        };
+        // {layout = (display.layout or {}) // {position = point;};};
     };
   in
     listToAttrs (map place ordered);
