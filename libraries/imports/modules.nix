@@ -12,7 +12,6 @@
         classified
         normalized
         merged
-        excluded
         ;
       hasFlake = hasFlakeModules;
       hasHome = hasHomeModules;
@@ -23,7 +22,6 @@
     };
 
     global = {
-      inherit hasFlakeModules;
       mkFlakeModules = mkModules;
       hasFlakeCoreModules = hasCoreModules;
       hasFlakeHomeModules = hasHomeModules;
@@ -42,113 +40,71 @@
 
   inherit (attrsets) attrNames filterAttrs isAttrs;
   inherit (lists) asListIf elem concatLists;
-  # firstNonEmpty =
-  #   lists.firstOf or (
-  #     sets:
-  #       if sets == []
-  #       then []
-  #       else let
-  #         nonEmpty = filter (set: set != []) sets;
-  #       in
-  #         if nonEmpty == []
-  #         then []
-  #         else head nonEmpty
-  #   );
+
   registry = flake.registry or {};
+
+  # Registry entries are the processed inputs' records (each has `source`,
+  # `scopes`, `modules`, etc.).  We filter to entries that carry at least a
+  # `source` field so the `aggregated` sentinel is excluded.
   registryEntries =
     if flake ? modules && flake.modules ? registry
     then filterAttrs (_: entry: isAttrs entry && entry ? source) flake.modules.registry
     else if registry ? inputs
     then filterAttrs (_: entry: isAttrs entry && entry ? source) registry.inputs
     else filterAttrs (_: entry: isAttrs entry && entry ? source) registry;
+
   hasManualRegistry = registryEntries != {};
 
-  excluded = let
-    value = bootstrap.modulePolicy.excludes or [];
-  in
-    if isAttrs value
-    then {
-      nixos = value.nixos or [];
-      darwin = value.darwin or [];
-      home = value.home or [];
-    }
-    else {
-      nixos = value;
-      darwin = value;
-      home = value;
-    };
-
-  included = bootstrap.modulePolicy.includes or {};
-
-  isIncluded = type: name: let
-    scope = included.${type} or null;
-  in
-    !(elem name (excluded.${type} or []))
-    && (
-      scope
-      == null
-      || scope == []
-      || elem name scope
-    );
-
+  # ── classified ─────────────────────────────────────────────────────────────
+  # A set of all inputs that expose at least one module namespace.
+  # No policy filtering: scope-based selection happens downstream in
+  # assembly.nix via registry.aggregated.modules.select(hostScopes).
   classified = {
-    nixos = filterAttrs (name: _: isIncluded "nixos" name) inputs.classified.modules;
-    darwin = filterAttrs (name: _: isIncluded "darwin" name) inputs.classified.modules;
-    home = filterAttrs (name: _: isIncluded "home" name) inputs.classified.modules;
+    nixos = inputs.classified.modules;
+    darwin = inputs.classified.modules;
+    home = inputs.classified.modules;
   };
 
+  # ── autoNormalized ──────────────────────────────────────────────────────────
+  # Fallback used when there is no manual registry.  Collects all modules of
+  # each class from every module-bearing input.
   autoNormalized = {
     nixos = collectModules "nixos" classified.nixos;
     darwin = collectModules "darwin" classified.darwin;
     home = collectModules "home" classified.home;
   };
 
+  # ── normalized ─────────────────────────────────────────────────────────────
+  # When a manual registry is present, build module lists directly from the
+  # registry entries (which have already been processed by registerModules in
+  # flake.nix).  This is the ALL-modules view; per-host filtering is the
+  # responsibility of assembly.nix / mkHostScopes.
   normalized =
     if hasManualRegistry
     then {
       nixos = concatLists (
-        map
-        (name:
-          if isIncluded "nixos" name
-          then registryEntries.${name}.modules.nixos or []
-          else [])
+        map (name: registryEntries.${name}.modules.nixos or [])
         (attrNames registryEntries)
       );
       darwin = concatLists (
-        map
-        (name:
-          if (isIncluded "darwin" name)
-          then (registryEntries.${name}.modules.darwin or [])
-          else [])
+        map (name: registryEntries.${name}.modules.darwin or [])
         (attrNames registryEntries)
       );
       home = concatLists (
-        map
-        (name:
-          if isIncluded "home" name
-          then registryEntries.${name}.modules.home or []
-          else [])
+        map (name: registryEntries.${name}.modules.home or [])
         (attrNames registryEntries)
       );
     }
     else autoNormalized;
 
-  # normalized =
-  #   if hasManualRegistry
-  #   then
-  #     # genAttrs classes.names (class:
-  #     genAttrs ["nixos" "darwin" "home"] (class:
-  #       concatLists (
-  #         map (name:
-  #           if isIncluded class name
-  #           then registryEntries.${name}.modules.${class} or []
-  #           else [])
-  #         (attrNames registryEntries)
-  #       ))
-  #   else autoNormalized;
-
   merged = classified // normalized;
 
+  # ── mkHM / mkCore ──────────────────────────────────────────────────────────
+  # mkCore adds the home-manager NixOS/Darwin module and the nixpkgs allowUnfree
+  # config.  These are injected into the fallback path (mkModules) only.
+  # The primary path (scopedModsFor in assembly.nix) handles both itself:
+  # home-manager comes from the registry via the "core" scope, and the nixpkgs
+  # config is injected as an inline module.
   mkHM = type: let
     key =
       if type == "nixos"
@@ -173,16 +129,15 @@
     (
       [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
       ++ asListIf (!hasManualRegistry) (mkHM type)
-      # ++ (
-      #   if hasManualRegistry
-      #   then []
-      #   else mkHM type
-      # )
     );
 
+  # ── mkModules ───────────────────────────────────────────────────────────────
+  # Returns ALL modules of a given class plus the synthesised core config.
+  # Used as the fallback in assembly.nix scopedModsFor when no registry
+  # aggregated data is available.
   mkModules = type:
     if elem type (attrNames normalized)
     then normalized.${type} ++ (mkCore type)
-    else throw "external.modules.mkMods: unknown type '${type}'";
+    else throw "modules.mkModules: unknown type '${type}', expected one of [${builtins.concatStringsSep ", " (attrNames normalized)}]";
 in
   exports

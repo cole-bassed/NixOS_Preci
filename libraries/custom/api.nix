@@ -9,7 +9,7 @@
 }: let
   exports = {
     scoped = {
-      inherit hosts users displays;
+      inherit hosts users displays getHostScopes;
       admins = getAdminUsers;
       normalUsers = getNormalUsers;
       enabledUsers = getEnabledUsers;
@@ -25,13 +25,14 @@
         getEnabledUsers
         getAdminUsers
         getNormalUsers
+        getHostScopes
         getInteractiveUsers
         ;
     };
   };
 
   inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs mapAttrsToList;
-  inherit (lists) foldl' head isList imap0 elemAt filter length sort;
+  inherit (lists) asListIf elem foldl' head isList imap0 elemAt filter length sort unique;
   inherit (ingestion) collectNamedSpecs;
   inherit (strings) isString splitString toInt;
   inherit (specs) users displays;
@@ -435,5 +436,83 @@
     };
   in
     listToAttrs (map place ordered);
+
+  /**
+  Derives the set of module-scope tags that are relevant for a given host.
+  The result is passed to registry.aggregated.modules.${class}.select in
+  assembly.nix, which returns only the modules whose flake.nix `scopes`
+  field intersects with this set.
+
+  Scope tag → what it enables (mirrors flake.nix inputs' scopes):
+
+    > core            home-manager, nixpkgs infrastructure
+    > infrastructure  nix-darwin, stable nixpkgs, nyx overlay
+    > secrets         sops-nix
+    > deployment      colmena options, disko disk layout
+    > desktop         stylix, vicinae, zen-browser, and other UI inputs
+    > ui              quickshell, caelestia, noctalia
+    > theming         stylix
+    > browser         zen-browser
+    > launcher        vicinae
+    > window-manager  niri, mango
+    > shell           desktop shell inputs (dms, caelestia, noctalia)
+    > development     vscode-server, rust-overlay, treefmt, hermes, llm-agents
+    > code            rust-overlay, treefmt
+    > language        rust-overlay
+    > formatter       treefmt
+    > editor          vscode-server
+    > ai              hermes-agent, llm-agents
+    > storage         disko (also covered by deployment)
+
+  # Decision table:
+
+    always             → core  infrastructure  secrets  deployment
+    laptop / desktop   → desktop  ui  theming  browser  launcher
+                         development  code  language  formatter  editor  ai
+    + has WM or DE     → window-manager  shell
+    + "storage" in     → storage
+      functionalities
+  */
+  getHostScopes = host: let
+    type = host.type or "desktop";
+    isDesktop = type == "laptop" || type == "desktop";
+
+    # Safe access in case interface is absent (e.g. TheOracle)
+    iface = host.interface or {};
+    wm = iface.windowManager or null;
+    de = iface.desktopEnvironment or null;
+    hasUI = isDesktop && (wm != null || de != null);
+
+    funcs = host.functionalities or [];
+  in
+    unique (
+      # ── Always required ──────────────────────────────────────────────────
+      [
+        "core"
+        "infrastructure"
+        "secrets"
+        "deployment" # colmena / disko options needed on every managed host
+      ]
+      # ── Desktop / laptop only ────────────────────────────────────────────
+      ++ (
+        asListIf isDesktop [
+          "ai"
+          "browser"
+          "code"
+          "desktop"
+          "development"
+          "editor"
+          "formatter"
+          "language"
+          "launcher"
+          "theming"
+          "ui"
+        ]
+      )
+      # ── Compositor layer: only when a WM or DE is declared ───────────────
+      ++ (asListIf hasUI ["window-manager" "shell"])
+      # ── Block-device management ──────────────────────────────────────────
+      ++ (asListIf (elem "storage" funcs) "storage")
+    );
 in
   exports

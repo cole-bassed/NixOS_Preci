@@ -109,7 +109,6 @@
       };
     };
     shellDankMaterial = {
-      # ref = "stable";
       repo = "DankMaterialShell";
       owner = "AvengeMedia";
       type = "github";
@@ -162,54 +161,103 @@
   };
 
   outputs = inputs: let
+    # ──────────────────────────────────────────────────────────────────────────
+    # inputs' — manual registry
+    #
+    # Each entry declares:
+    #   input   : the flake input name (key in `inputs`)
+    #   scopes  : descriptive tags used to decide which hosts receive this input's
+    #             modules.  These are NOT class names; they are topic labels like
+    #             "desktop", "core", "secrets".  mkHostScopes (systems.nix) maps
+    #             host characteristics to a subset of these tags, and
+    #             registry.aggregated.modules.select uses that subset to filter.
+    #   modules : which keys to extract from the source's nixosModules /
+    #             homeModules / darwinModules namespace.  Must be non-empty for
+    #             registerModules to include anything.
+    #   overlays: which keys to extract from source.overlays.
+    # ──────────────────────────────────────────────────────────────────────────
     inputs' = {
       caelestia-shell = {
         input = "shellCaelestia";
         scopes = ["desktop" "ui" "shell"];
+        # modules.home = ["default"];
       };
       colmena = {
         input = "deployColmena";
-        scopes = ["deployment" "nixos"];
+        scopes = ["deployment"];
+        # modules.nixos = [
+        #   "deploymentOptions"
+        #   "assertionModule"
+        #   "keyChownModule"
+        #   "keyServiceModule"
+        #   "metaOptions"
+        # ];
       };
       dank-material-shell = {
         input = "shellDankMaterial";
         scopes = ["desktop" "ui" "shell"];
-      };
-      deploy-rs = {
-        input = "deployRS";
-        scopes = ["deployment"];
-      };
-      disko = {
-        input = "deployDisks";
-        scopes = ["deployment" "storage" "nixos"];
+        # modules = {
+        #   nixos = ["default"];
+        #   home = ["default" "niri"];
+        # };
       };
       dms-plugin-registry = {
         input = "shellDankMaterialPlugins";
         scopes = ["desktop" "ui" "shell"];
+        # modules = {
+        #   nixos = ["default"];
+        #   home = ["default"];
+        # };
+      };
+      deploy-rs = {
+        input = "deployRS";
+        scopes = ["deployment"];
+        # overlays = ["default"];
+      };
+      disko = {
+        input = "deployDisks";
+        scopes = ["deployment" "storage"];
+        # modules.nixos = ["default"];
       };
       hermes-agent = {
         input = "aiHermes";
         scopes = ["development" "ai"];
+        # modules.nixos = ["default"];
       };
       home-manager = {
         input = "nixHome";
-        scopes = ["core" "nixos" "darwin"];
+        scopes = ["core"];
+        modules = {
+          darwin = ["default"];
+          nixos = ["default"];
+        };
       };
       llm-agents = {
         input = "aiToolkit";
         scopes = ["development" "ai"];
+        # overlays = ["default"];
       };
       mango = {
         input = "wmMango";
-        scopes = ["desktop" "window-manager" "nixos"];
+        scopes = ["desktop" "window-manager"];
+        modules = {
+          home = ["mango"];
+          nixos = ["mango"];
+        };
+        overlays = ["default"];
       };
       niri = {
         input = "wmNiri";
-        scopes = ["desktop" "window-manager" "nixos"];
+        scopes = ["desktop" "window-manager"];
+        modules = {
+          # home = ["niri" "config" "stylix"];
+          nixos = ["niri"];
+        };
+        overlays = ["niri"];
       };
       nix-darwin = {
         input = "nixDarwin";
-        scopes = ["core" "infrastructure" "darwin"];
+        scopes = ["core" "infrastructure"];
       };
       nixos-anywhere = {
         input = "deployAnywhere";
@@ -226,26 +274,66 @@
       noctalia = {
         input = "shellNoctalia";
         scopes = ["desktop" "ui" "shell"];
+        # modules = {
+        #   home = ["default"];
+        #   nixos = ["default"];
+        # };
+        # overlays = ["default"];
       };
       nyx = {
         input = "nixEdge";
         scopes = ["core" "infrastructure"];
+        # modules = {
+        #   home = [
+        #     "default"
+        #     "nyx-cache"
+        #     "nyx-overlay"
+        #     "nyx-registry"
+        #   ];
+        #   nixos = [
+        #     "appmenu-gtk3-module"
+        #     "default"
+        #     "duckdns"
+        #     "hdr"
+        #     "mesa-git"
+        #     "nordvpn"
+        #     "nyx-cache"
+        #     "nyx-home-check"
+        #     "nyx-overlay"
+        #     "nyx-registry"
+        #     "zfs-impermanence-on-shutdown"
+        #   ];
+        # };
+        # overlays = ["default"];
       };
       quickshell = {
         input = "shellQuick";
         scopes = ["desktop" "ui" "shell"];
+        # overlays = ["default"];
       };
       rust-overlay = {
         input = "langRust";
         scopes = ["development" "code" "language"];
+        # overlays = ["default"];
       };
       sops = {
         input = "secretsManager";
-        scopes = ["secrets" "nixos" "darwin" "home"];
+        scopes = ["secrets"];
+        modules = {
+          darwin = ["default"];
+          home = ["default"];
+          nixos = ["default"];
+        };
+        overlays = ["default"];
       };
       stylix = {
         input = "styleManager";
-        scopes = ["desktop" "theming" "ui" "nixos" "darwin" "home"];
+        scopes = ["desktop" "theming" "ui"];
+        # modules = {
+        #   darwin = ["default"];
+        #   home = ["default"];
+        #   nixos = ["default"];
+        # };
       };
       treefmt = {
         input = "treeFormatter";
@@ -254,37 +342,31 @@
       vicinae = {
         input = "vicinae";
         scopes = ["desktop" "launcher"];
+        # modules = {
+        #   home = ["default"];
+        #   nixos = ["default"];
+        # };
+        # overlays = ["default"];
       };
       vscode-server = {
         input = "vscodeServer";
         scopes = ["development" "editor"];
+        # modules = {
+        #   home = ["default"];
+        #   nixos = ["default"];
+        # };
       };
       zen-browser = {
         input = "browserZen";
         scopes = ["desktop" "browser"];
+        # modules.home = ["default"];
       };
     };
 
     lib = inputs.${inputs'.nixpkgs.input}.lib;
     inherit (lib.attrsets) attrNames attrValues filterAttrs getAttr genAttrs hasAttr mapAttrs optionalAttrs recursiveUpdate;
-    inherit (lib.lists) concatMap elem filter findFirst foldl' length optionals toList;
-    inherit (lib.strings) isAttrs isPath concatStringsSep;
-    inherit (lib.trivial) isFunction;
-
-    optionalList = check: value: optionals check (toList value);
-    modulePolicy = {
-      excludes = {darwin = ["nix-darwin"];};
-      select = {
-        nixos = {
-          colmena = [
-            "deploymentOptions"
-            "assertionModule"
-            "keyChownModule"
-            "keyServiceModule"
-          ];
-        };
-      };
-    };
+    inherit (lib.lists) any concatMap elem filter findFirst foldl' optionals unique;
+    inherit (lib.strings) concatStringsSep;
 
     classes = {
       modules = {
@@ -298,103 +380,89 @@
     registerInputs = name: {
       input,
       scopes,
-      modules ? [], #TODO: This should eventually be removed as scopes should drive class participation
+      modules ? {},
+      overlays ? [],
     }: let
       source = inputs.${input} // {name = input;};
     in {
       inherit scopes source;
-      overlays = registerOverlays {inherit name source;};
+      overlays = registerOverlays {inherit name source overlays;};
       libraries = registerLibraries source;
       packages = registerPackages source;
-      modules = registerModules {inherit name source scopes modules;};
+      modules = registerModules {inherit name source modules;};
     };
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # registerModules
+    #
+    # Extracts module lists from a flake input for each class (nixos/darwin/home).
+    #
+    # FIX: The old implementation used `elem class includes` where `includes` was
+    # filtered from `scopes` by class names.  Since descriptive scopes like "core"
+    # or "desktop" are never in classes.names, `includes` was always [], making
+    # shouldInclude permanently false — no input ever contributed modules.
+    #
+    # The corrected check is: include modules when the source exposes the class's
+    # module namespace AND the entry explicitly lists which keys to pick.  The
+    # `scopes` field is for topic-based host filtering (via aggregated.select),
+    # not for gating extraction.
+    # ──────────────────────────────────────────────────────────────────────────
     registerModules = {
       name,
       source,
-      scopes,
       modules,
     }: let
-      pickModules = type: set: let
-        selected = (modulePolicy.select.${type} or {}).${name} or [];
-        allowAll = elem name ((modulePolicy.all or {}).${type} or []);
-        values = attrValues set;
-        missing = filter (key: !(hasAttr key set)) selected;
-      in
-        if !isAttrs set
-        then []
-        else if selected != []
-        then
-          if missing == []
-          then map (key: getAttr key set) selected
-          else throw "flake.registry.modules: ${name}.${type} selected missing module(s): ${concatStringsSep ", " missing}"
-        else if set ? default
-        then [set.default]
-        else if length values == 1
-        then values
-        else if allowAll
-        then values
-        else throw "flake.registry.modules: ${name}.${type} has multiple modules and no default; set flake.modules.select.${type}.${name} or add '${name}' to flake.modules.all.${type}";
-
       fromClass = class: let
         key = findFirst (k: source ? ${k}) null classes.modules.${class};
       in
         optionalAttrs (key != null) source.${key};
 
-      detected = filter (class: fromClass class != {}) classes.names;
-
-      includes = let
-        explicit = toList modules;
-        fromScopes = filter (scope: elem scope classes.names) scopes;
+      pickModules = class: set: let
+        selected = modules.${class} or [];
+        missing = filter (key: !(hasAttr key set)) selected;
       in
-        if explicit != []
-        then explicit
-        else filter (class: elem class fromScopes) detected;
-
-      fromSet = class: set: let
-        candidate = set.${name} or (set.default or set);
-      in
-        if isFunction candidate || isPath candidate
-        then toList candidate
-        else if (candidate ? config || candidate ? options || candidate ? imports)
-        then toList candidate
-        else pickModules class candidate;
+        if missing == []
+        then map (key: getAttr key set) selected
+        else throw "flake.registry.modules: ${name}.${class} missing module(s): ${concatStringsSep ", " missing}";
 
       modulesOf = class: let
         resolved = fromClass class;
-        isExcluded = elem name ((modulePolicy.excludes or {}).${class} or []);
-        shouldInclude = resolved != {} && elem class includes && !isExcluded;
+        # Include when: the source exposes this class's module namespace
+        # AND the entry explicitly declares which module keys to use.
+        # Scopes are topic tags for host-filtering, not extraction gates.
+        shouldInclude = resolved != {} && (modules.${class} or []) != [];
       in
-        optionals shouldInclude (fromSet class resolved);
+        optionals shouldInclude (pickModules class resolved);
     in
-      genAttrs
-      classes.names
-      modulesOf;
-    # (class: modulesOf class);
-    # genAttrs
-    # classes.names
-    # (class: genAttrs (optionals (elem class includes) [class]) (_: modulesOf class));
+      genAttrs classes.names modulesOf;
 
     registerLibraries = source: let
       set = source.lib or {};
     in
       set
       // optionalAttrs (set ? hm) set.hm
-      # // optionalAttrs (set ? internal) set.internal
-      # // optionalAttrs (set ? _internal) set._internal
       // {};
 
     registerOverlays = {
       name,
       source,
+      overlays,
     }: let
       set = source.overlays or {};
-      target =
-        if set ? ${name}
-        then name
-        else "default";
+      missing = filter (key: !(hasAttr key set)) overlays;
+      auto = let
+        target =
+          if set ? ${name}
+          then name
+          else "default";
+      in
+        set // {default = set.${target} or null;};
     in
-      set // {default = set.${target} or null;};
+      if overlays == []
+      then auto
+      else if missing == []
+      then genAttrs overlays (key: getAttr key set)
+      else throw "flake.registry.overlays: ${name} missing overlay(s): ${concatStringsSep ", " missing}";
 
     registerPackages = source:
       source.packages or {};
@@ -407,6 +475,9 @@
 
       skip = ["nixpkgs-stable" "nyx"];
       flat = ["nix-darwin"];
+
+      matchingScopes = wanted:
+        filterAttrs (_: entry: any (scope: elem scope entry.scopes) wanted) entries;
 
       aggregated = {
         libraries = let
@@ -428,26 +499,37 @@
           recursiveUpdate (recursiveUpdate base flatExtras) named;
 
         modules = let
-          scopes = lib.lists.unique (concatMap (entry: entry.scopes or []) (attrValues entries));
-          modulesFor = type:
-            filterAttrs
-            (_: value: value != [])
-            (genAttrs scopes (scope:
-              concatMap
-              (entry: entry.modules.${type}.${scope} or [])
-              (attrValues entries)));
+          entryList = attrValues entries;
+          byScope = class: scope:
+            concatMap
+            (entry: optionals (elem scope entry.scopes) (entry.modules.${class} or []))
+            entryList;
+          scopes = unique (concatMap (entry: entry.scopes) entryList);
+          forClass = class:
+            {
+              # All modules of this class across every registered input
+              all = concatMap (entry: entry.modules.${class} or []) entryList;
+              # Scope-filtered: only entries whose scopes overlap with `wanted`
+              select = wanted: concatMap (entry: entry.modules.${class} or []) (attrValues (matchingScopes wanted));
+            }
+            // genAttrs scopes (byScope class);
         in
-          genAttrs classes.names modulesFor;
+          genAttrs classes.names forClass;
 
-        overlays =
-          concatMap
-          (
-            entry: let
-              d = entry.overlays.default or null;
-            in
-              optionalList (d != null) d
-          )
-          (attrValues entries);
+        overlays = let
+          entryList = attrValues entries;
+          values = entry: filter (v: v != null) (attrValues entry.overlays);
+          byScope = scope:
+            concatMap
+            (entry: optionals (elem scope entry.scopes) (values entry))
+            entryList;
+          scopes = unique (concatMap (entry: entry.scopes) entryList);
+        in
+          {
+            all = concatMap values entryList;
+            select = wanted: concatMap values (attrValues (matchingScopes wanted));
+          }
+          // genAttrs scopes byScope;
 
         packages =
           mapAttrs
@@ -458,17 +540,15 @@
       entries // {inherit aggregated;};
 
     defaults = {allowUnfree = true;};
-    flake = {
-      inherit defaults registry;
-      modules = modulePolicy;
-    };
+    flake = {inherit defaults registry;};
     src = import ./. {inherit flake;};
     base = src.${src.names.src};
     libs = src.${src.names.lib};
   in
-    {}
-    # {lib = base;}
-    # // flake
+    {
+      lib = base;
+      inherit flake;
+    }
     // libs.mkFlake {
       inherit base;
       mods = {

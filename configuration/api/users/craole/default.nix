@@ -36,7 +36,11 @@ in {
 
   interface = {
     environment = {
-      managers = ["mango" "hyprland" "niri"];
+      managers = [
+        # "mango"
+        "hyprland"
+        "niri"
+      ];
       desktops = [];
     };
     keyboard = {

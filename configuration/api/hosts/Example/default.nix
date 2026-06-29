@@ -676,7 +676,7 @@ in {
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
     environment = {
-      managers = ["mango"];
+      managers = ["hyprland"];
       desktops = [];
     };
     keyboard = {

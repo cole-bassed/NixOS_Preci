@@ -18,9 +18,12 @@
     global = {inherit mkFlake mkConfiguration mkSrc;};
   };
 
-  mkFlakeModules = flake.modules.mkFlakeModules or null;
+  # Fallback for non-registry setups.  Returns a no-op if neither path works so
+  # we get a clear failure at build time rather than a cryptic null-call error.
+  mkFlakeModules = flake.modules.mkFlakeModules or flake.modules.mkFlake or (_: []);
+
   inherit (attrsets) attrNames filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs recursiveUpdate;
-  inherit (api) hosts;
+  inherit (api) hosts getHostScopes;
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
@@ -112,9 +115,44 @@
             context = "validating args type in systems";
           })
         );
+
       resolved =
         mapAttrs (_: host: let
           class = host.class or hosts.default.class;
+
+          # ── Per-host scope-based module selection ─────────────────────────
+          #
+          # 1. Derive which topic scopes this host needs (e.g. a VPS gets
+          #    ["core" "infrastructure" "secrets" "deployment"] while a desktop
+          #    also gets ["desktop" "ui" "window-manager" ...]).
+          #
+          # 2. registry.aggregated.modules.${class}.select filters the registry
+          #    entries whose `scopes` field intersects the wanted set, returning
+          #    only the module values they contribute.
+          #
+          # 3. Always inject {nixpkgs.config.allowUnfree} since that is not
+          #    sourced from any external input — it is generated inline.
+          #
+          # 4. Fall back to mkFlakeModules (which returns all modules) when no
+          #    registry is available, preserving the original behaviour for
+          #    non-registry flake setups.
+          # ────────────────────────────────────────────────────────────────────
+          hostScopes = getHostScopes host;
+
+          scopedModsFor = type: let
+            reg = flake.registry or {};
+            agg = reg.aggregated or {};
+            mods = (agg.modules or {}).${type} or null;
+          in
+            if mods != null
+            then
+              # nixpkgs.config is synthesised; it comes from no input entry
+              [{nixpkgs.config = {allowUnfree = (flake.defaults or {}).allowUnfree or false;};}]
+              ++ mods.select hostScopes
+            else
+              # Fallback: all modules + mkCore (includes nixpkgs config)
+              mkFlakeModules type;
+
           src = mkSrc {
             inherit host extraArgs;
             libraries = base.libraries or (args.libraries or null);
@@ -123,21 +161,14 @@
             {
               inherit host args;
               top = src.name or (src.names.top or (names.top or names.src));
-              # ${src.names.lib} = src.${src.names.lib};
-              # ${src.names.lib} = removeAttrs src.${src.names.lib} ["flake" "flakes"];
-              # inherit src;
               inherit (src) paths;
             }
             // (removeAttrs src ["lib" "name"]);
         in {
           inherit class specialArgs;
           modules =
-            (mkFlakeModules class)
+            (scopedModsFor class)
             ++ (args.modules.core or [])
-            # ++ (host.imports or [])
-            # ++ (src.modules.core or [])
-            # ++ (extraArgs.modules.core or [])
-            # ++ (args.modules.core or [])
             ++ [
               {
                 environment.pathsToLink = [
@@ -152,13 +183,8 @@
                     parts = [src.name "backup"];
                   };
                   sharedModules =
-                    (mkFlakeModules "home")
+                    (scopedModsFor "home")
                     ++ (args.modules.home or []);
-                  # sharedModules =
-                  #   (mkFlakeModules "home")
-                  #   # ++ (src.modules.home or [])
-                  #   ++ (extraArgs.modules.home or []);
-                  # useGlobalPkgs = false;
                   useUserPackages = true;
                 };
               }

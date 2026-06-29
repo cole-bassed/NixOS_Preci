@@ -145,10 +145,10 @@
           gdm.enable = cfg.manager == "gdm";
           sddm.enable = cfg.manager == "sddm";
 
-          defaultSession =
-            mkIf
-            (cfg.defaultSession != null)
-            cfg.defaultSession;
+          # defaultSession =
+          #   mkIf
+          #   (cfg.defaultSession != null)
+          #   cfg.defaultSession;
 
           autoLogin = mkIf cfg.autoLogin.enable {
             enable = true;

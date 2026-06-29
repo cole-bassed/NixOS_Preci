@@ -11,9 +11,12 @@
     {
       inputs = {inherit raw classified normalized;};
       types = predicates;
-      inherit modulePolicy;
+      # modulePolicy removed — the flake.nix registry (inputs' + scopes) is the
+      # authoritative policy.  Host-level filtering is done by mkHostScopes +
+      # registry.aggregated.modules.select in assembly.nix.
     }
     // predicates;
+
   predicates = {
     inherit
       collectModules
@@ -31,6 +34,7 @@
       isTreefmtLike
       ;
   };
+
   inputs = flake.inputs or {};
   registry = flake.registry or {};
   isRegistryEntry = entry:
@@ -40,23 +44,13 @@
     registry.inputs or (filterAttrs (_: isRegistryEntry) registry);
   unwrapRegistryEntry = name: entry: let
     source = entry.source or entry.value or null;
-    meta = builtins.removeAttrs entry ["source" "modules" "overlays" "libraries" "value"];
+    meta = removeAttrs entry ["source" "modules" "overlays" "libraries" "value"];
   in
     if isAttrs source
     then source // meta // {inherit name;}
     else entry;
   registryInputs =
     flake.imports or (mapAttrs unwrapRegistryEntry registryEntries);
-
-  modulePolicy = let
-    modules =
-      flake.modules or {};
-  in {
-    includes = modules.includes or {};
-    excludes = modules.excludes or {};
-    select = modules.select or {};
-    all = modules.all or {};
-  };
 
   inherit (attrsets) attrNames getAttr hasAttr listToAttrs isAttrs maps mapAttrs orEmpty attrValues;
   inherit (lists) concatLists elem filter head length unique;
@@ -102,11 +96,6 @@
         else head (attrValues set)
     );
 
-  getOr = name: set: fallback:
-    if isAttrs set && hasAttr name set
-    then getAttr name set
-    else fallback;
-
   unwrapRegistryInput = entry:
     if isAttrs entry && entry ? value
     then let
@@ -118,55 +107,38 @@
       else entry
     else entry;
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # pickModules
+  #
+  # Extracts the relevant module value(s) from a source's module namespace.
+  # Fine-grained key selection is handled upstream by the flake.nix registry
+  # (registerModules), so here we just need sensible defaults:
+  #
+  #   • Use `default` when present — explicit beats implicit.
+  #   • Accept a singleton set without requiring a `default` key.
+  #   • Error with a clear message when multiple keys exist and none is `default`,
+  #     pointing the author toward the registry as the fix.
+  # ──────────────────────────────────────────────────────────────────────────
   pickModules = type: name: set: let
-    selected = getOr name (getOr type modulePolicy.select {}) [];
-    allowAll = elem name (getOr type modulePolicy.all []);
     values = attrValues set;
-
-    missing =
-      filter
-      (key: !(hasAttr key set))
-      selected;
   in
-    if !isAttrs set
-    then []
-    else if selected != []
-    then
-      if missing == []
-      then map (key: getAttr key set) selected
-      else throw "flakes.collectModules: ${name}.${type} selected missing module(s): ${concatStringsSep ", " missing}"
-    else if set ? default
+    if set ? default
     then [set.default]
     else if length values == 1
     then values
-    else if allowAll
-    then values
-    else throw "flakes.collectModules: ${name}.${type} has multiple modules and no default; set flake.modules.select.${type}.${name} or add '${name}' to flake.modules.all.${type}";
+    else
+      throw ''
+        flakes.collectModules: ${name}.${type} exposes multiple module keys with no 'default'.
+        Available keys: ${concatStringsSep ", " (attrNames set)}
+        Fix: add a 'default' key to the input's module set, or declare explicit
+        module keys in the flake.nix inputs' registry entry for '${name}'.
+      '';
+
   raw =
     filterAttrs
     (input: _: !(elem input ["self" (flake.name or names.src)]))
     inputs;
 
-  /**
-  Collect modules of a given type from a set of flake inputs.
-
-  Supported types:
-  - `nixos`
-  - `darwin`
-  - `home`
-
-  # Type
-
-  ```nix
-  collect :: String -> AttrSet -> List
-  ```
-
-  # Dependencies
-
-  - lists.asIf
-  - lists.unique
-  - modules.preferDefault
-  */
   collectModules = type: inputs: let
     attr =
       if type == "nixos"
@@ -190,6 +162,7 @@
       else [];
   in
     concatLists (attrValues (maps get inputs));
+
   flattenRegistryModules = modules:
     concatLists (
       map
@@ -213,7 +186,6 @@
       filterAttrs
       (
         _input: isHomeManagerLike
-        # || input == "nixHM"
       )
       raw;
 
@@ -292,69 +264,15 @@
 
   normalized = autoNormalized // (mapAttrs (_: unwrapRegistryInput) registryInputs);
 
-  /**
-  Normalize package exports from a flake-like input.
-
-  Supports both `legacyPackages` and `packages` layouts and always returns
-  an attrset. When both exist, `packages` is merged over `legacyPackages`.
-
-  # Type
-
-  ```nix
-  getPackages :: AttrSet -> AttrSet
-  ```
-
-  # Dependencies
-
-  - attrsets.orEmpty
-
-  # Arguments
-
-  input
-  : The flake-like input to inspect.
-
-  # Examples
-
-  ```nix
-  getPackages { packages.x86_64-linux.hello = {}; }
-  # => { x86_64-linux.hello = {}; }
-  ```
-  */
   getPackages = input: let
     value = orEmpty input;
   in
     orEmpty (value.legacyPackages or {})
     // orEmpty (value.packages or {});
 
-  /**
-  Return whether an input exposes a `lib` attribute.
-
-  # Type
-
-  ```nix
-  hasLibraries :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  None
-  */
   hasLibraries = input:
     input ? lib;
 
-  /**
-  Return whether an input exposes any recognized module namespace.
-
-  # Type
-
-  ```nix
-  hasFlakeModules :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  None
-  */
   hasFlakeModules = input:
     hasCoreModules input || hasHomeModules input;
   hasCoreModules = input:
@@ -362,67 +280,19 @@
   hasHomeModules = input:
     input ? homeModules || input ? homeManagerModules;
 
-  /**
-  Return whether an input exposes overlays.
-
-  # Type
-
-  ```nix
-  hasOverlays :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  None
-  */
   hasOverlays = input:
     input ? overlays;
 
-  /**
-  Return whether an input summary should be treated as flake-like.
-
-  # Type
-
-  ```nix
-  isFlakeLike :: AttrSet -> Bool
-  ```
-  */
   isFlakeLike = inputs:
     ((inputs.classified.modules or {}) != {})
     || ((inputs.classified.overlays or {}) != {})
     || ((inputs.normalized.nixpkgs or {}) != {});
 
-  /**
-  Return whether an input looks like a nixpkgs-style input.
-
-  # Type
-
-  ```nix
-  isNixpkgsLike :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  None
-  */
   isNixpkgsLike = input:
     input ? legacyPackages
     && input ? lib
     && !(input ? __functor);
 
-  /**
-  Return whether an input looks like nix-darwin.
-
-  # Type
-
-  ```nix
-  isNixDarwinLike :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  None
-  */
   isNixDarwinLike = input:
     input ? darwinModules
     && input ? lib
@@ -431,19 +301,6 @@
     && !(input ? homeModules)
     && !(input ? homeManagerModules);
 
-  /**
-  Return whether an input looks like home-manager.
-
-  # Type
-
-  ```nix
-  isHomeManagerLike :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  None
-  */
   isHomeManagerLike = input:
     input ? nixosModules
     && input ? darwinModules
@@ -452,20 +309,6 @@
     && input ? flakeModules
     && !(input ? homeModules);
 
-  /**
-  Return whether an input looks like treefmt-nix.
-
-  # Type
-
-  ```nix
-  isTreefmtLike :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  - flakes.hasFlakeModules
-  - flakes.hasOverlays
-  */
   isTreefmtLike = input:
     input ? lib
     && input.lib ? evalModule
@@ -474,21 +317,6 @@
     && !(hasFlakeModules input)
     && !(hasOverlays input);
 
-  /**
-  Return whether an input is nixpkgs-like infrastructure only.
-
-  # Type
-
-  ```nix
-  isNixpkgsInfrastructure :: AttrSet -> Bool
-  ```
-
-  # Dependencies
-
-  - flakes.isNixpkgsLike
-  - flakes.hasFlakeModules
-  - flakes.hasOverlays
-  */
   isNixpkgsInfrastructure = input:
     isNixpkgsLike input
     && !(hasFlakeModules input)
