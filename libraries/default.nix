@@ -51,6 +51,7 @@
         store = {
           src = ../.;
           api = ../configuration/api;
+          configuration = ../configuration;
         };
         local.src = "/etc/nixos";
       } (recursiveUpdate paths flake.paths or {});
@@ -145,14 +146,21 @@
   in
     updated;
 
-  # config = mkLibrary {
-  #   seed = custom.charged // {staged = custom;};
-  #   base = ./config;
-  # };
+  api = mkLibrary {
+    seed = custom.charged // {staged = custom;};
+    base = paths.store.api + "/libraries";
+  };
+
+  assembly = mkLibrary {
+    seed = api.charged // {staged = api;};
+    base = paths.store.configuration + "/libraries";
+  };
 
   merged = custom.charged;
 in {
   inherit
+    api
+    assembly
     custom
     shared
     merged

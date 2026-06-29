@@ -1,6 +1,3 @@
-#TODO: Move mkFlake to custom.
-#TODO: Move mkConfiguration risponsibilities to configurations
-#TODO: We should delete libraries/config
 {
   api,
   attrsets,
