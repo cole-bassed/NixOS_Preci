@@ -390,7 +390,10 @@
       in
         if missing == []
         then map (key: getAttr key set) selected
-        else throw "flake.registry.modules: ${name}.${class} missing module(s): ${concatStringsSep ", " missing}";
+        else
+          throw "flake.registry.modules: ${name}.${class} missing module(s): ${
+            concatStringsSep ", " missing
+          }";
 
       modulesOf = class: let
         resolved = fromClass class;

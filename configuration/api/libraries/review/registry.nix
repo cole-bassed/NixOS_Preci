@@ -1,6 +1,5 @@
 # TODO: Breakout into domains
 {
-  users,
   attrsets,
   defaults,
   lists,
@@ -21,10 +20,10 @@
     global = {};
   };
 
-  inherit (attrsets) attrNames listToAttrs genAttrs filterAttrs mapAttrs mapAttrsToList;
-  inherit (lists) asListIf elem foldl' head isList imap0 elemAt filter length sort unique;
+  inherit (attrsets) attrNames mapAttrs;
+  inherit (lists) head elemAt;
   inherit (ingestion) collectNamedSpecs;
-  inherit (strings) isString match splitString toInt;
+  inherit (strings) match;
   inherit (specs) users displays;
 
   collectSpecs = {

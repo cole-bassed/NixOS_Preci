@@ -1,6 +1,5 @@
 # TODO: Breakout into domains
 {
-  users,
   attrsets,
   defaults,
   lists,
@@ -24,7 +23,7 @@
 
   collected =
     mapAttrs
-    (_: host: normalize host)
+    (_: normalize)
     (
       collectNamedSpecs {
         tags = "core";
