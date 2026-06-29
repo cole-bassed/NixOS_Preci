@@ -145,15 +145,14 @@
   in
     updated;
 
-  config = mkLibrary {
-    seed = custom.charged // {staged = custom;};
-    base = ./config;
-  };
+  # config = mkLibrary {
+  #   seed = custom.charged // {staged = custom;};
+  #   base = ./config;
+  # };
 
-  merged = config.charged;
+  merged = custom.charged;
 in {
   inherit
-    config
     custom
     shared
     merged
