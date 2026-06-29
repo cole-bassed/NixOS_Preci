@@ -108,18 +108,18 @@
         quickshell.follows = "shellQuick";
       };
     };
-    shellDankMaterial = {
-      repo = "DankMaterialShell";
-      owner = "AvengeMedia";
-      type = "github";
-      inputs.nixpkgs.follows = "nixCore";
-    };
-    shellDankMaterialPlugins = {
-      repo = "dms-plugin-registry";
-      owner = "AvengeMedia";
-      type = "github";
-      inputs.nixpkgs.follows = "nixCore";
-    };
+    # shellDankMaterial = {
+    #   repo = "DankMaterialShell";
+    #   owner = "AvengeMedia";
+    #   type = "github";
+    #   inputs.nixpkgs.follows = "nixCore";
+    # };
+    # shellDankMaterialPlugins = {
+    #   repo = "dms-plugin-registry";
+    #   owner = "AvengeMedia";
+    #   type = "github";
+    #   inputs.nixpkgs.follows = "nixCore";
+    # };
     shellNoctalia = {
       repo = "noctalia";
       owner = "noctalia-dev";
@@ -178,22 +178,6 @@
         #   "metaOptions"
         # ];
       };
-      dank-material-shell = {
-        input = "shellDankMaterial";
-        scopes = ["desktop" "ui" "shell"];
-        # modules = {
-        #   nixos = ["default"];
-        #   home = ["default" "niri"];
-        # };
-      };
-      dms-plugin-registry = {
-        input = "shellDankMaterialPlugins";
-        scopes = ["desktop" "ui" "shell"];
-        # modules = {
-        #   nixos = ["default"];
-        #   home = ["default"];
-        # };
-      };
       deploy-rs = {
         input = "deployRS";
         scopes = ["deployment"];
@@ -204,6 +188,22 @@
         scopes = ["deployment" "storage"];
         # modules.nixos = ["default"];
       };
+      # dms-shell = {
+      #   input = "shellDankMaterial";
+      #   scopes = ["desktop" "ui" "shell"];
+      #   # modules = {
+      #   #   nixos = ["default"];
+      #   #   home = ["default" "niri"];
+      #   # };
+      # };
+      # dms-plugin-registry = {
+      #   input = "shellDankMaterialPlugins";
+      #   scopes = ["desktop" "ui" "shell"];
+      #   # modules = {
+      #   #   nixos = ["default"];
+      #   #   home = ["default"];
+      #   # };
+      # };
       hermes-agent = {
         input = "aiHermes";
         scopes = ["development" "ai"];
