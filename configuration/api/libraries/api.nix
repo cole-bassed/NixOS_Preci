@@ -38,7 +38,7 @@
   inherit (specs) users displays;
 
   api = let
-    base = paths.store.api or paths.api or ../../configuration/api;
+    base = paths.store.api or paths.api or ../.;
     hosts = base + "/hosts";
     users = base + "/users";
     displays = base + "/displays";

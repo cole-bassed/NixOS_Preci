@@ -156,7 +156,7 @@
     base = paths.store.configuration + "/libraries";
   };
 
-  merged = custom.charged;
+  merged = assembly.charged;
 in {
   inherit
     api
