@@ -17,7 +17,7 @@ in {
   in {
     config = {
       programs = {
-        niri = mkIf cfg.${leaf}.enable {
+        ${leaf} = mkIf cfg.${leaf}.enable {
           inherit (cfg.${leaf}) enable;
         };
 

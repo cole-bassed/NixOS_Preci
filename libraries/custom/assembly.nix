@@ -18,7 +18,7 @@
 }: let
   exports = {
     scoped = {inherit mkConfiguration mkFlake mkPaths mkSrc;};
-    global = {};
+    global = {inherit mkFlake mkConfiguration mkSrc;};
   };
 
   # Fallback for non-registry setups.  Returns a no-op if neither path works so

@@ -161,26 +161,11 @@
   };
 
   outputs = inputs: let
-    # ──────────────────────────────────────────────────────────────────────────
-    # inputs' — manual registry
-    #
-    # Each entry declares:
-    #   input   : the flake input name (key in `inputs`)
-    #   scopes  : descriptive tags used to decide which hosts receive this input's
-    #             modules.  These are NOT class names; they are topic labels like
-    #             "desktop", "core", "secrets".  mkHostScopes (systems.nix) maps
-    #             host characteristics to a subset of these tags, and
-    #             registry.aggregated.modules.select uses that subset to filter.
-    #   modules : which keys to extract from the source's nixosModules /
-    #             homeModules / darwinModules namespace.  Must be non-empty for
-    #             registerModules to include anything.
-    #   overlays: which keys to extract from source.overlays.
-    # ──────────────────────────────────────────────────────────────────────────
     inputs' = {
       caelestia-shell = {
         input = "shellCaelestia";
         scopes = ["desktop" "ui" "shell"];
-        # modules.home = ["default"];
+        modules.home = ["default"];
       };
       colmena = {
         input = "deployColmena";
@@ -235,7 +220,7 @@
       llm-agents = {
         input = "aiToolkit";
         scopes = ["development" "ai"];
-        # overlays = ["default"];
+        overlays = ["default"];
       };
       mango = {
         input = "wmMango";
@@ -249,10 +234,7 @@
       niri = {
         input = "wmNiri";
         scopes = ["desktop" "window-manager"];
-        modules = {
-          # home = ["niri" "config" "stylix"];
-          nixos = ["niri"];
-        };
+        modules.nixos = ["niri"];
         overlays = ["niri"];
       };
       nix-darwin = {
@@ -278,7 +260,7 @@
         #   home = ["default"];
         #   nixos = ["default"];
         # };
-        # overlays = ["default"];
+        overlays = ["default"];
       };
       nyx = {
         input = "nixEdge";
@@ -304,17 +286,17 @@
         #     "zfs-impermanence-on-shutdown"
         #   ];
         # };
-        # overlays = ["default"];
+        overlays = ["default"];
       };
       quickshell = {
         input = "shellQuick";
         scopes = ["desktop" "ui" "shell"];
-        # overlays = ["default"];
+        overlays = ["default"];
       };
       rust-overlay = {
         input = "langRust";
         scopes = ["development" "code" "language"];
-        # overlays = ["default"];
+        overlays = ["default"];
       };
       sops = {
         input = "secretsManager";
@@ -346,7 +328,7 @@
         #   home = ["default"];
         #   nixos = ["default"];
         # };
-        # overlays = ["default"];
+        overlays = ["default"];
       };
       vscode-server = {
         input = "vscodeServer";
@@ -359,7 +341,7 @@
       zen-browser = {
         input = "browserZen";
         scopes = ["desktop" "browser"];
-        # modules.home = ["default"];
+        modules.home = ["default"];
       };
     };
 
@@ -392,21 +374,6 @@
       modules = registerModules {inherit name source modules;};
     };
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # registerModules
-    #
-    # Extracts module lists from a flake input for each class (nixos/darwin/home).
-    #
-    # FIX: The old implementation used `elem class includes` where `includes` was
-    # filtered from `scopes` by class names.  Since descriptive scopes like "core"
-    # or "desktop" are never in classes.names, `includes` was always [], making
-    # shouldInclude permanently false — no input ever contributed modules.
-    #
-    # The corrected check is: include modules when the source exposes the class's
-    # module namespace AND the entry explicitly lists which keys to pick.  The
-    # `scopes` field is for topic-based host filtering (via aggregated.select),
-    # not for gating extraction.
-    # ──────────────────────────────────────────────────────────────────────────
     registerModules = {
       name,
       source,
@@ -427,9 +394,6 @@
 
       modulesOf = class: let
         resolved = fromClass class;
-        # Include when: the source exposes this class's module namespace
-        # AND the entry explicitly declares which module keys to use.
-        # Scopes are topic tags for host-filtering, not extraction gates.
         shouldInclude = resolved != {} && (modules.${class} or []) != [];
       in
         optionals shouldInclude (pickModules class resolved);
@@ -473,44 +437,51 @@
         (name: spec: (registerInputs name spec))
         inputs';
 
-      skip = ["nixpkgs-stable" "nyx"];
-      flat = ["nix-darwin"];
-
       matchingScopes = wanted:
         filterAttrs (_: entry: any (scope: elem scope entry.scopes) wanted) entries;
 
       aggregated = {
         libraries = let
           base = entries.nixpkgs.libraries;
-          flatExtras =
+          extra =
             foldl'
             (acc: name: recursiveUpdate acc entries.${name}.libraries)
             {}
-            flat;
+            ["nix-darwin"];
           named =
             mapAttrs
             (_: entry: entry.libraries)
-            (filterAttrs
-              (name: entry:
-                !elem name (["nixpkgs"] ++ skip ++ flat)
-                && entry.libraries != {})
-              entries);
+            (
+              filterAttrs
+              (
+                _: entry:
+                  !elem "infrastructure" entry.scopes
+                  && entry.libraries != {}
+              )
+              entries
+            );
         in
-          recursiveUpdate (recursiveUpdate base flatExtras) named;
+          recursiveUpdate (recursiveUpdate base extra) named;
 
         modules = let
           entryList = attrValues entries;
           byScope = class: scope:
             concatMap
-            (entry: optionals (elem scope entry.scopes) (entry.modules.${class} or []))
+            (
+              entry:
+                optionals
+                (elem scope entry.scopes)
+                (entry.modules.${class} or [])
+            )
             entryList;
           scopes = unique (concatMap (entry: entry.scopes) entryList);
           forClass = class:
             {
-              # All modules of this class across every registered input
               all = concatMap (entry: entry.modules.${class} or []) entryList;
-              # Scope-filtered: only entries whose scopes overlap with `wanted`
-              select = wanted: concatMap (entry: entry.modules.${class} or []) (attrValues (matchingScopes wanted));
+              select = wanted:
+                concatMap
+                (entry: entry.modules.${class} or [])
+                (attrValues (matchingScopes wanted));
             }
             // genAttrs scopes (byScope class);
         in
@@ -527,7 +498,10 @@
         in
           {
             all = concatMap values entryList;
-            select = wanted: concatMap values (attrValues (matchingScopes wanted));
+            select = wanted:
+              concatMap
+              values
+              (attrValues (matchingScopes wanted));
           }
           // genAttrs scopes byScope;
 

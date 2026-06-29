@@ -39,13 +39,13 @@
   registryOverlays =
     registry.overlays or (
       if flake.overlays ? registry
-      then builtins.mapAttrs (_: value: {inherit value;}) flake.overlays.registry
+      then mapAttrs (_: value: {inherit value;}) flake.overlays.registry
       else {}
     );
 
   classified =
     if registryOverlays != {}
-    then builtins.mapAttrs (_: entry: {default = entry.value;}) registryOverlays
+    then mapAttrs (_: entry: {default = entry.value;}) registryOverlays
     else autoClassified;
 
   normalized =
