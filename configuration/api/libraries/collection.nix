@@ -1,4 +1,5 @@
 {
+  args,
   paths,
   filesystem,
   attrsets,
@@ -7,14 +8,14 @@
 }: let
   exports = {
     scoped = {
-      paths = paths';
+      paths = paths.resolved;
       inherit hosts users displays;
     };
     # global = {paths = paths';};
   };
 
   inherit (attrsets) recursiveUpdate;
-  inherit (filesystem) mkPaths;
+  inherit (filesystem) mkPaths';
   inherit (ingestion) collectNamedSpecs;
 
   paths' = let
@@ -25,19 +26,19 @@
     expanded = recursiveUpdate paths {
       store.api = {inherit base hosts users displays;};
     };
-    resolved = mkPaths {inherit (expanded) store local;};
-  in
-    resolved;
+    resolved = mkPaths' {inherit (expanded) store local;};
+  in {inherit expanded resolved;};
 
   collect = base:
     collectNamedSpecs {
       inherit base;
       includeFiles = true;
       rekey = true;
+      inherit args;
     };
 
-  hosts = collect paths'.store.api.hosts;
-  users = collect paths'.store.api.users;
-  displays = collect paths'.store.api.displays;
+  hosts = collect paths'.expanded.store.api.hosts;
+  users = collect paths'.expanded.store.api.users;
+  displays = collect paths'.expanded.store.api.displays;
 in
   exports

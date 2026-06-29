@@ -36,6 +36,7 @@
     global = {
       inherit
         mkPaths
+        mkPaths'
         resolveDefaultNix
         ;
     };
@@ -45,12 +46,14 @@
     (builtins)
     attrNames
     concatLists
-    elemAt
-    head
     elem
+    elemAt
+    filter
+    head
     isAttrs
     isPath
     isString
+    listToAttrs
     mapAttrs
     match
     path
@@ -408,5 +411,134 @@
         );
   in
     scan base depth;
+
+  mkPaths' = {
+    paths ? {src = ./../../../.;},
+    store ? paths.store or paths,
+    local ? paths.local.src or paths.local or null,
+  }: let
+    _name = "filesystem::mkPaths";
+
+    # One recursion level. `storeRoot`/`localRoot` are this level's own
+    # `src` (as a {path; asStr;} pair, and a string, respectively).
+    # `rawStore`/`rawLocal` are the sibling keys (with `src` stripped)
+    # contributed by `store` and `paths.local` at this level.
+    buildLevel = storeRoot: localRoot: rawStore: rawLocal: let
+      allNames = attrNames (rawStore // rawLocal);
+
+      isGroup = name: isAttrs (rawStore.${name} or null) || isAttrs (rawLocal.${name} or null);
+      groupNames = filter isGroup allNames;
+      leafNames = filter (n: !isGroup n) allNames;
+
+      leafStore = filterAttrs (n: _: elem n leafNames) rawStore;
+      leafLocal = filterAttrs (n: _: elem n leafNames) rawLocal;
+
+      isRelative = value: hasPrefix storeRoot.asStr (toString value);
+
+      # leaves in `store`: relative ones get the usual stem treatment
+      # (computed off this level's root); absolute ones pass through.
+      storeLeafRelative = filterAttrs (_: isRelative) leafStore;
+      storeLeafAbsolute = filterAttrs (_: v: !isRelative v) leafStore;
+
+      stems =
+        mapAttrs (
+          _: v:
+            substring (stringLength storeRoot.asStr) (-1) (toString v)
+        )
+        storeLeafRelative;
+
+      leafStoreOut = mapAttrs (_: stem: storeRoot.path + stem) stems;
+      leafLocalFromStore = mapAttrs (_: stem: localRoot + stem) stems;
+
+      # leaves present only under `paths.local` (no `store` counterpart)
+      # are absolute local-only overrides, same as the flat case.
+      localOnlyNames = filter (n: !(leafStore ? ${n})) (attrNames leafLocal);
+      leafLocalOnly = filterAttrs (n: _: elem n localOnlyNames) leafLocal;
+
+      leafLocalOut =
+        leafLocalFromStore
+        // mapAttrs (_: toString) storeLeafAbsolute
+        // mapAttrs (_: toString) leafLocalOnly;
+
+      groupOut = listToAttrs (map (
+          name: let
+            gStore =
+              if isAttrs (rawStore.${name} or null)
+              then rawStore.${name}
+              else {};
+            gLocal =
+              if isAttrs (rawLocal.${name} or null)
+              then rawLocal.${name}
+              else {};
+
+            gStoreSrc =
+              if gStore ? src
+              then gStore.src
+              else if gStore != {}
+              then throw "${_name}: nested group '${name}' is missing 'src'."
+              else null;
+
+            # a local-only nested group (no store.src) is rooted at
+            # the matching stem under storeRoot, mirroring leaves.
+            effectiveStoreSrc =
+              if gStoreSrc != null
+              then gStoreSrc
+              else storeRoot.path + ("/" + name);
+
+            gStoreRoot = {
+              path = effectiveStoreSrc;
+              asStr = toString effectiveStoreSrc;
+            };
+
+            gLocalRoot =
+              if gLocal ? src
+              then toString gLocal.src
+              else if isRelative effectiveStoreSrc
+              then localRoot + substring (stringLength storeRoot.asStr) (-1) (toString effectiveStoreSrc)
+              else toString effectiveStoreSrc;
+          in {
+            inherit name;
+            value = buildLevel gStoreRoot gLocalRoot (removeAttrs gStore ["src"]) (removeAttrs gLocal ["src"]);
+          }
+        )
+        groupNames);
+
+      storeChildren = mapAttrs (_: g: g.store) groupOut;
+      localChildren = mapAttrs (_: g: g.local) groupOut;
+    in {
+      store = {src = storeRoot.path;} // leafStoreOut // storeChildren;
+      local = {src = localRoot;} // leafLocalOut // localChildren;
+    };
+
+    root = {
+      path = store.src or store;
+      asStr = toString root.path;
+    };
+
+    localSrc =
+      if local == null
+      then toString root.path
+      else toString local;
+
+    rawStore =
+      if isAttrs store
+      then removeAttrs store ["src"]
+      else {};
+
+    rawLocal =
+      if isAttrs (paths.local or null)
+      then removeAttrs paths.local ["src"]
+      else {};
+  in
+    assert if isAttrs paths
+    then true
+    else throw "${_name}: 'paths' argument must be an attribute set.";
+    assert if (isPath store || isAttrs store)
+    then true
+    else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
+    assert !isAttrs store
+    || (store ? src && isPath store.src)
+    || throw "${_name}: 'store' set is missing a valid path for 'src'.";
+      buildLevel root localSrc rawStore rawLocal;
 in
   exports

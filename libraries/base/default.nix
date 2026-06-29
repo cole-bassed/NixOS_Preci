@@ -82,4 +82,9 @@ let
         (attrNames (lhs // rhs))
       )
     else rhs;
-in {inherit getSpecs recursiveUpdate recursiveSelf;}
+
+  optionalAttrs = condition: set:
+    if condition
+    then set
+    else {};
+in {inherit getSpecs recursiveUpdate recursiveSelf optionalAttrs;}

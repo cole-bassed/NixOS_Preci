@@ -15,8 +15,10 @@
   };
 
   bootstrap = import ./.;
+
   inherit (builtins) attrValues foldl' mapAttrs;
 
+  optionalAttrs = attrsets.optionalAttrs or bootstrap.optionalAttrs;
   recursiveUpdate = attrsets.recursiveUpdate or bootstrap.recursiveUpdate;
   recursiveSelf = trivial.recursiveSelf or bootstrap.recursiveSelf;
   getSpecs = filesystem.getSpecs or bootstrap.getSpecs;
@@ -31,6 +33,7 @@
     excludes ? seed.excludes.paths or ["default"], #TODO: This needs to see folders to skip as will, not just files and if the extension (nix) is present it doesn't skip?
     seed ? {},
     extra ? {},
+    args ? null,
   }: let
     clean = set:
       removeAttrs set [
@@ -55,9 +58,12 @@
 
     modules = recursiveSelf (self: let
       scope =
-        recursiveUpdate
-        seed
-        (clean (mapAttrs (_: lib: lib.value) self));
+        (optionalAttrs (args != null) {inherit args;})
+        // (
+          recursiveUpdate
+          seed
+          (clean (mapAttrs (_: lib: lib.value) self))
+        );
     in
       foldl'
       recursiveUpdate

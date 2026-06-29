@@ -146,10 +146,12 @@
   in
     updated;
 
-  api = mkLibrary {
-    seed = custom.charged // {staged = custom;};
+  api = let
+    args = custom.charged // {staged = custom;};
     base = paths.store.api + "/libraries";
-  };
+    seed = args;
+  in
+    mkLibrary {inherit args base seed;};
 
   assembly = mkLibrary {
     seed = api.charged // {staged = api;};
