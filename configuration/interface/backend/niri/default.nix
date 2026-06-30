@@ -16,13 +16,15 @@ in {
     pkgs,
     ...
   }: let
+    inherit (lix.lists) elem;
+    isManaged = config: elem "niri" config.${top}.interface.backend.managers;
     inherit ((mkArgs config pkgs "core")) cfg opt;
   in {
-    options = opt {enable = mkEnableOption "Niri compositor";};
+    options = opt {enable = mkEnableOption "Niri compositor" // {default = isManaged config;};};
     config = mkIf (shouldEnable config cfg) {
       programs = {
         niri = {
-          inherit (cfg) enable;
+          enable = true;
           package = pkgs.niri;
         };
         uwsm.waylandCompositors.niri = {

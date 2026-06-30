@@ -232,8 +232,12 @@
 
           children =
             optionals
-            (type == "directory" && (recurse || !(hasEntrypointDir base name)))
+            (type == "directory" && !(hasEntrypointDir base name) && recurse)
             (collect path' (base + "/${name}"));
+          # children =
+          #   optionals
+          #   (type == "directory" && (recurse || !(hasEntrypointDir base name)))
+          #   (collect path' (base + "/${name}"));
         in
           [(wrap module)] ++ children
       ) (attrNames entries);

@@ -1,4 +1,3 @@
-# configuration/interface/backend/default.nix
 {
   lix,
   top,
@@ -8,8 +7,8 @@
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) asAttrs namesOf valuesOf;
-  inherit (lix.lists) concatMap;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.lists) concatMap elem;
+  inherit (lix.options) mkModuleArgs mkEnable mkOption;
   inherit (lix.types) enum listOf;
 
   setOf = list: namesOf (asAttrs list);
@@ -61,6 +60,37 @@ in
     // {
       base = ./.;
       path = path;
+      extraArgs = {
+        mkArgs = {
+          path,
+          config,
+          scope ? "core",
+          extra ? {},
+        }:
+          mkModuleArgs ({inherit config top path scope;} // extra);
+
+        mkEnable = {
+          name,
+          prettyName ? name,
+          config,
+          scope,
+        }:
+          mkEnable {
+            description = "${prettyName} compositor";
+            default = elem name ((config.${top}.interface.managers or []) ++ []); # TODO:  This is wrong, it should be based on if host or user api wants it (elem name (host.interface.managers or (user.interface.managers or [])))
+            inherit name scope;
+          };
+
+        mkUWSM = {
+          name,
+          prettyName ? name,
+          bin ? name,
+        }: {
+          inherit prettyName;
+          comment = "${prettyName} compositor managed by UWSM";
+          binPath = "/run/current-system/sw/bin/${bin}";
+        };
+      };
     })
   // {
     core = {config, ...}: let

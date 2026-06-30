@@ -9,6 +9,7 @@
     scoped = {
       inherit
         mkEnable
+        mkEnable'
         mkCfg
         mkOpt
         mkEnableMod
@@ -35,6 +36,7 @@
     mod ? null,
     description ? null,
     scope ? "core",
+    default ? false,
   }: let
     module =
       if name != null && name != ""
@@ -55,10 +57,25 @@
         else throw "Expected scope to be one of [core home], got ${scope}"
       }"
       else "Whether to enable this module";
+    mk = default: mkEnableOption description' // default;
   in {
-    false = mkEnableOption description';
-    true = mkEnableOption description' // {default = true;};
+    false = mk {default = false;};
+    true = mk {default = true;};
+    default = mk {inherit default;};
   };
+
+  mkEnable' = {
+    name ? null,
+    mod ? null,
+    description ? null,
+    scope ? "core",
+    default ? false,
+  }:
+    (mkEnable {inherit name mod description scope;}).${
+      if default
+      then "true"
+      else "false"
+    };
 
   mkCfg = {
     config,
@@ -108,18 +125,26 @@
     segments =
       if path != null
       then path
-      else (
-        if dom != null
-        then [dom mod]
-        else [mod]
-      );
+      else
+        (
+          if dom != null
+          then [dom mod]
+          else [mod]
+        );
 
     fullPath = [top] ++ segments;
     leafName = last segments;
     package = pkgs.${leafName} or {};
-    cfg = mkCfg {config = config; path = fullPath;};
+    cfg = mkCfg {
+      config = config;
+      path = fullPath;
+    };
     inherit (cfg) enable;
-    opt = options: mkOpt {inherit options; path = fullPath;};
+    opt = options:
+      mkOpt {
+        inherit options;
+        path = fullPath;
+      };
     base = leafName;
     programs.${leafName} = {inherit enable package;};
   in {
@@ -136,7 +161,10 @@
       ;
     # leaf alias kept distinct from `mod`/`base` for clarity at new call sites
     leaf = leafName;
-    mkEnableMod = mkEnableMod {mod = leafName; inherit scope;};
+    mkEnableMod = mkEnableMod {
+      mod = leafName;
+      inherit scope;
+    };
   };
 
   mkFloatOption = {
