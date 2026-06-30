@@ -29,14 +29,18 @@ in {
     inherit (mk {inherit config scope;}) cfg opt;
   in {
     options = opt {
-      enable = mkEnable {
-        name = prettyName;
-        default = elem name ((host.interface or {}).managers or []);
-      };
-      withUWSM = mkEnable {
-        description = "launching ${prettyName} through UWSM";
-        default = cfg.enable;
-      };
+      enable =
+        (mkEnable
+          {
+            name = prettyName;
+            default = elem name ((host.interface or {}).managers or []);
+          }).default;
+      withUWSM =
+        (mkEnable
+          {
+            description = "launching ${prettyName} through UWSM";
+            default = cfg.enable;
+          }).default;
     };
 
     config = {
@@ -56,11 +60,13 @@ in {
     inherit (mk {inherit config scope;}) cfg opt;
   in {
     options = opt {
-      enable = mkEnable {
-        inherit scope;
-        name = prettyName;
-        default = elem name ((user.interface or {}).managers or []);
-      };
+      enable =
+        (mkEnable
+          {
+            inherit scope;
+            name = prettyName;
+            default = elem name ((user.interface or {}).managers or []);
+          }).default;
       configType = mkOption {
         type = enum ["hyprlang" "lua"];
         default = "hyprlang";
