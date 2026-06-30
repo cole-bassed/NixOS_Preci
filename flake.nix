@@ -511,20 +511,57 @@
             (entry: optionals (elem scope entry.scopes) (values entry))
             entryList;
           scopes = unique (concatMap (entry: entry.scopes) entryList);
+
+          aliases = let
+            specs = {
+              niri = "niri-unstable";
+            };
+          in [
+            (
+              final: prev:
+                foldl' (
+                  acc: shortcut: let
+                    target = specs.${shortcut};
+                  in
+                    acc
+                    // optionalAttrs (hasAttr target prev) {
+                      ${shortcut} = final.${target};
+                    }
+                ) {} (attrNames specs)
+            )
+          ];
         in
           {
-            all = concatMap values entryList;
+            all = (concatMap values entryList) ++ aliases;
             select = wanted:
-              concatMap
-              values
-              (attrValues (matchingScopes wanted));
+              (
+                concatMap
+                values
+                (attrValues (matchingScopes wanted))
+              )
+              ++ aliases;
           }
-          // genAttrs scopes byScope;
+          // genAttrs scopes (scope: (byScope scope) ++ aliases);
 
-        packages =
-          mapAttrs
-          (_: entry: entry.packages)
-          (filterAttrs (_: entry: entry.packages != {}) entries);
+        packages = let
+          validEntries = filterAttrs (_: entry: entry.packages != {}) entries;
+          allSystems = unique (
+            concatMap
+            (entry: attrNames entry.packages)
+            (attrValues validEntries)
+          );
+        in
+          genAttrs allSystems (
+            system:
+              foldl' (
+                acc: name: let
+                  pkgSet = entries.${name}.packages.${system} or {};
+                in
+                  acc
+                  // (removeAttrs pkgSet ["default"])
+                  // (optionalAttrs (pkgSet ? default) {${name} = pkgSet.default;})
+              ) {} (attrNames validEntries)
+          );
       };
     in
       entries // {inherit aggregated;};

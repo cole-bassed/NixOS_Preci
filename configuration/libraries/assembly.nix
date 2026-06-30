@@ -30,7 +30,8 @@
   inherit (lists) elem foldl' groupBy;
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
-  inherit (systems) getClassification getBuilder;
+  inherit (systems) getClassification getBuilder systemOf;
+  inherit (flake.registry.aggregated) overlays packages;
 
   mkFlake = arg: let
     _name = "config.assembly.mkFlake";
@@ -163,6 +164,7 @@
               inherit host args;
               top = src.name or (src.names.top or (names.top or names.src));
               inherit (src) paths;
+              mkPkgs = pkgs: pkgs // (packages.${systemOf pkgs} or {});
             }
             // (removeAttrs src ["lib" "name"]);
         in {
@@ -176,6 +178,8 @@
                   "/share/applications"
                   "/share/xdg-desktop-portal"
                 ];
+
+                nixpkgs.overlays = overlays.select hostScopes;
 
                 home-manager = {
                   extraSpecialArgs = specialArgs;

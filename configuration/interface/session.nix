@@ -8,7 +8,7 @@
   ...
 }: let
   inherit (lix.api) getAdminUsers;
-  inherit (lix.attrsets) attrValues optionalAttrs;
+  inherit (lix.attrsets) attrValues;
   inherit (lix.lists) elem elemAt length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
@@ -132,22 +132,18 @@
     "sway"
   ];
 
-  mk = scope: {
-    config,
-    ...
-  }: let
+  mk = scope: {config, ...}: let
     inherit ((args config scope)) cfg opt;
     backend = config.${top}.interface.backend;
     user = userByName auto.user;
     session = login.defaultSession or (defaultSession user);
     greeter = cfg.manager;
-    compositor =
-      let
-        preferredSession = preferred user;
-      in
-        if elem preferredSession dmsCompositors
-        then preferredSession
-        else null;
+    compositor = let
+      preferredSession = preferred user;
+    in
+      if elem preferredSession dmsCompositors
+      then preferredSession
+      else null;
   in {
     options = opt (opts (displayManagerFor backend) session);
 
