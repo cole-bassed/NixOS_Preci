@@ -247,6 +247,8 @@ in {
   interface = {
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
+    displayManager = "dms";
+    frontend = "dms";
     # desktopEnvironment = "plasma";
     windowManager = "hyprland";
     # displayProtocol = "wayland";

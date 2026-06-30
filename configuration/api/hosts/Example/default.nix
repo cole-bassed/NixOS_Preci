@@ -675,7 +675,7 @@ in {
     };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    environment = {
+    backend = {
       managers = ["hyprland"];
       desktops = [];
     };

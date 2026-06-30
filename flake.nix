@@ -108,18 +108,24 @@
         quickshell.follows = "shellQuick";
       };
     };
-    # shellDankMaterial = {
-    #   repo = "DankMaterialShell";
-    #   owner = "AvengeMedia";
-    #   type = "github";
-    #   inputs.nixpkgs.follows = "nixCore";
-    # };
-    # shellDankMaterialPlugins = {
-    #   repo = "dms-plugin-registry";
-    #   owner = "AvengeMedia";
-    #   type = "github";
-    #   inputs.nixpkgs.follows = "nixCore";
-    # };
+    shellDankMaterial = {
+      repo = "DankMaterialShell";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellDankMaterialPlugins = {
+      repo = "dms-plugin-registry";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
+    shellDankMaterialProcess = {
+      repo = "dgop";
+      owner = "AvengeMedia";
+      type = "github";
+      inputs.nixpkgs.follows = "nixCore";
+    };
     shellNoctalia = {
       repo = "noctalia";
       owner = "noctalia-dev";
@@ -183,27 +189,35 @@
         scopes = ["deployment"];
         # overlays = ["default"];
       };
+      dgop = {
+        input = "shellDankMaterialProcess";
+        scopes = ["desktop" "ui" "shell"];
+        modules = {
+          nixos = ["default"];
+          # home = ["default"];
+        };
+      };
       disko = {
         input = "deployDisks";
         scopes = ["deployment" "storage"];
         # modules.nixos = ["default"];
       };
-      # dms-shell = {
-      #   input = "shellDankMaterial";
-      #   scopes = ["desktop" "ui" "shell"];
-      #   # modules = {
-      #   #   nixos = ["default"];
-      #   #   home = ["default" "niri"];
-      #   # };
-      # };
-      # dms-plugin-registry = {
-      #   input = "shellDankMaterialPlugins";
-      #   scopes = ["desktop" "ui" "shell"];
-      #   # modules = {
-      #   #   nixos = ["default"];
-      #   #   home = ["default"];
-      #   # };
-      # };
+      dms-shell = {
+        input = "shellDankMaterial";
+        scopes = ["desktop" "ui" "shell"];
+        modules = {
+          nixos = ["default"];
+          home = ["default" "niri"];
+        };
+      };
+      dms-plugin-registry = {
+        input = "shellDankMaterialPlugins";
+        scopes = ["desktop" "ui" "shell"];
+        modules = {
+          nixos = ["default"];
+          # home = ["default"];
+        };
+      };
       hermes-agent = {
         input = "aiHermes";
         scopes = ["development" "ai"];
@@ -256,10 +270,9 @@
       noctalia = {
         input = "shellNoctalia";
         scopes = ["desktop" "ui" "shell"];
-        # modules = {
-        #   home = ["default"];
-        #   nixos = ["default"];
-        # };
+        modules = {
+          home = ["default"];
+        };
         overlays = ["default"];
       };
       nyx = {

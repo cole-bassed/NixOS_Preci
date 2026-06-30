@@ -15,10 +15,8 @@
 
   setOf = list: namesOf (asAttrs list);
 
-  getUI = base: let
-    ui = base.interface or {};
-  in
-    ui.session or ui.environment or {};
+  getUI = base:
+    (base.interface or {}).backend or {};
 
   collect = field: specs:
     setOf (concatMap (spec: spec.${field} or []) specs);
@@ -88,13 +86,13 @@
       managers = mkOption {
         type = listOf (enum spec.all.managers);
         default = preset.managers;
-        description = "Enabled standalone compositors/window managers.";
+        description = "Enabled standalone compositors/window managers for the backend layer.";
       };
 
       desktops = mkOption {
         type = listOf (enum spec.all.desktops);
         default = preset.desktops;
-        description = "Enabled full desktop environments.";
+        description = "Enabled full desktop environments for the backend layer.";
       };
 
       hyprland = {
@@ -226,7 +224,11 @@ in {
         };
       };
 
-      programs.sway.enable = cfg.sway.enable;
+      programs = {
+        hyprland.enable = cfg.hyprland.enable;
+        niri.enable = cfg.niri.enable;
+        sway.enable = cfg.sway.enable;
+      };
     };
   };
 

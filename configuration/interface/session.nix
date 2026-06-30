@@ -9,7 +9,7 @@
 }: let
   inherit (lix.api) getAdminUsers;
   inherit (lix.attrsets) attrValues optionalAttrs;
-  inherit (lix.lists) elemAt length;
+  inherit (lix.lists) elem elemAt length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
@@ -51,26 +51,21 @@
     then null
     else host.users.values.${name} or null;
 
-  getEnvironment = spec:
-    (spec.interface or {}).environment
-    or (spec.interface or {}).session
-    or {};
+  getBackend = spec:
+    (spec.interface or {}).backend or {};
 
-  hostEnvironment =
-    (host.interface or {}).environment
-    or (host.interface or {}).session
-    or {};
+  hostBackend = (host.interface or {}).backend or {};
 
   ordered = user: let
-    env =
+    backend =
       if user == null
       then {}
-      else getEnvironment user;
+      else getBackend user;
   in
-    (env.managers or [])
-    ++ (env.desktops or [])
-    ++ (hostEnvironment.managers or [])
-    ++ (hostEnvironment.desktops or []);
+    (backend.managers or [])
+    ++ (backend.desktops or [])
+    ++ (hostBackend.managers or [])
+    ++ (hostBackend.desktops or []);
 
   entry = name:
     registry.managers.${name}
@@ -88,8 +83,8 @@
   defaultSession = user:
     sessionName (preferred user);
 
-  managerFor = environment: let
-    names = environment.managers ++ environment.desktops;
+  displayManagerFor = backend: let
+    names = backend.managers ++ backend.desktops;
     name = first names;
   in
     login.manager
@@ -104,6 +99,7 @@
     manager = mkOption {
       type = enum [
         "none"
+        "dms"
         "gdm"
         "sddm"
         "greetd"
@@ -130,45 +126,74 @@
       };
     };
   };
+  dmsCompositors = [
+    "hyprland"
+    "niri"
+    "sway"
+  ];
 
-  mk = scope: {config, ...}: let
+  mk = scope: {
+    config,
+    ...
+  }: let
     inherit ((args config scope)) cfg opt;
-    env = config.${top}.${dom}.environment;
+    backend = config.${top}.interface.backend;
     user = userByName auto.user;
     session = login.defaultSession or (defaultSession user);
+    greeter = cfg.manager;
+    compositor =
+      let
+        preferredSession = preferred user;
+      in
+        if elem preferredSession dmsCompositors
+        then preferredSession
+        else null;
   in {
-    options = opt (opts (managerFor env) session);
+    options = opt (opts (displayManagerFor backend) session);
 
-    config = optionalAttrs (scope == "core") {
-      services = {
-        displayManager = mkIf (cfg.manager != "none") {
-          gdm.enable = cfg.manager == "gdm";
-          sddm.enable = cfg.manager == "sddm";
+    config =
+      if (scope == "core")
+      then {
+        assertions = [
+          {
+            assertion = (greeter != "dms") || compositor != null;
+            message = "DMS greeter requires a supported compositor (hyprland, niri, or sway) from the selected interface backend.";
+          }
+        ];
 
-          # defaultSession =
-          #   mkIf
-          #   (cfg.defaultSession != null)
-          #   cfg.defaultSession;
+        programs = {
+          regreet.enable = greeter == "regreet";
+        };
 
-          autoLogin = mkIf cfg.autoLogin.enable {
+        services = {
+          displayManager = mkIf (greeter != "none") {
+            gdm.enable = greeter == "gdm";
+            sddm.enable = greeter == "sddm";
+            dms-greeter = mkIf (greeter == "dms") {
+              enable = true;
+              compositor.name = compositor;
+            };
+            # defaultSession =
+            #   mkIf
+            #   (cfg.defaultSession != null)
+            #   cfg.defaultSession;
+
+            autoLogin = mkIf cfg.autoLogin.enable {
+              enable = true;
+              user = cfg.autoLogin.user;
+            };
+          };
+
+          xserver = {
+            displayManager.lightdm.enable = greeter == "lightdm";
+          };
+
+          greetd = mkIf (elem greeter ["dms" "greetd" "regreet"]) {
             enable = true;
-            user = cfg.autoLogin.user;
           };
         };
-
-        xserver = {
-          displayManager.lightdm.enable = cfg.manager == "lightdm";
-        };
-
-        greetd = mkIf (cfg.manager == "greetd" || cfg.manager == "regreet") {
-          enable = true;
-        };
-      };
-
-      programs = {
-        regreet.enable = cfg.manager == "regreet";
-      };
-    };
+      }
+      else {};
   };
 in {
   core = mk "core";

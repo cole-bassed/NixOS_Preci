@@ -10,13 +10,14 @@
 }: let
   exports = {
     scoped = {
-      inherit per classification builder;
+      inherit per classification builder current;
       forEach = per;
       getBuilder = builder;
       getClassification = classification;
     };
     global = {
       forEachSystem = per;
+      currentSystem = current;
     };
   };
 
@@ -74,5 +75,7 @@
     (supported {inherit extra;})
     (system: opts.fn packages.${system});
   # TODO: add kind (get via parsing input or pkgs.stdenv.hostPlatform) and getOrDefault (via kind or builtins.currentSystem or most common system from api hosts)
+
+  current = pkgs: pkgs.stdenv.hostPlatform.system;
 in
   exports

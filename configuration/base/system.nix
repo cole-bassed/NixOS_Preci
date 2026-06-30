@@ -289,9 +289,15 @@
         osProber = mkEnableOption "GRUB os-prober detection of other installed operating systems";
 
         displayManager = mkOption {
-          type = nullOr (enum ["gdm" "sddm" "regreet" "lightdm"]);
+          type = nullOr (enum ["dms" "gdm" "sddm" "regreet" "lightdm"]);
           default = interfaceSrc.displayManager or null;
           description = "Greeter / login manager.";
+        };
+
+        frontend = mkOption {
+          type = nullOr (enum ["dms" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
+          default = interfaceSrc.frontend or null;
+          description = "Graphical frontend layer that runs on top of the selected session backend.";
         };
 
         desktopEnvironment = mkOption {

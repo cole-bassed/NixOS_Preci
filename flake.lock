@@ -380,6 +380,22 @@
         "type": "github"
       }
     },
+    "flake-compat_3": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1767039857,
+        "narHash": "sha256-vNpUSpF5Nuw8xvDLj2KCwwksIbjua2LZCqhV1LNRDns=",
+        "owner": "NixOS",
+        "repo": "flake-compat",
+        "rev": "5edf11c44bc78a0d334f6334cdaf7d60d732daab",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "flake-compat",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -1017,6 +1033,9 @@
         "nixLegacy": "nixLegacy",
         "secretsManager": "secretsManager",
         "shellCaelestia": "shellCaelestia",
+        "shellDankMaterial": "shellDankMaterial",
+        "shellDankMaterialPlugins": "shellDankMaterialPlugins",
+        "shellDankMaterialProcess": "shellDankMaterialProcess",
         "shellNoctalia": "shellNoctalia",
         "shellQuick": "shellQuick",
         "styleManager": "styleManager",
@@ -1090,6 +1109,67 @@
       "original": {
         "owner": "caelestia-dots",
         "repo": "shell",
+        "type": "github"
+      }
+    },
+    "shellDankMaterial": {
+      "inputs": {
+        "flake-compat": "flake-compat_3",
+        "nixpkgs": [
+          "nixCore"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782762642,
+        "narHash": "sha256-TgDPcXi2X64cKrG8KvP8FjBVEWOkpEkbV/9lvtYdZMI=",
+        "owner": "AvengeMedia",
+        "repo": "DankMaterialShell",
+        "rev": "894efa58a39e6ed861a79559bb668d0bb32f97a9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "AvengeMedia",
+        "repo": "DankMaterialShell",
+        "type": "github"
+      }
+    },
+    "shellDankMaterialPlugins": {
+      "inputs": {
+        "nixpkgs": [
+          "nixCore"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782762692,
+        "narHash": "sha256-RfobBwyhBvVSk+dmUdINgGOxbSwS8U1xaNiAtL3kjbM=",
+        "owner": "AvengeMedia",
+        "repo": "dms-plugin-registry",
+        "rev": "0abd7c822dd6e42367e9c15f44112ed779d72bf6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "AvengeMedia",
+        "repo": "dms-plugin-registry",
+        "type": "github"
+      }
+    },
+    "shellDankMaterialProcess": {
+      "inputs": {
+        "nixpkgs": [
+          "nixCore"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782736115,
+        "narHash": "sha256-wH1A4bg7OSD/vb5r0naaT+5x5oy6wwTRh12a60sXPxU=",
+        "owner": "AvengeMedia",
+        "repo": "dgop",
+        "rev": "ac77511bbb9ae52ae8f04b9d7e15116a4d4838eb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "AvengeMedia",
+        "repo": "dgop",
         "type": "github"
       }
     },

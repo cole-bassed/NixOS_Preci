@@ -67,9 +67,9 @@
     ...
   }: let
     inherit ((args config scope)) cfg opt;
-    env = config.${top}.${dom}.environment;
+    backend = config.${top}.interface.backend;
   in {
-    options = opt (opts.${scope} env);
+    options = opt (opts.${scope} backend);
     config = optionalAttrs (scope == "core") {
       services.xserver.enable = cfg.x11;
       programs.uwsm.enable = cfg.wayland;
@@ -84,7 +84,7 @@
             wayland-utils
             wl-clipboard-rs
           ]
-          ++ optionals env.niri.enable [
+          ++ optionals backend.niri.enable [
             xwayland-satellite
           ];
       };
