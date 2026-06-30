@@ -2,9 +2,7 @@
   lix,
   top,
   host,
-  dom,
-  mod,
-  packages,
+  path,
   ...
 }: let
   inherit (lix.lists) elem;
@@ -14,7 +12,7 @@
   hostInterface = host.interface or {};
 
   args = config: scope:
-    mkModuleArgs {inherit config top dom mod scope;};
+    mkModuleArgs {inherit config top path scope;};
 
   compositors = [
     "hyprland"
@@ -79,8 +77,8 @@
       else {
         programs.dms-shell = {
           inherit enable;
-          dgop.package = packages.dgop pkgs;
-          quickshell.package = packages.quickshell pkgs;
+          # dgop.package = packages.dgop pkgs;
+          # quickshell.package = packages.quickshell pkgs;
           niri = {
             enableKeybinds = hasNiri;
             enableSpawn = hasNiri;

@@ -78,50 +78,25 @@
   }:
     mkEnable {inherit mod scope;};
 
-  /**
-  Build standard module args (cfg/opt/enable/etc.) for an option whose
-  nesting mirrors its directory nesting.
-
-  Preferred usage (arbitrary depth, mirrors folder structure):
-    mkModuleArgs { inherit config top path pkgs host scope; }
-    where `path` is a list of segments under `top`, e.g.
-    ["interface" "frontend" "dank-material"] for
-    dots.interface.frontend.dank-material.
-
-  Back-compat usage (exactly two segments under top):
-    mkModuleArgs { inherit config top dom mod pkgs host scope; }
-    is equivalent to path = [dom mod] (dom may be null/omitted for a
-    single-segment path).
-
-  If both `path` and `dom`/`mod` are supplied, `path` wins.
-  */
   mkModuleArgs = {
     config,
     top,
-    path ? null,
-    dom ? null,
-    mod ? null,
+    path,
     pkgs ? {},
     host ? {},
     scope ? "core",
   }: let
-    segments =
-      if path != null
-      then path
-      else (
-        if dom != null
-        then [dom mod]
-        else [mod]
-      );
-
-    fullPath = [top] ++ segments;
-    leafName = last segments;
-    package = pkgs.${leafName} or {};
-    cfg = mkCfg {config = config; path = fullPath;};
+    fullPath = [top] ++ path;
+    mod = last path;
+    package = pkgs.${mod} or {};
+    cfg = mkCfg {
+      inherit config;
+      path = fullPath;
+    };
     inherit (cfg) enable;
-    opt = options: mkOpt {inherit options; path = fullPath;};
-    base = leafName;
-    programs.${leafName} = {inherit enable package;};
+    opt = options: mkOpt {inherit options path;};
+    base = mod;
+    programs.${mod} = {inherit enable package;};
   in {
     inherit
       base
@@ -134,10 +109,38 @@
       scope
       top
       ;
-    # leaf alias kept distinct from `mod`/`base` for clarity at new call sites
-    leaf = leafName;
-    mkEnableMod = mkEnableMod {mod = leafName; inherit scope;};
+    mkEnableMod = mkEnableMod {inherit mod scope;};
   };
+  # mkModuleArgs = {
+  #   config,
+  #   top,
+  #   dom,
+  #   mod,
+  #   pkgs ? {},
+  #   host ? {},
+  #   scope ? "core",
+  # }: let
+  #   path = [top dom mod];
+  #   package = pkgs.${mod} or {};
+  #   cfg = mkCfg {inherit config path;};
+  #   inherit (cfg) enable;
+  #   opt = options: mkOpt {inherit options path;};
+  #   base = mod;
+  #   programs.${mod} = {inherit enable package;};
+  # in {
+  #   inherit
+  #     base
+  #     cfg
+  #     config
+  #     enable
+  #     host
+  #     opt
+  #     programs
+  #     scope
+  #     top
+  #     ;
+  #   mkEnableMod = mkEnableMod {inherit mod scope;};
+  # };
 
   mkFloatOption = {
     description,

@@ -157,30 +157,6 @@
     then imported args
     else imported;
 
-  # Last two segments of an accumulated path, for back-compat with module
-  # files that still destructure `dom`/`mod` directly instead of `path`.
-  #   path = []            -> { dom = null; mod = null; }
-  #   path = ["a"]         -> { dom = null; mod = "a"; }
-  #   path = ["a" "b"]     -> { dom = "a";  mod = "b"; }
-  #   path = ["a" "b" "c"] -> { dom = "b";  mod = "c"; }  (only last 2 matter)
-  legacyDomMod = path: let
-    len = builtins.length path;
-  in
-    if len == 0
-    then {
-      dom = null;
-      mod = null;
-    }
-    else if len == 1
-    then {
-      dom = null;
-      mod = builtins.elemAt path 0;
-    }
-    else {
-      dom = builtins.elemAt path (len - 2);
-      mod = builtins.elemAt path (len - 1);
-    };
-
   collectSpecs = {
     args,
     extraArgs ? {},
@@ -191,10 +167,6 @@
     includeFiles ? false,
     recurse ? false,
     rawTag ? "core",
-    # Seed path for this traversal. Callers that are themselves nested
-    # (e.g. a directory's default.nix re-entering importModules for its own
-    # subtree) should pass their own already-resolved path here so option
-    # nesting mirrors directory nesting instead of restarting at this base.
     path ? [],
   }: let
     stem = name:
@@ -214,22 +186,11 @@
         name: let
           type = entries.${name};
           name' = stem name;
-
           path' = ctxPath ++ [name'];
-          legacy = legacyDomMod path';
-
           module = importModule {
             inherit base name;
-            args =
-              args
-              // legacy
-              // {
-                path = path';
-                leaf = name';
-              }
-              // extraArgs;
+            args = args // {inherit path';} // extraArgs; # pass path' as "path"
           };
-
           children =
             optionals
             (type == "directory" && (recurse || !(hasEntrypointDir base name)))
@@ -237,6 +198,41 @@
         in
           [(wrap module)] ++ children
       ) (attrNames entries);
+    # collect = ctx: base: let
+    #   entries = readDirAttrs {inherit base excludes includes includeFiles;};
+    # in
+    #   concatMap (
+    #     name: let
+    #       type = entries.${name};
+    #       name' = stem name;
+
+    #       ctx' =
+    #         if ctx == null
+    #         then {
+    #           dom = baseNameOf (toString base);
+    #           mod = name';
+    #         }
+    #         else
+    #           ctx
+    #           // {
+    #             leaf = name';
+    #           };
+
+    #       module = importModule {
+    #         inherit base name;
+    #         args =
+    #           args
+    #           // ctx'
+    #           // extraArgs;
+    #       };
+
+    #       children =
+    #         optionals
+    #         (type == "directory" && (recurse || !(hasEntrypointDir base name)))
+    #         (collect ctx' (base + "/${name}"));
+    #     in
+    #       [(wrap module)] ++ children
+    #   ) (attrNames entries);
 
     specs = collect path base;
   in
@@ -256,7 +252,6 @@
     tags ? defaults.tags,
     includeFiles ? false,
     rekey ? false,
-    path ? [],
   }: let
     entries = readDirAttrs {inherit base excludes includes includeFiles;};
     raw =
@@ -268,18 +263,13 @@
             then removeSuffix ".nix" name
             else name;
 
-          path' = path ++ [mod];
-          legacy = legacyDomMod path';
-
           importedModule = importModule {
             inherit base name;
             args =
               args
-              // legacy
               // {
-                inherit tags;
-                path = path';
-                leaf = mod;
+                dom = baseNameOf (toString base);
+                inherit mod tags;
               }
               // extraArgs;
           };
@@ -313,12 +303,11 @@
     extraArgs ? {},
     recurse ? false,
     includeFiles ? false,
-    path ? [],
     ...
   }: let
     specs =
       collectSpecs
-      {inherit args base excludes includes tags extraArgs includeFiles recurse path;};
+      {inherit args base excludes includes tags extraArgs includeFiles recurse;};
   in {
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
@@ -340,19 +329,31 @@
     extraArgs ? {},
     includeFiles ? true,
     recurse ? true,
-    # Seed path for this traversal; pass the caller's own `path` (its module
-    # args) through here so nested re-entrant calls (a default.nix that
-    # itself calls importModules for its subdirectory) preserve full
-    # directory-nesting in the resulting option path instead of restarting.
-    path ? [],
     ...
   }: let
     specs =
       collectSpecs
-      {inherit args base excludes includes tags extraArgs includeFiles recurse path;};
+      {inherit args base excludes includes tags extraArgs includeFiles recurse;};
   in {
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
   };
+  # importModules = args @ {
+  #   base,
+  #   excludes ? null,
+  #   includes ? [],
+  #   tags ? defaults.tags,
+  #   extraArgs ? {},
+  #   includeFiles ? true,
+  #   recurse ? true,
+  #   ...
+  # }: let
+  #   specs =
+  #     collectSpecs
+  #     {inherit args base excludes includes tags extraArgs includeFiles recurse;};
+  # in {
+  #   imports = specs.core or [];
+  #   home-manager.sharedModules = specs.home or [];
+  # };
 in
   exports

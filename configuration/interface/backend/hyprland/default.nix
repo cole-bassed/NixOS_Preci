@@ -1,27 +1,38 @@
 {
   lix,
   top,
-  dom,
-  mod,
-  leaf,
+  path,
   ...
 }: let
+  inherit (lix.lists) elem;
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs;
+  inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
+  inherit (lix.types) enum;
 
-  args = config: scope:
-    mkModuleArgs {inherit config top dom mod scope;};
+  mkArgs = config: scope:
+    mkModuleArgs {inherit config top path scope;};
 in {
   core = {config, ...}: let
-    inherit ((args config "core")) cfg;
+    inherit ((mkArgs config "core")) cfg opt;
+    managers = config.${top}.interface.backend.managers;
   in {
-    config = {
+    options = opt {
+      enable =
+        mkEnableOption "Hyprland compositor"
+        // {default = elem "hyprland" managers;};
+
+      withUWSM =
+        mkEnableOption "launching Hyprland through UWSM"
+        // {default = cfg.enable;};
+    };
+
+    config = mkIf cfg.enable {
       programs = {
-        hyprland = mkIf cfg.${leaf}.enable {
-          inherit (cfg.${leaf}) enable withUWSM;
+        hyprland = {
+          inherit (cfg) enable withUWSM;
         };
 
-        uwsm.waylandCompositors.${leaf} = mkIf cfg.${leaf}.enable {
+        uwsm.waylandCompositors.hyprland = {
           prettyName = "Hyprland";
           comment = "Hyprland compositor managed by UWSM";
           binPath = "/run/current-system/sw/bin/Hyprland";
@@ -31,11 +42,23 @@ in {
   };
 
   home = {config, ...}: let
-    inherit ((args config "home")) cfg;
+    inherit ((mkArgs config "home")) cfg opt;
   in {
-    config = {
-      wayland.windowManager.hyprland = mkIf cfg.hyprland.enable {
-        inherit (cfg.hyprland) enable configType;
+    options = opt {
+      enable =
+        mkEnableOption "Hyprland compositor"
+        // {default = config.${top}.interface.backend.managers |> elem "hyprland";};
+
+      configType = mkOption {
+        type = enum ["hyprlang" "lua"];
+        default = "hyprlang";
+        description = "Home Manager Hyprland configuration format.";
+      };
+    };
+
+    config = mkIf cfg.enable {
+      wayland.windowManager.hyprland = {
+        inherit (cfg) enable configType;
       };
     };
   };

@@ -3,6 +3,8 @@ lix.importModules (
   args
   // {
     base = ./.;
+    path = args.path or [];
+    recurse = true;
     extraArgs =
       (args.extraArgs or {})
       // {
