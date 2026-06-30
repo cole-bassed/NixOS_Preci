@@ -1,64 +1,83 @@
+# configuration/interface/backend/default.nix
 {
   lix,
   top,
+  host,
   path,
   ...
-}: let
-  inherit (lix.lists) elem;
-  inherit (lix.modules) mkIf;
-  inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
-  inherit (lix.types) enum;
+} @ args: let
+  inherit (lix.api) getInteractiveUsers;
+  inherit (lix.attrsets) asAttrs namesOf valuesOf;
+  inherit (lix.lists) concatMap;
+  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.types) enum listOf;
+
+  setOf = list: namesOf (asAttrs list);
+  getUI = base: (base.interface or {}).backend or {};
+  collect = field: specs: setOf (concatMap (spec: spec.${field} or []) specs);
+  merge = specs: {
+    managers = collect "managers" specs;
+    desktops = collect "desktops" specs;
+  };
+
+  spec = let
+    host' = getUI host;
+    users = map getUI (valuesOf (getInteractiveUsers host));
+    managers = {
+      x11 = ["awesome" "i3" "qtile" "xmonad"];
+      wayland = ["hyprland" "labwc" "mango" "niri" "river" "sway" "wayfire"];
+    };
+    desktops = {
+      x11 = ["cinnamon" "xfce"];
+      wayland = ["gnome" "plasma"];
+    };
+  in {
+    inherit managers desktops;
+    all = {
+      managers = with managers; x11 ++ wayland;
+      desktops = with desktops; x11 ++ wayland;
+    };
+    core = merge ([host'] ++ users);
+    home = user: merge [host' (getUI user)];
+  };
+
+  opts = preset: {
+    managers = mkOption {
+      type = listOf (enum spec.all.managers);
+      default = preset.managers;
+      description = "Enabled standalone compositors/window managers.";
+    };
+    desktops = mkOption {
+      type = listOf (enum spec.all.desktops);
+      default = preset.desktops;
+      description = "Enabled full desktop environments.";
+    };
+  };
 
   mkArgs = config: scope:
     mkModuleArgs {inherit config top path scope;};
-in {
-  core = {config, ...}: let
-    inherit ((mkArgs config "core")) cfg opt;
-    managers = config.${top}.interface.backend.managers;
-  in {
-    options = opt {
-      enable =
-        mkEnableOption "Hyprland compositor"
-        // {default = elem "hyprland" managers;};
-
-      withUWSM =
-        mkEnableOption "launching Hyprland through UWSM"
-        // {default = cfg.enable;};
+in
+  lix.importModules (args
+    // {
+      base = ./.;
+      path = path;
+    })
+  // {
+    core = {config, ...}: let
+      inherit ((mkArgs config "core")) opt;
+    in {
+      options = opt (opts spec.core);
+      config = {};
     };
 
-    config = {
-      programs = {
-        hyprland = {inherit (cfg) enable withUWSM;};
-        uwsm.waylandCompositors = mkIf cfg.enable {
-          hyprland = {
-            prettyName = "Hyprland";
-            comment = "Hyprland compositor managed by UWSM";
-            binPath = "/run/current-system/sw/bin/Hyprland";
-          };
-        };
-      };
+    home = {
+      config,
+      user ? {},
+      ...
+    }: let
+      inherit ((mkArgs config "home")) opt;
+    in {
+      options = opt (opts (spec.home user));
+      config = {};
     };
-  };
-
-  home = {config, ...}: let
-    inherit ((mkArgs config "home")) cfg opt;
-  in {
-    options = opt {
-      enable =
-        mkEnableOption "Hyprland compositor"
-        // {default = config.${top}.interface.backend.managers |> elem "hyprland";};
-
-      configType = mkOption {
-        type = enum ["hyprlang" "lua"];
-        default = "hyprlang";
-        description = "Home Manager Hyprland configuration format.";
-      };
-    };
-
-    config = mkIf cfg.enable {
-      wayland.windowManager.hyprland = {
-        inherit (cfg) enable configType;
-      };
-    };
-  };
-}
+  }

@@ -9,29 +9,22 @@
   inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
   inherit (lix.types) enum;
 
-  mkArgs = config: scope:
-    mkModuleArgs {inherit config top path scope;};
+  # Helper to resolve common environment defaults
+  isManaged = config: elem "hyprland" config.${top}.interface.backend.managers;
+
+  mkArgs = config: scope: mkModuleArgs {inherit config top path scope;};
 in {
   core = {config, ...}: let
     inherit ((mkArgs config "core")) cfg opt;
-    managers = config.${top}.interface.backend.managers;
   in {
     options = opt {
-      enable =
-        mkEnableOption "Hyprland compositor"
-        // {default = elem "hyprland" managers;};
-
-      withUWSM =
-        mkEnableOption "launching Hyprland through UWSM"
-        // {default = cfg.enable;};
+      enable = mkEnableOption "Hyprland compositor" // {default = isManaged config;};
+      withUWSM = mkEnableOption "launching Hyprland through UWSM" // {default = cfg.enable;};
     };
 
     config = mkIf cfg.enable {
       programs = {
-        hyprland = {
-          inherit (cfg) enable withUWSM;
-        };
-
+        hyprland = {inherit (cfg) enable withUWSM;};
         uwsm.waylandCompositors.hyprland = {
           prettyName = "Hyprland";
           comment = "Hyprland compositor managed by UWSM";
@@ -45,10 +38,7 @@ in {
     inherit ((mkArgs config "home")) cfg opt;
   in {
     options = opt {
-      enable =
-        mkEnableOption "Hyprland compositor"
-        // {default = config.${top}.interface.backend.managers |> elem "hyprland";};
-
+      enable = mkEnableOption "Hyprland compositor" // {default = isManaged config;};
       configType = mkOption {
         type = enum ["hyprlang" "lua"];
         default = "hyprlang";
@@ -57,9 +47,7 @@ in {
     };
 
     config = mkIf cfg.enable {
-      wayland.windowManager.hyprland = {
-        inherit (cfg) enable configType;
-      };
+      wayland.windowManager.hyprland = {inherit (cfg) enable configType;};
     };
   };
 }

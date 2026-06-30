@@ -676,7 +676,7 @@ in {
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
     backend = {
-      managers = ["hyprland"];
+      managers = ["hyprland" "niri"];
       desktops = [];
     };
     keyboard = {
