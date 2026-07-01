@@ -36,27 +36,29 @@
         (cfg.windowManagement.niri.enable or false)
       ]);
 
-  mkHyprland = displays:
-    mapAttrsToList (
-      name: display: let
-        resolution =
-          if display.resolution != null
-          then display.resolution
-          else "preferred";
+  mkHyprland = displays: {
+    monitors =
+      mapAttrsToList (
+        name: display: let
+          resolution =
+            if display.resolution != null
+            then display.resolution
+            else "preferred";
 
-        refreshRate =
-          if display.refreshRate != null
-          then "@${toString display.refreshRate}"
-          else "";
+          refreshRate =
+            if display.refreshRate != null
+            then "@${toString display.refreshRate}"
+            else "";
 
-        position = let
-          inherit (display.layout.position) x y;
-        in "${toString x}x${toString y}";
+          position = let
+            inherit (display.layout.position) x y;
+          in "${toString x}x${toString y}";
 
-        scale = toString display.scale;
-      in "${name}, ${resolution}${refreshRate}, ${position}, ${scale}"
-    )
-    displays;
+          scale = toString display.scale;
+        in "${name}, ${resolution}${refreshRate}, ${position}, ${scale}"
+      )
+      displays;
+  };
 
   mkNiri = displays:
     mapAttrs (_name: display:

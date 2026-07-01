@@ -11,7 +11,18 @@
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf;
 
-  backends = "${top}".interface.backends;
+  hasHyprland = config: (
+    config.programs.hyprland.enable or (
+      config.wayland.windowManager.hyprland.enable or (
+        config.${top}.interface.backends.hyprland.enable or false
+      )
+    )
+  );
+  hasNiri = config: (
+    config.programs.niri.enable or (
+      config.${top}.interface.backends.niri.enable or false
+    )
+  );
 
   mk = scope: {config, ...}: let
     displays = config.${top}.${dom} or {};
@@ -27,14 +38,9 @@
       then {}
       else {
         wayland.windowManager.hyprland.settings =
-          mkIf
-          config.wayland.windowManager.hyprland.enable
-          {monitor = mkHyprland displays;};
-
+          mkIf (hasHyprland config) (mkHyprland displays);
         programs.niri.settings.outputs =
-          mkIf
-          (backends.niri.enable or false)
-          (mkNiri displays);
+          mkIf (hasNiri config) (mkNiri displays);
       };
   };
 in {
