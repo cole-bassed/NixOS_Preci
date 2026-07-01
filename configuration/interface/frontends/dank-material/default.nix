@@ -11,9 +11,7 @@
 
   hostInterface = host.interface or {};
 
-  args = config: scope:
-    mkModuleArgs {inherit config top path scope;};
-
+  args = config: scope: mkModuleArgs {inherit config top path scope;};
   compositors = [
     "hyprland"
     "niri"
@@ -22,7 +20,7 @@
 
   mk = scope: {
     config,
-    pkgs,
+    # pkgs,
     ...
   }: let
     inherit ((args config scope)) cfg opt;
@@ -75,7 +73,7 @@
         };
       }
       else {
-        programs.dms-shell = {
+        programs.dank-material-shell = {
           inherit enable;
           # dgop.package = packages.dgop pkgs;
           # quickshell.package = packages.quickshell pkgs;

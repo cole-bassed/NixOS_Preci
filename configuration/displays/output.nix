@@ -11,6 +11,8 @@
   inherit (lix.options) mkOption;
   inherit (lix.types) attrsOf;
 
+  backends = "${top}".interface.backends;
+
   mk = scope: {config, ...}: let
     displays = config.${top}.${dom} or {};
   in {
@@ -31,7 +33,7 @@
 
         programs.niri.settings.outputs =
           mkIf
-          config.programs.niri.enable
+          (backends.niri.enable or false)
           (mkNiri displays);
       };
   };
