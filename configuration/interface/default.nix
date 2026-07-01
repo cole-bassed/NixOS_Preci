@@ -5,7 +5,7 @@ lix.importModules (
     base = ./.;
     path = args.path or [];
     recurse = true;
-    excludes = ["frontends"];
+    excludes = ["frontend"];
     extraArgs =
       (args.extraArgs or {})
       // {
