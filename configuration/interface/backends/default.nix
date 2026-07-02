@@ -10,53 +10,39 @@
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) attrNames attrValues listToAttrs;
   inherit (lix.modules) mkModules mkIf;
-  inherit (lix.lists) concatMap elem map unique filter;
+  inherit (lix.lists) concatMap elem filter map unique;
   inherit (lix.options) mkModuleArgs mkEnable mkOption;
-  inherit (lix.types) either attrsOf anything isList enum listOf;
+  inherit (lix.types) either attrsOf anything enum isList listOf;
 
-  cfgOf = host:
-    map
-    (env: env.name)
-    (resolveEnvironments {inherit host registry;});
+  cfgOf = spec:
+    map (env: env.name) (resolveEnvironments {
+      inherit registry;
+      host = spec;
+    });
 
+  allEnvs = attrNames registry.environments;
+
+  # Collect backends from host + all interactive users
   spec = {
-    all = attrNames registry.environments;
+    all = allEnvs;
     core = unique (
       (cfgOf host)
-      ++ (
-        concatMap
-        cfgOf
-        (attrValues (getInteractiveUsers host))
-      )
+      ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
     );
     home = user: unique (cfgOf host ++ cfgOf user);
   };
 
-  # Logic to normalize input into a single attrset: { hyprland = {}; niri = {}; }
-  normalize = args:
-    if isList args
-    then
-      listToAttrs (
-        map (name: {
-          inherit name;
-          value = {};
-        })
-        args
-      )
-    else args;
-
-  opts = preset: let
-    description = "List of environments or attribute set of backend configurations.";
-    type = either (listOf (enum spec.all)) (attrsOf anything);
-    default = normalize preset;
-    apply = normalize;
-  in {
-    environments = mkOption {inherit description type default apply;};
+  opts = preset: {
     backends = mkOption {
-      inherit description type apply;
-      default = {};
+      type = either (listOf (enum allEnvs)) (attrsOf anything);
+      default =
+        if isList preset
+        then preset
+        else {};
+      description = "List of backend names or attrset of backend configurations.";
     };
   };
+
   mkArgs' = config: scope: mkModuleArgs {inherit config top path scope;};
 in let
   inner = mkModules (args
@@ -104,11 +90,9 @@ in {
 
     uwsm = let
       backends =
-        filter
-        (env: env.uwsm or false)
+        filter (env: env.uwsm or false)
         (resolveEnvironments {inherit registry host;});
-      compositors = listToAttrs (
-        map (env: {
+      compositors = listToAttrs (map (env: {
           name = env.name;
           value = {
             prettyName = env.name;
@@ -116,8 +100,7 @@ in {
             binPath = "/run/current-system/sw/bin/${env.session}";
           };
         })
-        backends
-      );
+        backends);
     in {inherit backends compositors;};
   in {
     imports = inner.imports or [];

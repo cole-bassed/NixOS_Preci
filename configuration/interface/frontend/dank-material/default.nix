@@ -5,29 +5,36 @@
   path,
   ...
 }: let
-  inherit (lix.lists) elem;
+  inherit (lix.attrsets) attrNames;
+  inherit (lix.lists) elem elemAt isList length;
   inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) enum nullOr;
 
+  args = config: scope: mkModuleArgs {inherit config top path scope;};
+
   hostInterface = host.interface or {};
 
-  args = config: scope: mkModuleArgs {inherit config top path scope;};
-  compositors = [
-    "hyprland"
-    "niri"
-    "sway"
-  ];
+  # Get primary backend name from host
+  primaryBackend = host: let
+    raw = (host.interface or {}).backends or [];
+  in
+    if isList raw
+    then
+      (
+        if length raw > 0
+        then elemAt raw 0
+        else null
+      )
+    else if raw != {}
+    then elemAt (attrNames raw) 0
+    else null;
 
-  mk = scope: {
-    config,
-    # pkgs,
-    ...
-  }: let
+  compositors = ["hyprland" "niri" "sway"];
+
+  mk = scope: {config, ...}: let
     inherit ((args config scope)) cfg opt;
     frontend = hostInterface.frontend or null;
-    backend = hostInterface.windowManager or hostInterface.desktopEnvironment or null;
-
-    enable = {enable = cfg.frontend == "dms";};
+    backend = primaryBackend host;
     hasNiri = config.programs.niri.enable or false;
   in {
     options = opt {
@@ -44,7 +51,7 @@
         assertions = [
           {
             assertion = cfg.frontend == null || backend != null;
-            message = "interface.frontend requires an active interface.windowManager or interface.desktopEnvironment.";
+            message = "interface.frontend requires an active interface.backend.";
           }
           {
             assertion = !(elem cfg.frontend ["dms" "noctalia" "caelestia"]) || config.${top}.interface.protocol.wayland;
@@ -56,11 +63,11 @@
           }
           {
             assertion = cfg.frontend != "gnome" || backend == "gnome";
-            message = "interface.frontend = \"gnome\" requires interface.desktopEnvironment = \"gnome\".";
+            message = "interface.frontend = \"gnome\" requires interface.backend to include \"gnome\".";
           }
           {
             assertion = cfg.frontend != "plasma" || backend == "plasma";
-            message = "interface.frontend = \"plasma\" requires interface.desktopEnvironment = \"plasma\".";
+            message = "interface.frontend = \"plasma\" requires interface.backend to include \"plasma\".";
           }
           {
             assertion = cfg.frontend != "cosmic" || backend == "cosmic";
@@ -69,14 +76,12 @@
         ];
 
         programs.dms-shell = {
-          inherit enable;
+          enable = {enable = cfg.frontend == "dms";};
         };
       }
       else {
         programs.dank-material-shell = {
-          inherit enable;
-          # dgop.package = packages.dgop pkgs;
-          # quickshell.package = packages.quickshell pkgs;
+          enable = {enable = cfg.frontend == "dms";};
           niri = {
             enableKeybinds = hasNiri;
             enableSpawn = hasNiri;

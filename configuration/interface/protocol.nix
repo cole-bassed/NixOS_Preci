@@ -1,10 +1,8 @@
-#TODO: Add more protocol defining parts, like clipboard and photo viewer for x11 vs Wayland and others
 {
   lix,
   top,
   dom,
   mod,
-  # registry,
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs;
@@ -12,53 +10,25 @@
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption;
 
-  args = config: scope:
-    mkModuleArgs {inherit config top dom mod scope;};
+  args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
 
-  hasAny = values: names:
-    any (name: elem name values) names;
+  hasAny = values: names: any (name: elem name values) names;
+
+  backendNames = config: let
+    raw = config.${top}.interface.backends or [];
+  in
+    if builtins.isList raw
+    then raw
+    else builtins.attrNames raw;
 
   per = {
-    x11 = env:
-      hasAny env.managers [
-        "awesome"
-        "i3"
-        "qtile"
-        "xmonad"
-      ]
-      || hasAny env.desktops [
-        "cinnamon"
-        "xfce"
-      ];
-
-    wayland = env:
-      hasAny env.managers [
-        "hyprland"
-        "labwc"
-        "mango"
-        "niri"
-        "river"
-        "sway"
-        "wayfire"
-      ]
-      || hasAny env.desktops [
-        "gnome"
-        "plasma"
-      ];
+    x11 = names: hasAny names ["awesome" "i3" "qtile" "xmonad" "cinnamon" "xfce"];
+    wayland = names: hasAny names ["hyprland" "labwc" "mango" "niri" "river" "sway" "wayfire" "gnome" "plasma" "cosmic"];
   };
 
-  opts = {
-    core = env: {
-      x11 =
-        mkEnableOption "X11 protocol/session support"
-        // {default = per.x11 env;};
-
-      wayland =
-        mkEnableOption "Wayland protocol/session support"
-        // {default = per.wayland env;};
-    };
-
-    home = env: opts.core env;
+  opts = env: {
+    x11 = mkEnableOption "X11 protocol/session support" // {default = per.x11 env;};
+    wayland = mkEnableOption "Wayland protocol/session support" // {default = per.wayland env;};
   };
 
   mk = scope: {
@@ -67,26 +37,17 @@
     ...
   }: let
     inherit ((args config scope)) cfg opt;
-    backend = config.${top}.interface.backend;
+    names = backendNames config;
   in {
-    options = opt (opts.${scope} backend);
+    options = opt (opts names);
     config = optionalAttrs (scope == "core") {
       services.xserver.enable = cfg.x11;
       programs.uwsm.enable = cfg.wayland;
       environment = {
-        sessionVariables = mkIf cfg.wayland {
-          NIXOS_OZONE_WL = "1";
-        };
+        sessionVariables = mkIf cfg.wayland {NIXOS_OZONE_WL = "1";};
         systemPackages = with pkgs;
-          optionals cfg.wayland [
-            cage
-            libsecret
-            wayland-utils
-            wl-clipboard-rs
-          ]
-          ++ optionals backend.niri.enable [
-            xwayland-satellite
-          ];
+          optionals cfg.wayland [cage libsecret wayland-utils wl-clipboard-rs]
+          ++ optionals (elem "niri" names) [xwayland-satellite];
       };
     };
   };

@@ -675,7 +675,7 @@ in {
     };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    environments = ["hyprland" "niri"];
+    backends = ["hyprland" "niri"];
     # environment = {
     #   hyprland = {
     #     # protocol = "wayland";

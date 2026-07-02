@@ -5,6 +5,7 @@
   dom,
   mod,
   registry,
+  resolveEnvironments,
   ...
 }: let
   inherit (lix.api) getAdminUsers;
@@ -14,8 +15,7 @@
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
 
-  args = config: scope:
-    mkModuleArgs {inherit config top dom mod scope;};
+  args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
 
   first = list:
     if length list > 0
@@ -34,7 +34,6 @@
       else if length admins > 0
       then elemAt admins 0
       else primary;
-
     user =
       if fallback.admin != null
       then fallback.admin.name
@@ -51,74 +50,68 @@
     then null
     else host.users.values.${name} or null;
 
-  getBackend = spec:
-    (spec.interface or {}).backend or {};
+  # Get backend names from any spec (host or user)
+  backendNames = spec: let
+    raw = (spec.interface or {}).backends or [];
+  in
+    if builtins.isList raw
+    then raw
+    else builtins.attrNames raw;
 
-  hostBackend = (host.interface or {}).backend or {};
+  # Resolved environments for a spec
+  resolved = spec:
+    resolveEnvironments {
+      inherit registry;
+      host = spec;
+    };
 
   ordered = user: let
-    backend =
+    userNames =
       if user == null
-      then {}
-      else getBackend user;
+      then []
+      else backendNames user;
+    hostNames = backendNames host;
   in
-    (backend.managers or [])
-    ++ (backend.desktops or [])
-    ++ (hostBackend.managers or [])
-    ++ (hostBackend.desktops or []);
+    (resolved user) ++ (resolved host);
 
   entry = name:
-    registry.managers.${name}
-    or registry.desktops.${name}
-    or {};
+    registry.environments.${name} or {};
 
   sessionName = name:
     if name == null
     then null
     else login.sessions.${name} or (entry name).session or name;
 
-  preferred = user:
-    first (ordered user);
+  preferred = user: first (ordered user);
 
-  defaultSession = user:
-    sessionName (preferred user);
+  defaultSession = user: sessionName (preferred user).name or null;
 
-  displayManagerFor = backend: let
-    names = backend.managers ++ backend.desktops;
+  displayManagerFor = backends: let
+    names =
+      if builtins.isList backends
+      then backends
+      else builtins.attrNames backends;
     name = first names;
   in
-    login.manager
-    or host.interface.displayManager
-    or (
+    login.manager or host.interface.displayManager or (
       if name != null
-      then (entry name).login or "regreet"
+      then (entry name).greeter or "regreet"
       else "none"
     );
 
   opts = manager: session: {
     manager = mkOption {
-      type = enum [
-        "none"
-        "dms"
-        "gdm"
-        "sddm"
-        "greetd"
-        "regreet"
-        "lightdm"
-      ];
+      type = enum ["none" "dms" "gdm" "sddm" "greetd" "regreet" "lightdm"];
       default = manager;
       description = "Display manager or greeter used to start graphical sessions.";
     };
-
     defaultSession = mkOption {
       type = nullOr str;
       default = session;
       description = "Default graphical session selected by the display manager.";
     };
-
     autoLogin = {
       enable = mkEnableOption "automatic login" // {default = auto.enable;};
-
       user = mkOption {
         type = nullOr str;
         default = auto.user;
@@ -126,29 +119,26 @@
       };
     };
   };
-  dmsCompositors = [
-    "hyprland"
-    "niri"
-    "sway"
-  ];
+
+  dmsCompositors = ["hyprland" "niri" "sway"];
 
   mk = scope: {config, ...}: let
     inherit ((args config scope)) cfg opt;
-    backend = config.${top}.interface.backend;
+    backends = config.${top}.interface.backends or [];
     user = userByName auto.user;
     session = login.defaultSession or (defaultSession user);
     greeter = cfg.manager;
     compositor = let
-      preferredSession = preferred user;
+      pref = preferred user;
     in
-      if elem preferredSession dmsCompositors
-      then preferredSession
+      if pref != null && elem pref.name dmsCompositors
+      then pref.name
       else null;
   in {
-    options = opt (opts (displayManagerFor backend) session);
+    options = opt (opts (displayManagerFor backends) session);
 
     config =
-      if (scope == "core")
+      if scope == "core"
       then {
         assertions = [
           {
@@ -157,9 +147,7 @@
           }
         ];
 
-        programs = {
-          regreet.enable = greeter == "regreet";
-        };
+        programs.regreet.enable = greeter == "regreet";
 
         services = {
           displayManager = mkIf (greeter != "none") {
@@ -169,24 +157,13 @@
               enable = true;
               compositor.name = compositor;
             };
-            # defaultSession =
-            #   mkIf
-            #   (cfg.defaultSession != null)
-            #   cfg.defaultSession;
-
             autoLogin = mkIf cfg.autoLogin.enable {
               enable = true;
               user = cfg.autoLogin.user;
             };
           };
-
-          xserver = {
-            displayManager.lightdm.enable = greeter == "lightdm";
-          };
-
-          greetd = mkIf (elem greeter ["dms" "greetd" "regreet"]) {
-            enable = true;
-          };
+          xserver.displayManager.lightdm.enable = greeter == "lightdm";
+          greetd = mkIf (elem greeter ["dms" "greetd" "regreet"]) {enable = true;};
         };
       }
       else {};
