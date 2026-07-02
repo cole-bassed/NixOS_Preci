@@ -1,17 +1,13 @@
-# ---------------------------------------------------------------------------
-# TODO: Allow flat files (e.g., example.nix) alongside directories.
-# Currently, readDirAttrs/importModule drops flat files or expects a directory.
-# FIX NEEDED: Modify `readDirAttrs` or wrap this block to check if an entry is
-# a "regular" file ending in ".nix". If it is a file, import it directly
-# via (base + "/${name}"); if it is a "directory", use the current logic.
-# ---------------------------------------------------------------------------
 {
   attrsets,
   defaults,
   excludes,
-  paths,
   filesystem,
   lists,
+  modules,
+  registry,
+  options,
+  paths,
   strings,
   types,
   ...
@@ -39,11 +35,23 @@
     };
   };
 
-  inherit (attrsets) attrNames filterAttrs genAttrs mapAttrs mapAttrs';
+  inherit
+    (attrsets)
+    attrNames
+    filterAttrs
+    genAttrs
+    mapAttrs
+    mapAttrs'
+    setAttrByPath
+    optionalAttrs
+    recursiveUpdate
+    ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
   inherit (lists) asModuleList any concatMap elem findFirst optionals;
   inherit (strings) hasSuffix removeSuffix;
-  inherit (types) isFunction;
+  inherit (modules) mkIf;
+  inherit (options) mkOption;
+  inherit (types) isFunction submodule attrs;
 
   candidates = entrypoints.nix.candidates or ["default.nix"];
 
@@ -328,15 +336,7 @@
     home-manager.sharedModules = specs.home or [];
   };
 
-  # TODO
-  /**
-  if directory has default.nix:
-    import only directory/default.nix
-    do not recursively scan its children here
-  else if recurse:
-    scan children
-  */
-  importModules = args @ {
+  importModulesORIG = args @ {
     base,
     excludes ? null,
     includes ? [],
@@ -356,6 +356,82 @@
       {inherit args base excludes includes tags extraArgs includeFiles recurse path;};
   in {
     imports = specs.core or [];
+    home-manager.sharedModules = specs.home or [];
+  };
+
+  importModulesFAILED = args @ {
+    base,
+    excludes ? null,
+    includes ? [],
+    tags ? defaults.tags,
+    extraArgs ? {},
+    includeFiles ? true,
+    recurse ? true,
+    path ? [],
+    ...
+  }: let
+    specs = collectSpecs {
+      inherit
+        args
+        base
+        excludes
+        includes
+        tags
+        extraArgs
+        includeFiles
+        recurse
+        path
+        ;
+    };
+    registry = extraArgs.registry or (args.registry or null);
+  in {
+    imports =
+      specs.core or []
+      ++ optionals (registry != null) [
+        ({top, ...}: {config = setAttrByPath ([top] ++ path ++ ["registry"]) registry;})
+      ];
+    home-manager.sharedModules = specs.home or [];
+  };
+
+  importModules = args @ {
+    base,
+    excludes ? null,
+    includes ? [],
+    tags ? defaults.tags,
+    extraArgs ? {},
+    includeFiles ? true,
+    recurse ? true,
+    path ? [],
+    top,
+    ...
+  }: let
+    specs = collectSpecs {
+      inherit args base excludes includes tags includeFiles recurse path;
+      extraArgs =
+        extraArgs
+        // registry
+        // {registry = (args.registry or {}) // (extraArgs.registry or {});};
+    };
+
+    paths'.option = [top] ++ path;
+  in {
+    imports =
+      [
+        {
+          options = setAttrByPath paths'.option (mkOption {
+            type = submodule {
+              freeformType = attrs;
+              options.registry = mkOption {
+                type = attrs;
+                default = specs.extraArgs.registry;
+                readOnly = true;
+              };
+            };
+            default = {};
+          });
+        }
+      ]
+      ++ (specs.core or []);
     home-manager.sharedModules = specs.home or [];
   };
 in

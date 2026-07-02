@@ -4,7 +4,7 @@
   host,
   path,
   registry,
-  resolveBackends,
+  resolve,
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
@@ -15,21 +15,19 @@
   inherit (lix.types) either attrsOf anything enum listOf;
 
   cfgOf = spec:
-    map (env: env.name) (resolveBackends {
+    map (env: env.name) (resolve {
       inherit registry;
       spec = spec;
     });
 
-  allEnvs = attrNames registry.environments;
-
   # Collect backends from host + all interactive users
-  activeBackends = unique (
-    (cfgOf host)
-    ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
-  );
+  # activeBackends = unique (
+  #   (cfgOf host)
+  #   ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
+  # );
 
   # Type: accept list of strings OR attrset of anything
-  backendType = either (listOf (enum allEnvs)) (attrsOf anything);
+  type = either (listOf (enum (attrNames registry))) (attrsOf anything);
 
   # For submodules: path should be ["interface" "backends"] so they create
   # dots.interface.backends.hyprland, etc.
@@ -63,7 +61,7 @@ in let
           scope,
         }: let
           parent = mkArgs' config scope;
-          env = registry.environments.${name} or {};
+          backend = registry.${name} or {};
         in {
           enable =
             (mkEnable {
@@ -75,7 +73,7 @@ in let
           withUWSM =
             (mkEnable {
               description = "launching ${prettyName} through UWSM";
-              default = env.uwsm or false;
+              default = backend.uwsm or false;
             }).default;
         };
       };
@@ -92,7 +90,7 @@ in {
     uwsm = let
       backends =
         filter (env: env.uwsm or false)
-        (resolveBackends {
+        (resolve {
           inherit registry;
           spec = host;
         });
@@ -110,8 +108,11 @@ in {
     imports = inner.imports or [];
     options = parent.opt {
       backends = mkOption {
-        type = backendType;
-        default = activeBackends;
+        inherit type;
+        default = unique (
+          (cfgOf host)
+          ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
+        );
         description = "Enabled compositor backends. Accepts a list of names or an attrset with per-backend overrides.";
       };
     };
@@ -130,13 +131,12 @@ in {
       path = ["interface"];
       scope = "home";
     };
-    userBackends = unique (cfgOf host ++ cfgOf user);
   in {
     imports = inner.home-manager.sharedModules or [];
     options = parent.opt {
       backends = mkOption {
-        type = backendType;
-        default = userBackends;
+        inherit type;
+        default = unique (cfgOf host ++ cfgOf user);
         description = "Enabled compositor backends for this user.";
       };
     };
