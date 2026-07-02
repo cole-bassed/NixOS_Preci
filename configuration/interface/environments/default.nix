@@ -50,13 +50,9 @@
     type = either (listOf (enum spec.all)) (attrsOf anything);
     default = normalize preset;
     apply = normalize;
-  in {
-    environments = mkOption {inherit description type default apply;};
-    backends = mkOption {
-      inherit description type apply;
-      default = {};
-    };
-  };
+  in
+    mkOption {inherit description type default apply;};
+
   mkArgs' = config: scope: mkModuleArgs {inherit config top path scope;};
 in let
   inner = mkModules (args
