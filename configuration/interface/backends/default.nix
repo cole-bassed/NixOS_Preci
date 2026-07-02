@@ -11,7 +11,7 @@
   inherit (lix.attrsets) attrNames attrValues listToAttrs;
   inherit (lix.modules) mkModules mkIf;
   inherit (lix.lists) concatMap elem map unique filter;
-  inherit (lix.options) mkModuleArgs mkEnable mkOption;
+  inherit (lix.options) mkCfg mkModuleArgs mkEnable mkOption;
   inherit (lix.types) enum listOf;
 
   backendsOf = spec:
@@ -24,7 +24,11 @@
     all = attrNames registry.environments;
     core = unique (
       (backendsOf host)
-      ++ (concatMap backendsOf (attrValues (getInteractiveUsers host)))
+      ++ (
+        concatMap
+        backendsOf
+        (attrValues (getInteractiveUsers host))
+      )
     );
     home = user: unique (backendsOf host ++ backendsOf user);
   };
@@ -54,15 +58,30 @@ in let
         }:
           mkModuleArgs ({inherit config top path scope;} // extra);
 
+        # mkEnable = {
+        #   name,
+        #   prettyName ? name,
+        #   config,
+        #   scope,
+        # }:
+        #   mkEnable {
+        #     description = "${prettyName} compositor";
+        #     default = elem name config.${top}.interface.backends; # TODO: Why are we hadcoding here 'interface.backend'. Should this not be smarted based on path?
+        #     inherit name scope;
+        #   };
         mkEnable = {
           name,
           prettyName ? name,
           config,
           scope,
-        }:
+        }: let
+          # parentArgs is the mkArgsHelper output for the current folder level
+          parentArgs = mkArgsHelper config scope;
+        in
           mkEnable {
             description = "${prettyName} compositor";
-            default = elem name config.${top}.interface.backend.backends;
+            # Dynamically look up the option name using the folder's leaf name!
+            default = elem name (parentArgs.cfg.${parentArgs.leaf} or []);
             inherit name scope;
           };
       };
@@ -71,29 +90,33 @@ in {
   core = {config, ...}: let
     inherit ((mkArgsHelper config "core")) opt;
 
-    # Resolve full registry objects for this active host environment context
-    activeEnvs = resolveEnvironments {inherit registry host;};
-
-    # Extract only backends declaring `uwsm = true;` inside the central registry
-    uwsmBackends = filter (env: env.uwsm or false) activeEnvs;
-
-    # Dynamically build the configuration payload inline
-    uwsmCompositors = listToAttrs (map (env: {
-        name = env.name;
-        value = {
-          prettyName = env.name;
-          comment = "${env.name} compositor managed by UWSM";
-          binPath = "/run/current-system/sw/bin/${env.session}";
-        };
-      })
-      uwsmBackends);
+    uwsm = let
+      backends = filter (env: env.uwsm or false) (resolveEnvironments {inherit registry host;});
+      compositors = listToAttrs (
+        map (env: {
+          name = env.name;
+          value = {
+            prettyName = env.name;
+            comment = "${env.name} compositor managed by UWSM";
+            binPath = "/run/current-system/sw/bin/${env.session}";
+          };
+        })
+        backends
+      );
+    in {inherit backends compositors;};
   in {
     imports = inner.imports or [];
     options = opt (opts spec.core);
-
-    # Expose dynamically configured compositors if any are active
-    config = mkIf (uwsmCompositors != {}) {
-      programs.uwsm.waylandCompositors = uwsmCompositors;
+    config = mkIf (uwsm.compositors != {}) {
+      programs.uwsm.waylandCompositors = listToAttrs (map (env: {
+          name = env.name;
+          value = {
+            prettyName = env.name;
+            comment = "${env.name} compositor managed by UWSM";
+            binPath = "/run/current-system/sw/bin/${env.session}";
+          };
+        })
+        uwsm.backends);
     };
   };
 
