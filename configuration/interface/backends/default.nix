@@ -4,51 +4,41 @@
   host,
   path,
   registry,
+  registryOf,
   resolve,
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) attrNames attrValues listToAttrs;
   inherit (lix.modules) mkModules mkIf;
-  inherit (lix.lists) concatMap elem filter map unique;
+  inherit (lix.lists) concatMap elem filter init map unique;
   inherit (lix.options) mkModuleArgs mkEnable mkOption;
   inherit (lix.types) either attrsOf anything enum listOf;
 
-  cfgOf = spec:
-    map (env: env.name) (resolve {
-      inherit registry;
-      spec = spec;
-    });
-
-  # Collect backends from host + all interactive users
-  # activeBackends = unique (
-  #   (cfgOf host)
-  #   ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
-  # );
-
-  # Type: accept list of strings OR attrset of anything
-  type = either (listOf (enum (attrNames registry))) (attrsOf anything);
-
-  # For submodules: path should be ["interface" "backends"] so they create
-  # dots.interface.backends.hyprland, etc.
-  submodulePath = path ++ ["backends"];
+  type =
+    either
+    (listOf (enum (attrNames registry)))
+    (attrsOf anything);
 
   mkArgs' = config: scope:
-    mkModuleArgs {
-      inherit config top scope;
-      path = submodulePath;
-    };
+    mkModuleArgs {inherit config top scope path;};
+
+  # `backends` is a container directory, not a namespace: its own
+  # option (the enable list/overrides) lives at dots.interface.backends,
+  # but the per-backend submodules (hyprland, niri, mango) must register
+  # as siblings under dots.interface.<name>, not nested inside it.
+  parentPath = init path;
 in let
   inner = mkModules (args
     // {
       base = ./.;
-      path = submodulePath;
+      path = parentPath;
       extraArgs = {
-        inherit cfgOf;
+        inherit registryOf;
 
         mkArgs = {
           config,
-          path ? submodulePath,
+          path,
           scope ? "core",
           extra ? {},
         }:
@@ -110,8 +100,8 @@ in {
       backends = mkOption {
         inherit type;
         default = unique (
-          (cfgOf host)
-          ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
+          (registryOf host)
+          ++ (concatMap registryOf (attrValues (getInteractiveUsers host)))
         );
         description = "Enabled compositor backends. Accepts a list of names or an attrset with per-backend overrides.";
       };
@@ -136,7 +126,7 @@ in {
     options = parent.opt {
       backends = mkOption {
         inherit type;
-        default = unique (cfgOf host ++ cfgOf user);
+        default = unique (registryOf host ++ registryOf user);
         description = "Enabled compositor backends for this user.";
       };
     };

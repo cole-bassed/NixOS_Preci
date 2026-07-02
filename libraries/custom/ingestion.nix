@@ -4,7 +4,6 @@
   excludes,
   filesystem,
   lists,
-  modules,
   registry,
   options,
   paths,
@@ -21,6 +20,7 @@
       collectNamed = collectNamedSpecs;
       importAttrs = readDirAttrs;
       resolve = resolveEntrypoint;
+      mkModules = importModules;
     };
     global = {
       inherit
@@ -40,16 +40,15 @@
     attrNames
     filterAttrs
     genAttrs
+    isNotEmptyAttr
     mapAttrs
     mapAttrs'
-    setAttrByPath
     optionalAttrs
-    recursiveUpdate
+    setAttrByPath
     ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asModuleList any concatMap elem findFirst optionals;
+  inherit (lists) asModuleList any concatMap elem elemAt findFirst length optionals;
   inherit (strings) hasSuffix removeSuffix;
-  inherit (modules) mkIf;
   inherit (options) mkOption;
   inherit (types) isFunction submodule attrs;
 
@@ -172,7 +171,7 @@
   #   path = ["a" "b"]     -> { dom = "a";  mod = "b"; }
   #   path = ["a" "b" "c"] -> { dom = "b";  mod = "c"; }  (only last 2 matter)
   legacyDomMod = path: let
-    len = builtins.length path;
+    len = length path;
   in
     if len == 0
     then {
@@ -182,11 +181,11 @@
     else if len == 1
     then {
       dom = null;
-      mod = builtins.elemAt path 0;
+      mod = elemAt path 0;
     }
     else {
-      dom = builtins.elemAt path (len - 2);
-      mod = builtins.elemAt path (len - 1);
+      dom = elemAt path (len - 2);
+      mod = elemAt path (len - 1);
     };
 
   collectSpecs = {
@@ -359,79 +358,48 @@
     home-manager.sharedModules = specs.home or [];
   };
 
-  importModulesFAILED = args @ {
-    base,
-    excludes ? null,
-    includes ? [],
-    tags ? defaults.tags,
-    extraArgs ? {},
-    includeFiles ? true,
-    recurse ? true,
-    path ? [],
-    ...
-  }: let
-    specs = collectSpecs {
-      inherit
-        args
-        base
-        excludes
-        includes
-        tags
-        extraArgs
-        includeFiles
-        recurse
-        path
-        ;
-    };
-    registry = extraArgs.registry or (args.registry or null);
-  in {
-    imports =
-      specs.core or []
-      ++ optionals (registry != null) [
-        ({top, ...}: {config = setAttrByPath ([top] ++ path ++ ["registry"]) registry;})
-      ];
-    home-manager.sharedModules = specs.home or [];
-  };
-
   importModules = args @ {
     base,
+    data ? extraArgs.registry or {},
     excludes ? null,
-    includes ? [],
-    tags ? defaults.tags,
     extraArgs ? {},
     includeFiles ? true,
-    recurse ? true,
+    includes ? [],
     path ? [],
+    recurse ? true,
+    tags ? defaults.tags,
     top,
     ...
   }: let
+    hasData = isNotEmptyAttr data;
     specs = collectSpecs {
       inherit args base excludes includes tags includeFiles recurse path;
       extraArgs =
         extraArgs
-        // registry
-        // {registry = (args.registry or {}) // (extraArgs.registry or {});};
+        // (
+          optionalAttrs
+          hasData
+          ({registry = data;} // registry)
+        );
     };
-
-    paths'.option = [top] ++ path;
   in {
     imports =
-      [
+      (specs.core or [])
+      ++ optionals hasData [
         {
-          options = setAttrByPath paths'.option (mkOption {
+          options = setAttrByPath ([top] ++ path) (mkOption {
             type = submodule {
               freeformType = attrs;
               options.registry = mkOption {
                 type = attrs;
-                default = specs.extraArgs.registry;
+                default = data;
                 readOnly = true;
               };
             };
             default = {};
           });
         }
-      ]
-      ++ (specs.core or []);
+      ];
     home-manager.sharedModules = specs.home or [];
   };
 in
