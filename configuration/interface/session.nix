@@ -5,7 +5,7 @@
   dom,
   mod,
   registry,
-  resolveEnvironments,
+  resolveBackends,
   ...
 }: let
   inherit (lix.api) getAdminUsers;
@@ -50,52 +50,29 @@
     then null
     else host.users.values.${name} or null;
 
-  # Get backend names from any spec (host or user)
-  backendNames = spec: let
-    raw = (spec.interface or {}).backends or [];
-  in
-    if builtins.isList raw
-    then raw
-    else builtins.attrNames raw;
-
-  # Resolved environments for a spec
+  # Resolved backends for a spec
   resolved = spec:
-    resolveEnvironments {
+    resolveBackends {
       inherit registry;
-      host = spec;
+      spec = spec;
     };
 
-  ordered = user: let
-    userNames =
-      if user == null
-      then []
-      else backendNames user;
-    hostNames = backendNames host;
-  in
-    (resolved user) ++ (resolved host);
+  # Primary backend from resolved list
+  primaryBackend = spec: first (resolved spec);
 
-  entry = name:
-    registry.environments.${name} or {};
-
-  sessionName = name:
-    if name == null
+  sessionName = env:
+    if env == null
     then null
-    else login.sessions.${name} or (entry name).session or name;
+    else login.sessions.${env.name} or env.session or env.name;
 
-  preferred = user: first (ordered user);
+  defaultSession = spec: sessionName (primaryBackend spec);
 
-  defaultSession = user: sessionName (preferred user).name or null;
-
-  displayManagerFor = backends: let
-    names =
-      if builtins.isList backends
-      then backends
-      else builtins.attrNames backends;
-    name = first names;
+  displayManagerFor = spec: let
+    env = primaryBackend spec;
   in
     login.manager or host.interface.displayManager or (
-      if name != null
-      then (entry name).greeter or "regreet"
+      if env != null
+      then env.greeter or "regreet"
       else "none"
     );
 
@@ -124,18 +101,17 @@
 
   mk = scope: {config, ...}: let
     inherit ((args config scope)) cfg opt;
-    backends = config.${top}.interface.backends or [];
     user = userByName auto.user;
-    session = login.defaultSession or (defaultSession user);
+    session = login.defaultSession or (defaultSession host);
     greeter = cfg.manager;
     compositor = let
-      pref = preferred user;
+      pref = primaryBackend host;
     in
       if pref != null && elem pref.name dmsCompositors
       then pref.name
       else null;
   in {
-    options = opt (opts (displayManagerFor backends) session);
+    options = opt (opts (displayManagerFor host) session);
 
     config =
       if scope == "core"

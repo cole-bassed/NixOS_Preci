@@ -3,32 +3,45 @@
   top,
   dom,
   mod,
+  registry,
   ...
 }: let
-  inherit (lix.attrsets) optionalAttrs;
-  inherit (lix.lists) any elem optionals;
+  inherit (lix.attrsets) attrNames optionalAttrs;
+  inherit (lix.lists) any elem isList optionals;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption;
 
   args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
 
-  hasAny = values: names: any (name: elem name values) names;
-
+  # Get backend names from config
   backendNames = config: let
     raw = config.${top}.interface.backends or [];
   in
-    if builtins.isList raw
+    if isList raw
     then raw
-    else builtins.attrNames raw;
+    else attrNames raw;
 
-  per = {
-    x11 = names: hasAny names ["awesome" "i3" "qtile" "xmonad" "cinnamon" "xfce"];
-    wayland = names: hasAny names ["hyprland" "labwc" "mango" "niri" "river" "sway" "wayfire" "gnome" "plasma" "cosmic"];
-  };
+  # Derive protocol support from registry
+  per = protocol: names:
+    any (
+      name: let
+        env = registry.environments.${name} or {};
+      in
+        env.protocol or null == protocol
+    )
+    names;
 
-  opts = env: {
-    x11 = mkEnableOption "X11 protocol/session support" // {default = per.x11 env;};
-    wayland = mkEnableOption "Wayland protocol/session support" // {default = per.wayland env;};
+  opts = names: {
+    x11 =
+      mkEnableOption "X11 protocol/session support"
+      // {
+        default = per "x11" names;
+      };
+    wayland =
+      mkEnableOption "Wayland protocol/session support"
+      // {
+        default = per "wayland" names;
+      };
   };
 
   mk = scope: {

@@ -11,11 +11,10 @@
   inherit (lix.modules) mkCfgIf;
   inherit (lix.options) mkOption;
   inherit (lix.types) enum;
-  mk = config: scope: mkArgs {inherit config path scope;};
 in {
   core = {config, ...}: let
     scope = "core";
-    inherit (mk config scope) opt cfg;
+    inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
     options = opt (mkEnable {inherit name prettyName config scope;});
     config = mkCfgIf {inherit cfg;} {
@@ -25,7 +24,7 @@ in {
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mk config scope) opt cfg;
+    inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
     options = opt (
       (mkEnable {inherit name prettyName config scope;})
@@ -37,7 +36,6 @@ in {
         };
       }
     );
-
     config.wayland.windowManager = mkCfgIf {inherit cfg;} {
       ${name} = {inherit (cfg) enable configType;};
     };

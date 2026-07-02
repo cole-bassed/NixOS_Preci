@@ -9,7 +9,6 @@
   prettyName = "Mango";
 
   inherit (lix.modules) mkCfgIf;
-  mk = config: scope: mkArgs {inherit config path scope;};
 in {
   core = {
     config,
@@ -17,7 +16,7 @@ in {
     ...
   }: let
     scope = "core";
-    inherit (mk config scope) opt cfg;
+    inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
     options = opt (mkEnable {inherit name prettyName config scope;}).default;
     config = mkCfgIf {inherit cfg;} {
@@ -27,7 +26,7 @@ in {
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mk config scope) opt cfg;
+    inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
     options = opt (mkEnable {inherit name prettyName config scope;}).default;
     config = mkCfgIf {inherit cfg;} {

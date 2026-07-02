@@ -4,7 +4,7 @@
   host,
   path,
   registry,
-  resolveEnvironments,
+  resolveBackends,
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
@@ -12,49 +12,45 @@
   inherit (lix.modules) mkModules mkIf;
   inherit (lix.lists) concatMap elem filter map unique;
   inherit (lix.options) mkModuleArgs mkEnable mkOption;
-  inherit (lix.types) either attrsOf anything enum isList listOf;
+  inherit (lix.types) either attrsOf anything enum listOf;
 
   cfgOf = spec:
-    map (env: env.name) (resolveEnvironments {
+    map (env: env.name) (resolveBackends {
       inherit registry;
-      host = spec;
+      spec = spec;
     });
 
   allEnvs = attrNames registry.environments;
 
   # Collect backends from host + all interactive users
-  spec = {
-    all = allEnvs;
-    core = unique (
-      (cfgOf host)
-      ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
-    );
-    home = user: unique (cfgOf host ++ cfgOf user);
-  };
+  activeBackends = unique (
+    (cfgOf host)
+    ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
+  );
 
-  opts = preset: {
-    backends = mkOption {
-      type = either (listOf (enum allEnvs)) (attrsOf anything);
-      default =
-        if isList preset
-        then preset
-        else {};
-      description = "List of backend names or attrset of backend configurations.";
+  # Type: accept list of strings OR attrset of anything
+  backendType = either (listOf (enum allEnvs)) (attrsOf anything);
+
+  # For submodules: path should be ["interface" "backends"] so they create
+  # dots.interface.backends.hyprland, etc.
+  submodulePath = path ++ ["backends"];
+
+  mkArgs' = config: scope:
+    mkModuleArgs {
+      inherit config top scope;
+      path = submodulePath;
     };
-  };
-
-  mkArgs' = config: scope: mkModuleArgs {inherit config top path scope;};
 in let
   inner = mkModules (args
     // {
       base = ./.;
-      inherit path;
+      path = submodulePath;
       extraArgs = {
         inherit cfgOf;
 
         mkArgs = {
           config,
-          path,
+          path ? submodulePath,
           scope ? "core",
           extra ? {},
         }:
@@ -86,12 +82,20 @@ in let
     });
 in {
   core = {config, ...}: let
-    inherit ((mkArgs' config "core")) opt;
+    # Use path=["interface"] so we define dots.interface.backends
+    parent = mkModuleArgs {
+      inherit config top;
+      path = ["interface"];
+      scope = "core";
+    };
 
     uwsm = let
       backends =
         filter (env: env.uwsm or false)
-        (resolveEnvironments {inherit registry host;});
+        (resolveBackends {
+          inherit registry;
+          spec = host;
+        });
       compositors = listToAttrs (map (env: {
           name = env.name;
           value = {
@@ -104,7 +108,13 @@ in {
     in {inherit backends compositors;};
   in {
     imports = inner.imports or [];
-    options = opt (opts spec.core);
+    options = parent.opt {
+      backends = mkOption {
+        type = backendType;
+        default = activeBackends;
+        description = "Enabled compositor backends. Accepts a list of names or an attrset with per-backend overrides.";
+      };
+    };
     config = mkIf (uwsm.compositors != {}) {
       programs.uwsm.waylandCompositors = uwsm.compositors;
     };
@@ -115,9 +125,20 @@ in {
     user ? {},
     ...
   }: let
-    inherit ((mkArgs' config "home")) opt;
+    parent = mkModuleArgs {
+      inherit config top;
+      path = ["interface"];
+      scope = "home";
+    };
+    userBackends = unique (cfgOf host ++ cfgOf user);
   in {
     imports = inner.home-manager.sharedModules or [];
-    options = opt (opts (spec.home user));
+    options = parent.opt {
+      backends = mkOption {
+        type = backendType;
+        default = userBackends;
+        description = "Enabled compositor backends for this user.";
+      };
+    };
   };
 }
