@@ -6,6 +6,7 @@
   excludes,
   filesystem,
   flake,
+  lists,
   names,
   paths,
   staged,

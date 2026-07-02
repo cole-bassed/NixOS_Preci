@@ -12,7 +12,7 @@
     };
   };
 
-  inherit (attrsets) mapAttrs mapAttrsToList optionalAttrs;
+  inherit (attrsets) filterAttrs mapAttrs mapAttrsToList optionalAttrs;
   inherit (lists) any;
 
   isRequired = args: let
@@ -57,7 +57,7 @@
           scale = toString display.scale;
         in "${name}, ${resolution}${refreshRate}, ${position}, ${scale}"
       )
-      displays;
+      (filterAttrs (_: display: display.enable or true) displays);
   };
 
   mkNiri = displays:

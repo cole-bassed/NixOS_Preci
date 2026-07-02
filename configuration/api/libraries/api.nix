@@ -66,11 +66,7 @@
           host
           // {
             users = resolveUsers host;
-            devices =
-              host.devices or {}
-              // {
-                display = resolveDisplays host;
-              };
+            devices = (host.devices or {}) // {display = resolveDisplays host;};
           }
         ))
       (collectSpecs {
@@ -431,6 +427,42 @@
     };
   in
     listToAttrs (map place ordered);
+
+  # Resolve a host/user's declared `interface.environments` (a list of
+  # backend names, optionally with per-entry overrides) against the
+  # registry above. First entry is the primary environment.
+  #
+  #   interface.environments = [ "hyprland" "niri" ];
+  #   interface.environments = [ { name = "hyprland"; login = "dms"; } ];
+  resolveInterface = {
+    host,
+    registry,
+  }: let
+    hostName = host.name or "unknown";
+    fail = msg: throw "api/hosts/${hostName}: ${msg}";
+    raw = (host.interface or {}).environments or [];
+
+    resolve = idx: entry: let
+      name =
+        if isString entry
+        then entry
+        else entry.name or (fail "environment at index ${toString idx} missing 'name'");
+      base =
+        registry.environments.${name}
+                or (fail "environment '${name}' is not a known backend in registry.environments");
+      overrides =
+        if isString entry
+        then {}
+        else removeAttrs entry ["name"];
+    in
+      base
+      // overrides
+      // {
+        inherit name;
+        priority = idx;
+      };
+  in
+    imap0 resolve raw;
 
   /**
   Derives the set of module-scope tags that are relevant for a given host.

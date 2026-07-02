@@ -6,41 +6,55 @@
   entry,
   ...
 }: let
-  inherit (lix.modules) mkIf;
+  inherit (lix.attrsets) optionalAttrs;
+  # inherit (lix.modules) mkIf;
   inherit (lix.displays) mkHyprland mkNiri;
   inherit (lix.options) mkOption;
-  inherit (lix.types) attrsOf;
-
-  hasHyprland = config: (
-    config.programs.hyprland.enable or (
-      config.wayland.windowManager.hyprland.enable or (
-        config.${top}.interface.backends.hyprland.enable or false
-      )
-    )
-  );
-  hasNiri = config: (
-    config.programs.niri.enable or (
-      config.${top}.interface.backends.niri.enable or false
-    )
-  );
+  inherit (lix.lists) any;
+  inherit (lix.types) attrs attrsOf;
 
   mk = scope: {config, ...}: let
-    displays = config.${top}.${dom} or {};
+    hasHyprland = any (x: x) [
+      (config.programs.hyprland.enable or false)
+      (config.wayland.windowManager.hyprland.enable or false)
+      (config.${top}.interface.backends.hyprland.enable or false)
+    ];
+
+    hasNiri = any (x: x) [
+      (config.programs.niri.enable or false)
+      (config.${top}.interface.backends.niri.enable or false)
+    ];
+
+    monitors = host.devices.display or {};
+    outputs = {
+      niri = optionalAttrs hasNiri (mkNiri monitors);
+      hyprland = optionalAttrs hasHyprland (mkHyprland monitors);
+    };
   in {
-    options.${top}.${dom} = mkOption {
-      type = attrsOf entry;
-      default = host.devices.display or {};
-      description = "Output/display layout, keyed by connector name.";
+    options.${top}.${dom} = {
+      monitors = mkOption {
+        type = attrsOf entry;
+        default = monitors;
+        description = "Resolved, compositor-agnostic output/display layout, keyed by connector name.";
+      };
+      hyprland = mkOption {
+        type = attrs;
+        default = outputs.hyprland;
+        description = "Resolved Hyprland monitors config; empty when Hyprland is not enabled.";
+      };
+      niri = mkOption {
+        type = attrs;
+        default = outputs.niri;
+        description = "Resolved Niri outputs config; empty when Niri is not enabled.";
+      };
     };
 
     config =
       if scope == "core"
       then {}
       else {
-        wayland.windowManager.hyprland.settings =
-          mkIf (hasHyprland config) (mkHyprland displays);
-        programs.niri.settings.outputs =
-          mkIf (hasNiri config) (mkNiri displays);
+        wayland.windowManager.hyprland.settings = outputs.hyprland;
+        programs.niri.settings.outputs = outputs.niri;
       };
   };
 in {

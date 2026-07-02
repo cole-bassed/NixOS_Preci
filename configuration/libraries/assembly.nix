@@ -6,6 +6,7 @@
   filesystem,
   flake,
   lists,
+  modules,
   names,
   paths,
   strings,
@@ -14,7 +15,7 @@
   ...
 }: let
   exports = {
-    scoped = {inherit mkConfiguration mkFlake mkPaths mkSrc;};
+    scoped = {inherit mkConfiguration mkFlake mkPaths mkSrc mkCfgIf;};
     global = {inherit mkFlake mkConfiguration mkSrc;};
   };
 
@@ -28,7 +29,8 @@
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
   inherit (lists) elem foldl' groupBy;
-  inherit (types) isAttrs isBool isEnabled typeOf;
+  inherit (modules) mkIf mkMerge;
+  inherit (types) isAttrs isBool isEnabled isList typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
   inherit (flake.registry.aggregated) overlays packages;
@@ -226,5 +228,15 @@
     if isAttrs arg && arg ? base
     then exec arg.base (arg.args or {})
     else args: exec arg args;
+
+  mkCfgIf = {
+    cfg,
+    condition ? cfg.enable or false,
+  }: args:
+    mkIf condition (
+      if isList args
+      then mkMerge args
+      else args
+    );
 in
   exports

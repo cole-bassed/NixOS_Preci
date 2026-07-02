@@ -515,6 +515,7 @@
           aliases = let
             specs = {
               niri = "niri-unstable";
+              xwayland-satellite = "xwayland-satellite-unstable";
             };
           in [
             (

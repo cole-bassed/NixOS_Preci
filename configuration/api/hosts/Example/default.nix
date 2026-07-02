@@ -675,10 +675,8 @@ in {
     };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    backend = {
-      managers = ["hyprland" "niri"];
-      desktops = [];
-    };
+    backends = ["hyprland" "niri"];
+    frontend = "dank-material-shell";
     keyboard = {
       modifier = "SUPER";
       swapCapsEscape = false;
