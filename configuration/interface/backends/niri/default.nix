@@ -1,71 +1,45 @@
 {
   lix,
-  top,
   path,
-  backendsOf,
+  mkArgs,
+  mkEnable,
   ...
 }: let
   name = "niri";
   prettyName = "Niri";
-  bin = name;
 
-  inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
+  inherit (lix.modules) mkCfgIf;
+  inherit (lix.options) mkOption;
   inherit (lix.types) str;
-  inherit (lix.assembly) mkCfgIf;
-  inherit (lix.lists) elem;
-
-  mkArgs = config: pkgs: scope: mkModuleArgs {inherit config top path pkgs scope;};
+  mk = config: scope: mkArgs {inherit config path scope;};
 in {
-  core = {
-    config,
-    pkgs,
-    host,
-    ...
-  }: let
-    inherit ((mkArgs config pkgs "core")) cfg opt;
+  core = {config, ...}: let
+    scope = "core";
+    inherit (mk config scope) opt cfg;
   in {
-    options = opt {
-      enable =
-        mkEnableOption "Niri compositor"
-        // {
-          default = elem name (backendsOf host);
-        };
-    };
-
+    options = opt (mkEnable {inherit name prettyName config scope;}).default;
     config = mkCfgIf {inherit cfg;} {
-      programs = {
-        niri.enable = true;
-        uwsm.waylandCompositors.niri = {
-          prettyName = "Niri";
-          comment = "Niri compositor managed by UWSM";
-          binPath = "/run/current-system/sw/bin/niri";
-        };
-      };
+      programs.${name}.enable = true;
     };
   };
 
-  home = {
-    config,
-    pkgs,
-    user,
-    ...
-  }: let
-    inherit ((mkArgs config pkgs "home")) cfg opt;
+  home = {config, ...}: let
+    scope = "home";
+    inherit (mk config scope) opt cfg;
   in {
-    options = opt {
-      enable =
-        mkEnableOption "Niri compositor"
-        // {
-          default = elem name (backendsOf user);
+    options = opt (
+      (mkEnable {inherit name prettyName config scope;}).default
+      // {
+        fallbackConfig = mkOption {
+          type = str;
+          default = "${path}/configs/niri/config.kdl";
+          description = "Path to Niri fallback KDL configuration.";
         };
-      fallbackConfig = mkOption {
-        type = str;
-        default = "${path}/configs/niri/config.kdl";
-      };
-    };
+      }
+    );
 
     config = mkCfgIf {inherit cfg;} {
-      programs.niri.settings = {};
+      programs.${name}.settings = {};
     };
   };
 }

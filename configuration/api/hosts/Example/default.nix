@@ -673,10 +673,19 @@ in {
       loader = "systemd-boot";
       timeout = 1;
     };
+    # environment = {
+    #   hyprland = {
+    #     # protocol = "wayland";
+    #     # session = "hyprland";
+    #     # greeter = "dank-material-shell";
+    #     # uwsm = true;
+    #     # frontend = "dank-material-shell";
+    #   };
+    # };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    backends = ["hyprland" "niri"];
-    frontend = "dank-material-shell";
+    environments = ["hyprland" "niri"];
+    # frontend = "dank-material-shell";
     keyboard = {
       modifier = "SUPER";
       swapCapsEscape = false;

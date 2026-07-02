@@ -15,7 +15,7 @@
   ...
 }: let
   exports = {
-    scoped = {inherit mkConfiguration mkFlake mkPaths mkSrc mkCfgIf;};
+    scoped = {inherit mkConfiguration mkFlake mkPaths mkSrc;};
     global = {inherit mkFlake mkConfiguration mkSrc;};
   };
 
@@ -228,15 +228,5 @@
     if isAttrs arg && arg ? base
     then exec arg.base (arg.args or {})
     else args: exec arg args;
-
-  mkCfgIf = {
-    cfg,
-    condition ? cfg.enable or false,
-  }: args:
-    mkIf condition (
-      if isList args
-      then mkMerge args
-      else args
-    );
 in
   exports
