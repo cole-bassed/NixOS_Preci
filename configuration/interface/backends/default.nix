@@ -15,6 +15,8 @@
   inherit (lix.options) mkModuleArgs mkEnable mkOption;
   inherit (lix.types) either attrsOf anything enum listOf;
 
+  cfgOf = spec: registryOf {inherit top registry spec;};
+
   type =
     either
     (listOf (enum (attrNames registry)))
@@ -22,19 +24,14 @@
 
   mkArgs' = config: scope:
     mkModuleArgs {inherit config top scope path;};
-
-  # `backends` is a container directory, not a namespace: its own
-  # option (the enable list/overrides) lives at dots.interface.backends,
-  # but the per-backend submodules (hyprland, niri, mango) must register
-  # as siblings under dots.interface.<name>, not nested inside it.
-  parentPath = init path;
 in let
   inner = mkModules (args
     // {
       base = ./.;
-      path = parentPath;
+      declareRegistry = false;
+      childPath = init path;
       extraArgs = {
-        inherit registryOf;
+        inherit cfgOf;
 
         mkArgs = {
           config,
@@ -70,45 +67,42 @@ in let
     });
 in {
   core = {config, ...}: let
-    # Use path=["interface"] so we define dots.interface.backends
     parent = mkModuleArgs {
       inherit config top;
       path = ["interface"];
       scope = "core";
     };
-
-    uwsm = let
-      backends =
-        filter (env: env.uwsm or false)
-        (resolve {
-          inherit registry;
-          spec = host;
-        });
-      compositors = listToAttrs (map (env: {
+  in {
+    imports = inner.imports or [];
+    options = parent.opt {
+      required.backends = mkOption {
+        inherit type;
+        default = unique (
+          (cfgOf host) ++ (concatMap cfgOf (attrValues (getInteractiveUsers host)))
+        );
+        description = "Required compositor backends. Accepts a list of names or an attrset with per-backend overrides.";
+      };
+    };
+    config.programs.uwsm.waylandCompositors = listToAttrs (
+      map
+      (
+        env: {
           name = env.name;
           value = {
             prettyName = env.name;
             comment = "${env.name} compositor managed by UWSM";
             binPath = "/run/current-system/sw/bin/${env.session}";
           };
+        }
+      )
+      (
+        filter (env: env.uwsm or false)
+        (resolve {
+          inherit registry;
+          spec = host;
         })
-        backends);
-    in {inherit backends compositors;};
-  in {
-    imports = inner.imports or [];
-    options = parent.opt {
-      backends = mkOption {
-        inherit type;
-        default = unique (
-          (registryOf host)
-          ++ (concatMap registryOf (attrValues (getInteractiveUsers host)))
-        );
-        description = "Enabled compositor backends. Accepts a list of names or an attrset with per-backend overrides.";
-      };
-    };
-    config = mkIf (uwsm.compositors != {}) {
-      programs.uwsm.waylandCompositors = uwsm.compositors;
-    };
+      )
+    );
   };
 
   home = {
@@ -126,7 +120,7 @@ in {
     options = parent.opt {
       backends = mkOption {
         inherit type;
-        default = unique (registryOf host ++ registryOf user);
+        default = unique (cfgOf host ++ cfgOf user);
         description = "Enabled compositor backends for this user.";
       };
     };

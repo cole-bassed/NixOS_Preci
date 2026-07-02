@@ -366,14 +366,17 @@
     includeFiles ? true,
     includes ? [],
     path ? [],
+    childPath ? path,
     recurse ? true,
     tags ? defaults.tags,
     top,
+    declareRegistry ? true,
     ...
   }: let
-    hasData = isNotEmptyAttr data;
+    hasData = isNotEmptyAttr data && declareRegistry;
     specs = collectSpecs {
-      inherit args base excludes includes tags includeFiles recurse path;
+      inherit args base excludes includes tags includeFiles recurse;
+      path = childPath;
       extraArgs =
         extraArgs
         // (

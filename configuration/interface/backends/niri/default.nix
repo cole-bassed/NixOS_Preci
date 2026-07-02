@@ -16,7 +16,7 @@ in {
     scope = "core";
     inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
-    options = opt (mkEnable {inherit name prettyName config scope;}).default;
+    options = opt (mkEnable {inherit name prettyName config scope;});
     config = mkCfgIf {inherit cfg;} {
       programs.${name}.enable = true;
     };
@@ -27,7 +27,7 @@ in {
     inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
     options = opt (
-      (mkEnable {inherit name prettyName config scope;}).default
+      (mkEnable {inherit name prettyName config scope;})
       // {
         fallbackConfig = mkOption {
           type = str;

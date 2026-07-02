@@ -18,7 +18,7 @@ in {
     scope = "core";
     inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
-    options = opt (mkEnable {inherit name prettyName config scope;}).default;
+    options = opt (mkEnable {inherit name prettyName config scope;});
     config = mkCfgIf {inherit cfg;} {
       environment.systemPackages = [pkgs.${name} or []];
     };
@@ -28,7 +28,7 @@ in {
     scope = "home";
     inherit (mkArgs {inherit config path scope;}) opt cfg;
   in {
-    options = opt (mkEnable {inherit name prettyName config scope;}).default;
+    options = opt (mkEnable {inherit name prettyName config scope;});
     config = mkCfgIf {inherit cfg;} {
       # User-level Mango dotfiles or environment hooks go here
     };
