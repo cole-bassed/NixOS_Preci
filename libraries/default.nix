@@ -148,14 +148,14 @@
 
   api = let
     args = custom.charged // {staged = custom;};
-    base = paths.store.api + "/libraries";
+    base = ./api;
     seed = args;
   in
     mkLibrary {inherit args base seed;};
 
   assembly = mkLibrary {
     seed = api.charged // {staged = api;};
-    base = paths.store.configuration + "/libraries";
+    base = ./assembly;
   };
 
   merged = assembly.charged;
