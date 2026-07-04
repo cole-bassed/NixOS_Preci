@@ -133,8 +133,8 @@
         );
 
     fullPath = [top] ++ segments;
-    leafName = last segments;
-    package = pkgs.${leafName} or {};
+    leaf = last segments;
+    package = pkgs.${leaf} or {};
     cfg = mkCfg {
       config = config;
       path = fullPath;
@@ -145,8 +145,8 @@
         inherit options;
         path = fullPath;
       };
-    base = leafName;
-    programs.${leafName} = {inherit enable package;};
+    base = leaf;
+    programs.${leaf} = {inherit enable package;};
   in {
     inherit
       base
@@ -160,9 +160,10 @@
       top
       ;
     # leaf alias kept distinct from `mod`/`base` for clarity at new call sites
-    leaf = leafName;
+    inherit leaf;
     mkEnableMod = mkEnableMod {
-      mod = leafName;
+      mod = leaf;
+      name = leaf;
       inherit scope;
     };
   };
