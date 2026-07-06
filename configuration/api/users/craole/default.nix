@@ -38,8 +38,8 @@ in {
     backend = {
       managers = [
         "mango"
-        "hyprland"
-        "niri"
+        # "hyprland"
+        # "niri"
       ];
       desktops = [];
     };
