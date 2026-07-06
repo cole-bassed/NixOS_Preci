@@ -2,17 +2,24 @@
   lix,
   path,
   mkArgs,
-  mkEnable,
   ...
 }: let
-  name = "niri";
-  prettyName = "Niri";
-
-  inherit (lix.modules) mkCfgIf;
+  inherit (lix.attrsets) genAttrs recursiveUpdate;
   inherit (lix.options) mkOption;
   inherit (lix.types) str;
 
   mk = args: mkArgs ({inherit path;} // args);
+  defaults = {
+    fallbackConfig = "config/niri/config.kdl";
+  };
+
+  mkOptions = overrides: {
+    fallbackConfig = mkOption {
+      type = str;
+      default = overrides.fallbackConfig or defaults.fallbackConfig;
+      description = "Path to Niri fallback KDL configuration.";
+    };
+  };
 in {
   core = {
     config,
@@ -20,31 +27,29 @@ in {
     pkgs,
     ...
   }: let
-    inherit (mk {inherit config options pkgs;}) evaluated;
+    inherit (mk {inherit config options pkgs;}) initiated evaluated;
+    inherit (initiated) opt;
   in {
-    inherit (evaluated) options config;
+    options = recursiveUpdate evaluated.options (opt (mkOptions {}));
+    inherit (evaluated) config;
   };
 
   home = {
     config,
+    options,
     pkgs,
+    osConfig,
     ...
   }: let
     scope = "home";
-    inherit (mkArgs {inherit config path pkgs scope;}) opt cfg;
+    mod = mk {inherit config options osConfig pkgs scope defaults;};
+    inherit (mod) initiated evaluated cfgOr;
+    inherit (initiated) opt;
   in {
-    options = opt (
-      (mkEnable {inherit name prettyName config pkgs scope;})
-      // {
-        fallbackConfig = mkOption {
-          type = str;
-          default = "config/niri/config.kdl";
-          description = "Path to Niri fallback KDL configuration.";
-        };
-      }
-    );
-    config = mkCfgIf {inherit cfg;} {
-      programs.${name}.settings = {};
-    };
+    options =
+      recursiveUpdate
+      evaluated.options
+      (opt (mkOptions (genAttrs ["fallbackConfig"] cfgOr)));
+    inherit (evaluated) config;
   };
 }

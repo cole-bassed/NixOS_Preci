@@ -9,29 +9,27 @@
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
-  inherit (lix.attrsets) attrValues hasAttr foldMerge mapAttrs optionalAttrs;
-  inherit (lix.lists) init last;
+  inherit (lix.attrsets) attrByPath attrValues hasAttr hasAttrByPath foldMerge mapAttrs optionalAttrs setAttrByPath;
+  inherit (lix.lists) findFirst init;
   inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
   inherit (lix.options) mkModuleArgs mkEnable mkEnableOption mkOption;
-  inherit (lix.types) anything attrsOf submodule str nullOr package;
+  inherit (lix.types) submodule str nullOr package;
 
-  cfgOf = spec: registryOf {inherit top registry spec;};
   selection = spec: selectionOf {inherit top registry spec;};
   path' = path;
   materialize = selected:
     mapAttrs
-    (_: overrides: {enable = true;} // overrides)
+    (_: extra: {enable = true;} // extra)
     (foldMerge selected);
 
   required = let
     main = [(selection host)];
   in {
-    core = materialize (
-      main ++ (map selection (attrValues (getInteractiveUsers host)))
-    );
+    core =
+      materialize
+      (main ++ (map selection (attrValues (getInteractiveUsers host))));
     home = user: materialize (main ++ [(selection user)]);
   };
-  type = attrsOf (submodule {freeformType = anything;});
 
   mkMod = {
     config,
@@ -97,51 +95,52 @@
         };
       };
   in {
+    inherit fields;
     args = {
       inherit module parent;
       registry = data;
     };
-
-    opts = {
-      module = module.opt fields;
-      parent = parent.opt {
-        ${last path} = mkOption {
-          inherit type;
-          default = required.core;
-          description = "Required compositor backends as a component-native attrset keyed by backend name.";
-        };
-      };
-    };
-
-    cfgs = {
-      module =
-        if scope == "home"
-        then opt {enable = mkDefault fields.enable.default;}
-        else
-          mkMerge [
-            (mkIf (cfg.enable or false) {
-              programs.${name}.enable = cfg.enable;
+    options = module.opt fields;
+    config =
+      if scope == "home"
+      then let
+        target = findFirst (p: hasAttrByPath p options) null [
+          ["wayland" "windowManager" name]
+          ["programs" name]
+        ];
+        hasSub = key: target != null && hasAttrByPath (target ++ [key]) options;
+        homeCfg =
+          optionalAttrs (hasSub "enable") {enable = mkDefault fields.enable.default;}
+          // optionalAttrs (hasSub "package") {package = cfg.package;};
+      in
+        mkMerge [
+          (opt {enable = mkDefault fields.enable.default;})
+          (optionalAttrs (target != null && homeCfg != {}) (setAttrByPath target homeCfg))
+        ]
+      else
+        mkMerge [
+          (mkIf (cfg.enable or false) {
+            programs.${name}.enable = cfg.enable;
+          })
+          (mkIf (
+              (cfg.enable or false)
+              && hasAttr "programs" options
+              && hasAttr name options.programs
+              && hasAttr "package" options.programs.${name}
+            ) {
+              programs.${name}.package = cfg.package;
             })
-            (mkIf (
-                (cfg.enable or false)
-                && hasAttr "programs" options
-                && hasAttr name options.programs
-                && hasAttr "package" options.programs.${name}
-              ) {
-                programs.${name}.package = cfg.package;
-              })
-            (mkIf ((cfg.enable or false) && isWayland && (cfg.uwsm.enable or false)) {
-              programs.uwsm = {
-                enable = true;
-                waylandCompositors.${name} = with cfg.uwsm; {
-                  prettyName = name;
-                  comment = description;
-                  binPath = binary;
-                };
+          (mkIf ((cfg.enable or false) && isWayland && (cfg.uwsm.enable or false)) {
+            programs.uwsm = {
+              enable = true;
+              waylandCompositors.${name} = with cfg.uwsm; {
+                prettyName = name;
+                comment = description;
+                binPath = binary;
               };
-            })
-          ];
-    };
+            };
+          })
+        ];
   };
 
   inner = mkModules (args
@@ -151,176 +150,38 @@
       declareRegistry = false;
       childPath = path;
       extraArgs = {
-        inherit cfgOf;
+        cfgOf = spec: registryOf {inherit top registry spec;};
+
         mkArgs = {
           config,
           options ? {},
           path,
           pkgs ? {},
           scope ? "core",
+          osConfig ? config,
+          defaults ? {},
         }: let
           mod = mkMod {inherit config options path pkgs scope;};
-          inherit (mod) args opts cfgs;
+          initiated = mod.args.module;
+          evaluated = {inherit (mod) options config;};
+          cfgOr = key:
+            attrByPath
+            ([top] ++ path ++ [key]) (defaults.${key} or null)
+            osConfig;
         in
-          args.module
-          // {
-            initiated = args.module;
-            evaluated = {
-              options = opts.module;
-              config = cfgs.module;
-            };
-          };
+          initiated // {inherit initiated evaluated cfgOr;};
+
         mkEnable = {
           config,
           pkgs ? {},
           scope,
           path ? path',
           ...
-        }: let
-          mod = mkMod {inherit config pkgs scope path;};
-        in {inherit (mod.fields) enable package;};
+        }:
+          (mkMod {inherit config pkgs scope path;}).fields;
       };
-      # extraArgs = {
-      #   inherit cfgOf;
-      #   mkArgs = {
-      #     config,
-      #     options ? {},
-      #     path,
-      #     pkgs ? {},
-      #     scope ? "core",
-      #   }: let
-      #     moduleArgs = mkModuleArgs {inherit top config path scope pkgs;};
-      #     inherit (moduleArgs) bin prettyName opt name cfg;
-      #     meta = registry.${name} or {};
-      #     isWayland = meta.protocol or null == "wayland";
-      #     enable = mkEnable {
-      #       inherit name scope;
-      #       default =
-      #         if scope == "home"
-      #         then hasAttr name moduleArgs.configs.parent
-      #         else hasAttr name required;
-      #     };
-      #   in
-      #     moduleArgs
-      #     // {
-      #       initiated = moduleArgs;
-      #       evaluated =
-      #         if scope == "core"
-      #         then {
-      #           options = opt {
-      #             inherit enable;
-      #             package = mkOption {
-      #               type = anything;
-      #               default = pkgs.${name} or null;
-      #               description = "Package backing the ${prettyName} compositor component.";
-      #             };
-      #             uwsm = mkOption {
-      #               description = "UWSM configuration for ${prettyName}. Set to `null` to disable UWSM integration.";
-      #               type = submodule {
-      #                 options = {
-      #                   enable =
-      #                     mkEnableOption "${prettyName} UWSM support."
-      #                     // {
-      #                       default =
-      #                         if hasAttr "uwsm" meta
-      #                         then meta.uwsm
-      #                         else isWayland && enable.default;
-      #                     };
-      #                   name = mkOption {
-      #                     type = str;
-      #                     description = "Human-readable name shown by UWSM.";
-      #                     default = prettyName;
-      #                   };
-      #                   description = mkOption {
-      #                     type = str;
-      #                     description = "Comment shown by UWSM.";
-      #                     default = "${prettyName} compositor managed by UWSM";
-      #                   };
-      #                   binary = mkOption {
-      #                     type = str;
-      #                     description = "Absolute path to the compositor binary.";
-      #                     default = bin.path;
-      #                   };
-      #                 };
-      #               };
-      #             };
-      #           };
-      #           config = mkMerge [
-      #             (mkIf (cfg.enable or false) {
-      #               programs.${name}.enable = cfg.enable;
-      #             })
-      #             (mkIf (
-      #                 (cfg.enable or false)
-      #                 && hasAttr "programs" options
-      #                 && hasAttr name options.programs
-      #                 && hasAttr "package" options.programs.${name}
-      #               ) {
-      #                 programs.${name}.package = cfg.package;
-      #               })
-      #             (mkIf ((cfg.enable or false) && isWayland && (cfg.uwsm.enable or false)) {
-      #               programs.uwsm = {
-      #                 enable = true;
-      #                 waylandCompositors.${name} = with cfg.uwsm; {
-      #                   prettyName = name;
-      #                   comment = description;
-      #                   binPath = binary;
-      #                 };
-      #               };
-      #             })
-      #           ];
-      #         }
-      #         else {
-      #           options = opt {
-      #             inherit enable;
-      #             package = mkOption {
-      #               type = anything;
-      #               default = pkgs.${name} or null;
-      #               description = "Package backing the ${prettyName} compositor component.";
-      #             };
-      #           };
-      #           config = opt {enable = mkDefault enable.default;};
-      #         };
-      #     };
-      #   mkEnable = {
-      #     name ? null,
-      #     prettyName ? name,
-      #     config,
-      #     pkgs ? {},
-      #     scope,
-      #     path ? [],
-      #     ...
-      #   }: let
-      #     moduleArgs = mkModuleArgs {inherit top config scope path pkgs;};
-      #     default =
-      #       if scope == "home"
-      #       then hasAttr name moduleArgs.configs.parent
-      #       else hasAttr name required;
-      #   in {
-      #     enable = mkEnable {inherit name scope default;};
-      #     package = mkOption {
-      #       type = nullOr package;
-      #       default = pkgs.${name} or null;
-      #       description = "Package backing the ${prettyName} compositor component.";
-      #     };
-      #   };
-      # };
     });
 in {
-  core = {
-    config,
-    pkgs,
-    ...
-  }: let
-    mod = mkMod {inherit config pkgs;};
-  in {
-    imports = inner.imports or [];
-    options = mod.opts.parent;
-    config.${top}.interface.backends = mkDefault required.core;
-  };
-
-  home = {user ? {}, ...}: {
-    imports = inner.home-manager.sharedModules or [];
-    options = {};
-    config.${top}.interface.backends = mkDefault (required.home user);
-  };
+  core.imports = inner.imports or [];
+  home.imports = inner.home-manager.sharedModules or [];
 }
