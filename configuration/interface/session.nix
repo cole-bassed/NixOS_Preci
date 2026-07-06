@@ -45,16 +45,11 @@
     user = login.autoLogin.user or fallback.user;
   };
 
-  userByName = name:
-    if name == null
-    then null
-    else host.users.values.${name} or null;
-
   # Resolved backends for a spec
   resolved = spec:
     resolveBackends {
       inherit registry;
-      spec = spec;
+      inherit spec;
     };
 
   # Primary backend from resolved list
@@ -101,7 +96,6 @@
 
   mk = scope: {config, ...}: let
     inherit ((args config scope)) cfg opt;
-    user = userByName auto.user;
     session = login.defaultSession or (defaultSession host);
     greeter = cfg.manager;
     compositor = let

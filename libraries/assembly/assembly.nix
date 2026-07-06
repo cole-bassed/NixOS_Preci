@@ -6,7 +6,6 @@
   filesystem,
   flake,
   lists,
-  modules,
   names,
   paths,
   strings,
@@ -29,8 +28,7 @@
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
   inherit (lists) elem foldl' groupBy;
-  inherit (modules) mkIf mkMerge;
-  inherit (types) isAttrs isBool isEnabled isList typeOf;
+  inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
   inherit (flake.registry.aggregated) overlays packages;
@@ -134,8 +132,10 @@
           #    entries whose `scopes` field intersects the wanted set, returning
           #    only the module values they contribute.
           #
-          # 3. Always inject {nixpkgs.config.allowUnfree} since that is not
-          #    sourced from any external input — it is generated inline.
+          # 3. Apply allowUnfree and registry overlays when constructing the
+          #    shared global pkgs for the system builder. They must not be
+          #    declared through nixpkgs.* module options when Home Manager uses
+          #    useGlobalPkgs = true.
           #
           # 4. Fall back to mkFlakeModules (which returns all modules) when no
           #    registry is available, preserving the original behaviour for
@@ -149,13 +149,27 @@
             mods = (agg.modules or {}).${type} or null;
           in
             if mods != null
-            then
-              # nixpkgs.config is synthesised; it comes from no input entry
-              [{nixpkgs.config = {allowUnfree = (flake.defaults or {}).allowUnfree or false;};}]
-              ++ mods.select hostScopes
+            then mods.select hostScopes
             else
-              # Fallback: all modules + mkCore (includes nixpkgs config)
+              # Fallback: all modules + mkCore
               mkFlakeModules type;
+
+          overlaysForHost = overlays.select hostScopes;
+          allowUnfree = host.packages.allowUnfree or ((flake.defaults or {}).allowUnfree or false);
+          nixpkgsName =
+            if host.packages.unstable or false
+            then "nixpkgs"
+            else "nixpkgs-stable";
+          nixpkgsEntry =
+            if builtins.hasAttr nixpkgsName (flake.registry or {})
+            then flake.registry.${nixpkgsName}
+            else flake.registry.nixpkgs;
+          system = host.system or host.platform or hosts.default.system;
+          pkgs = import nixpkgsEntry.source.outPath {
+            inherit system;
+            config.allowUnfree = allowUnfree;
+            overlays = overlaysForHost;
+          };
 
           src = mkSrc {
             inherit host extraArgs;
@@ -170,7 +184,7 @@
             }
             // (removeAttrs src ["lib" "name"]);
         in {
-          inherit class specialArgs;
+          inherit class pkgs specialArgs;
           modules =
             (scopedModsFor class)
             ++ (args.modules.core or [])
@@ -180,8 +194,6 @@
                   "/share/applications"
                   "/share/xdg-desktop-portal"
                 ];
-
-                nixpkgs.overlays = overlays.select hostScopes;
 
                 home-manager = {
                   extraSpecialArgs = specialArgs;
@@ -218,7 +230,9 @@
             }; {
               ${classification} = genAttrs hostNames (
                 name:
-                  builder {inherit (resolved.${name}) specialArgs modules;}
+                  builder {
+                    inherit (resolved.${name}) modules pkgs specialArgs;
+                  }
               );
             }
         )

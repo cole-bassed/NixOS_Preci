@@ -11,27 +11,34 @@
   inherit (lix.modules) mkCfgIf;
   inherit (lix.options) mkOption;
   inherit (lix.types) str;
+
+  mk = args: mkArgs ({inherit path;} // args);
 in {
-  core = {config, ...}: let
-    scope = "core";
-    inherit (mkArgs {inherit config path scope;}) opt cfg;
+  core = {
+    config,
+    options,
+    pkgs,
+    ...
+  }: let
+    inherit (mk {inherit config options pkgs;}) evaluated;
   in {
-    options = opt (mkEnable {inherit name prettyName config scope;});
-    config = mkCfgIf {inherit cfg;} {
-      programs.${name}.enable = true;
-    };
+    inherit (evaluated) options config;
   };
 
-  home = {config, ...}: let
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "home";
-    inherit (mkArgs {inherit config path scope;}) opt cfg;
+    inherit (mkArgs {inherit config path pkgs scope;}) opt cfg;
   in {
     options = opt (
-      (mkEnable {inherit name prettyName config scope;})
+      (mkEnable {inherit name prettyName config pkgs scope;})
       // {
         fallbackConfig = mkOption {
           type = str;
-          default = "${path}/configs/niri/config.kdl";
+          default = "config/niri/config.kdl";
           description = "Path to Niri fallback KDL configuration.";
         };
       }

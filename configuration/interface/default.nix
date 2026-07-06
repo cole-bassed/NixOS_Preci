@@ -1,8 +1,4 @@
-{
-  lix,
-  top,
-  ...
-} @ args: let
+{lix, ...} @ args: let
   inherit (lix.ingestion) mkModules;
 in
   mkModules (
@@ -43,6 +39,7 @@ in
           protocol = "wayland";
           greeter = "dank-material-shell";
           frontend = "dank-material-shell";
+          uwsm = true;
         };
         labwc = {
           protocol = "wayland";

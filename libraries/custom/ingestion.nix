@@ -335,29 +335,6 @@
     home-manager.sharedModules = specs.home or [];
   };
 
-  importModulesORIG = args @ {
-    base,
-    excludes ? null,
-    includes ? [],
-    tags ? defaults.tags,
-    extraArgs ? {},
-    includeFiles ? true,
-    recurse ? true,
-    # Seed path for this traversal; pass the caller's own `path` (its module
-    # args) through here so nested re-entrant calls (a default.nix that
-    # itself calls importModules for its subdirectory) preserve full
-    # directory-nesting in the resulting option path instead of restarting.
-    path ? [],
-    ...
-  }: let
-    specs =
-      collectSpecs
-      {inherit args base excludes includes tags extraArgs includeFiles recurse path;};
-  in {
-    imports = specs.core or [];
-    home-manager.sharedModules = specs.home or [];
-  };
-
   importModules = args @ {
     base,
     data ? extraArgs.registry or {},

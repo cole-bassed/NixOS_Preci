@@ -3,16 +3,17 @@
   lists,
   options,
   types,
+  strings,
   ...
 }: let
   exports = {
     scoped = {
       inherit
         mkEnable
-        mkEnable'
+        # mkEnable'
         mkCfg
         mkOpt
-        mkEnableMod
+        # mkEnableMod
         mkModuleArgs
         mkFloatOption
         mkLatitudeOption
@@ -27,22 +28,26 @@
   };
 
   inherit (attrsets) attrByPath setAttrByPath optionalAttrs;
-  inherit (lists) asList hasAny last;
+  inherit (lists) asList hasAny init last;
   inherit (options) mkOption mkEnableOption;
   inherit (types) nullOr addCheck float str;
+  inherit (strings) toSentenceCase;
 
   mkEnable = {
     name ? null,
     mod ? null,
+    leaf ? null,
     description ? null,
     scope ? "core",
-    default ? false,
+    default ? null,
   }: let
     module =
       if name != null && name != ""
       then name
       else if mod != null && mod != ""
       then mod
+      else if leaf != null && leaf != ""
+      then leaf
       else null;
 
     description' =
@@ -57,25 +62,27 @@
         else throw "Expected scope to be one of [core home], got ${scope}"
       }"
       else "Whether to enable this module";
-    mk = default: mkEnableOption description' // default;
-  in {
-    false = mk {default = false;};
-    true = mk {default = true;};
-    default = mk {inherit default;};
-  };
-
-  mkEnable' = {
-    name ? null,
-    mod ? null,
-    description ? null,
-    scope ? "core",
-    default ? false,
-  }:
-    (mkEnable {inherit name mod description scope;}).${
-      if default
-      then "true"
-      else "false"
+    mk = condition: mkEnableOption description' // {default = condition;};
+  in
+    if default != null
+    then mk default
+    else {
+      false = mk false;
+      true = mk true;
     };
+
+  # mkEnable' = {
+  #   name ? null,
+  #   mod ? null,
+  #   description ? null,
+  #   scope ? "core",
+  #   default ? false,
+  # }:
+  #   (mkEnable {inherit name mod description scope;}).${
+  #     if default
+  #     then "true"
+  #     else "false"
+  #   };
 
   mkCfg = {
     config,
@@ -89,11 +96,12 @@
   }:
     setAttrByPath (asList path) options;
 
-  mkEnableMod = {
-    mod,
-    scope,
-  }:
-    mkEnable {inherit mod scope;};
+  # mkEnableMod = {
+  #   leaf,
+  #   scope,
+  #   default ? false,
+  # }:
+  #   (mkEnable {inherit leaf scope default;}).default;
 
   /**
   Build standard module args (cfg/opt/enable/etc.) for an option whose
@@ -132,41 +140,75 @@
           else [mod]
         );
 
-    fullPath = [top] ++ segments;
+    path' = [top] ++ segments;
     leaf = last segments;
-    package = pkgs.${leaf} or {};
-    cfg = mkCfg {
-      config = config;
-      path = fullPath;
+    parent = last (init segments);
+    configs = {
+      main = config;
+      leaf = mkCfg {
+        inherit config;
+        path = path';
+      };
+      parent = mkCfg {
+        inherit config;
+        path = init path';
+      };
     };
-    inherit (cfg) enable;
     opt = options:
       mkOpt {
         inherit options;
-        path = fullPath;
+        path = path';
       };
     base = leaf;
-    programs.${leaf} = {inherit enable package;};
+    bin = {
+      pkg = pkgs.${leaf} or null;
+      name =
+        if bin.pkg != null
+        then pkgs.${leaf}.NIX_MAIN_PROGRAM or leaf
+        else null;
+      path =
+        if bin.pkg != null
+        then "/run/current-system/sw/bin/${bin.name}"
+        else null;
+    };
+    mkName = {pretty ? true}:
+      if pretty
+      then toSentenceCase leaf
+      else leaf;
+
+    cfg = configs.leaf;
+    cfgDom = configs.parent;
+    mkEnableDefault = {default ? false}:
+      (mkEnable {inherit default leaf scope;}).default;
+    prettyName = mkName {};
+    name = leaf;
   in {
     inherit
       base
-      cfg
       config
-      enable
+      configs
+      name
       host
+      leaf
       opt
-      programs
+      parent
       scope
       top
+      bin
+      mkName
+      cfg
+      cfgDom
+      mkEnableDefault
+      prettyName
       ;
-    # leaf alias kept distinct from `mod`/`base` for clarity at new call sites
-    inherit leaf;
-    mkEnableMod = mkEnableMod {
-      mod = leaf;
-      name = leaf;
-      inherit scope;
-    };
   };
+  # // optionalAttrs (cfg?enable && cfg?package) {
+  #   inherit (cfg) enable;
+  #   programs.${leaf} = {
+  #     inherit (cfg) enable;
+  #     # package = pkgs.${leaf} or {};
+  #   };
+  # };
 
   mkFloatOption = {
     description,

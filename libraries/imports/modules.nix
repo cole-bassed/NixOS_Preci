@@ -3,7 +3,6 @@
   attrsets,
   flake,
   lists,
-  defaults,
   ...
 }: let
   exports = {
@@ -100,11 +99,12 @@
   merged = classified // normalized;
 
   # ── mkHM / mkCore ──────────────────────────────────────────────────────────
-  # mkCore adds the home-manager NixOS/Darwin module and the nixpkgs allowUnfree
-  # config.  These are injected into the fallback path (mkModules) only.
-  # The primary path (scopedModsFor in assembly.nix) handles both itself:
-  # home-manager comes from the registry via the "core" scope, and the nixpkgs
-  # config is injected as an inline module.
+  # mkCore adds the home-manager NixOS/Darwin module in the fallback path
+  # (mkModules) only. nixpkgs config/overlays must be applied when constructing
+  # the shared global pkgs, not through module options, so Home Manager can keep
+  # useGlobalPkgs = true without warnings.
+  # The primary path (scopedModsFor in assembly.nix) handles HM loading itself
+  # via the registry "core" scope.
   mkHM = type: let
     key =
       if type == "nixos"
@@ -126,10 +126,7 @@
   mkCore = type:
     asListIf
     (elem type ["nixos" "darwin"])
-    (
-      [{nixpkgs.config = {inherit (defaults) allowUnfree;};}]
-      ++ asListIf (!hasManualRegistry) (mkHM type)
-    );
+    (asListIf (!hasManualRegistry) (mkHM type));
 
   # ── mkModules ───────────────────────────────────────────────────────────────
   # Returns ALL modules of a given class plus the synthesised core config.

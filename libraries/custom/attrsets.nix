@@ -26,6 +26,7 @@
         removeEmpty
         resolveBySpecs
         toOrdered
+        foldMerge
         ;
       dropNull = removeEmpty;
       merge = mergeUnique;
@@ -53,7 +54,18 @@
     };
   };
 
-  inherit (attrsets) attrNames filterAttrs hasAttr attrByPath getAttr listToAttrs mapAttrs optionalAttrs;
+  inherit
+    (attrsets)
+    attrNames
+    filterAttrs
+    hasAttr
+    attrByPath
+    getAttr
+    listToAttrs
+    mapAttrs
+    optionalAttrs
+    recursiveUpdate
+    ;
   inherit (lists) concatMap filter findFirstList foldl' genList isList length map nthOr;
   inherit (strings) concatStringsSep toJSON;
   inherit (debug) withContext;
@@ -255,5 +267,7 @@
     // {inherit primary secondary tertiary preferred fallback default;};
 
   mapParsedOrdered = set: mapAttrs (_: parseOrdered) set;
+
+  foldMerge = foldl' recursiveUpdate {};
 in
   exports

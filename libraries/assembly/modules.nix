@@ -7,9 +7,9 @@
   exports = {
     scoped = {
       mkModules = importModules;
-      inherit importModules mkCfgIf;
+      inherit importModules mkCfgIf mkIf';
     };
-    global = {inherit mkCfgIf;};
+    global = {inherit mkCfgIf mkIf';};
   };
   inherit (ingestion) importModules;
   inherit (modules) mkIf mkMerge;
@@ -24,5 +24,8 @@
       then mkMerge args
       else args
     );
+
+  mkIf' = cfg: condition: args:
+    mkCfgIf {inherit cfg condition;} args;
 in
   exports
