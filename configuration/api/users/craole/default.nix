@@ -37,7 +37,7 @@ in {
   interface = {
     backend = {
       managers = [
-        # "mango"
+        "mango"
         "hyprland"
         "niri"
       ];
