@@ -4,7 +4,6 @@
   excludes,
   filesystem,
   lists,
-  registry,
   options,
   paths,
   strings,
@@ -50,7 +49,7 @@
   inherit (lists) asModuleList any concatMap elem elemAt findFirst length optionals;
   inherit (strings) hasSuffix removeSuffix;
   inherit (options) mkOption;
-  inherit (types) isFunction submodule attrs;
+  inherit (types) isFunction attrs;
 
   candidates = entrypoints.nix.candidates or ["default.nix"];
 

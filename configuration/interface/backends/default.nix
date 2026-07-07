@@ -42,7 +42,7 @@
       inherit config top scope;
       path = init path;
     };
-    inherit (module) bin prettyName name configs cfg opt user;
+    inherit (module) bin prettyName name cfg opt user;
     data = registry.${module.name} or {};
     isWayland = data.protocol or null == "wayland";
 
@@ -103,14 +103,14 @@
     config =
       if scope == "home"
       then let
-        target = findFirst (p: hasAttrByPath p options) null [
+        target = findFirst (path: hasAttrByPath path options) null [
           ["wayland" "windowManager" name]
           ["programs" name]
         ];
         hasSub = key: target != null && hasAttrByPath (target ++ [key]) options;
         homeCfg =
           optionalAttrs (hasSub "enable") {enable = mkDefault fields.enable.default;}
-          // optionalAttrs (hasSub "package") {package = cfg.package;};
+          // optionalAttrs (hasSub "package") {inherit (cfg) package;};
       in
         mkMerge [
           (opt {enable = mkDefault fields.enable.default;})

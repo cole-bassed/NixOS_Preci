@@ -295,7 +295,7 @@
         };
 
         frontend = mkOption {
-          type = nullOr (enum ["dms" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
+          type = nullOr (enum ["dms" "dank-material" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
           default = interfaceSrc.frontend or null;
           description = "Graphical frontend layer that runs on top of the selected session backend.";
         };

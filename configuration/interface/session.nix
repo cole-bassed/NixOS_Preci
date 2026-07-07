@@ -5,11 +5,12 @@
   dom,
   mod,
   registry,
+  selection,
   ...
 }: let
-  inherit (lix.api) attrNames getAdminUsers;
-  inherit (lix.attrsets) attrValues;
-  inherit (lix.lists) elem elemAt filter isList length;
+  inherit (lix.api) getAdminUsers;
+  inherit (lix.attrsets) attrNames attrValues;
+  inherit (lix.lists) elem elemAt filter length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
@@ -28,14 +29,7 @@
           then null
           else env // {inherit name;}
       )
-      (
-        let
-          raw = spec.interface.backends or [];
-        in
-          if isList raw
-          then raw
-          else attrNames raw
-      ));
+      (attrNames (selection spec)));
 
   first = list:
     if length list > 0

@@ -27,6 +27,7 @@
         resolveBySpecs
         toOrdered
         foldMerge
+        mkNamespaced
         ;
       dropNull = removeEmpty;
       merge = mergeUnique;
@@ -35,28 +36,30 @@
       # inherit mapAttrs;
     };
     global = {
+      findFirstAttrs = findFirst;
+      getAttrBySpec = getBySpec;
       inspectAttr = inspect;
       inspectAttrJSON = inspectJSON;
-      removeEmptyAttrs = removeEmpty;
-      orNullAttr = orNull;
-      orDefaultAttr = orDefault;
-      orEmptyAttr = orEmpty;
-      toOrderedAttrs = toOrdered;
-      mapOrderedAttrs = mapOrdered;
-      parseOrderedAttrs = parseOrdered;
-      mapParsedOrderedAttrs = mapParsedOrdered;
-      mergeUniqueAttrs = mergeUnique;
-      getAttrBySpec = getBySpec;
-      findFirstAttrs = findFirst;
-      resolveAttrsBySpecs = resolveBySpecs;
       isEmptyAttr = isEmpty;
       isNotEmptyAttr = isNotEmpty;
+      mapOrderedAttrs = mapOrdered;
+      mapParsedOrderedAttrs = mapParsedOrdered;
+      mergeUniqueAttrs = mergeUnique;
+      mkNamespacedAttrs = mkNamespaced;
+      orDefaultAttr = orDefault;
+      orEmptyAttr = orEmpty;
+      orNullAttr = orNull;
+      parseOrderedAttrs = parseOrdered;
+      removeEmptyAttrs = removeEmpty;
+      resolveAttrsBySpecs = resolveBySpecs;
+      toOrderedAttrs = toOrdered;
     };
   };
 
   inherit
     (attrsets)
     attrNames
+    concatMapAttrs
     filterAttrs
     hasAttr
     attrByPath
@@ -67,7 +70,7 @@
     recursiveUpdate
     ;
   inherit (lists) concatMap filter findFirstList foldl' genList isList length map nthOr;
-  inherit (strings) concatStringsSep toJSON;
+  inherit (strings) concatStringsSep toJSON toUpper substring stringLength;
   inherit (debug) withContext;
   inherit (types) isAttrs typeOf isString isFunction' isPath;
 
@@ -269,5 +272,15 @@
   mapParsedOrdered = set: mapAttrs (_: parseOrdered) set;
 
   foldMerge = foldl' recursiveUpdate {};
+
+  mkNamespaced = namespaces:
+    concatMapAttrs (
+      prefix: attrset:
+        listToAttrs (map (name: {
+          name = "${prefix}${toUpper (substring 0 1 name)}${substring 1 (-1) name}";
+          value = attrset.${name};
+        }) (attrNames attrset))
+    )
+    namespaces;
 in
   exports

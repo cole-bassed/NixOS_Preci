@@ -7,17 +7,63 @@
   selection,
   ...
 } @ args: let
-  inherit (lix.attrsets) attrByPath attrNames;
-  inherit (lix.lists) elemAt length;
-  inherit (lix.modules) mkModules;
-  inherit (lix.options) mkModuleArgs mkOption;
-  inherit (lix.types) enum nullOr attrs submodule;
+  inherit (lix.api) getInteractiveUsers;
+  inherit (lix.attrsets) attrByPath attrNames attrValues foldMerge hasAttr mapAttrs setAttrByPath;
+  inherit (lix.lists) elemAt filter length;
+  inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
+  inherit (lix.options) mkEnable mkModuleArgs mkOption;
+  inherit (lix.types) attrs enum nullOr package submodule;
 
   path' = path;
 
-  # `selection host` returns an attrset keyed by backend name (see
-  # registry.nix's `normalize`/`select`), not an ordered list — mirror
-  # session.nix's `resolveBackends`/`backendNames` handling of the same shape.
+  aliases = {
+    dms = "dank-material";
+  };
+
+  frontendValues = [
+    "dms"
+    "dank-material"
+    "noctalia"
+    "caelestia"
+    "gnome"
+    "plasma"
+    "cosmic"
+  ];
+
+  normalize = frontend:
+    if frontend == null
+    then null
+    else aliases.${frontend} or frontend;
+
+  registryFrontendOf = spec: let
+    backendNames = attrNames (selection spec);
+    backend =
+      if length backendNames > 0
+      then elemAt backendNames 0
+      else null;
+    env =
+      if backend != null
+      then registry.${backend} or {}
+      else {};
+  in
+    normalize (env.frontend or null);
+
+  selectedFrontend = spec: normalize ((spec.interface or {}).frontend or (registryFrontendOf spec));
+
+  materialize = selected:
+    mapAttrs
+    (_: extra: {enable = true;} // extra)
+    (foldMerge (map (name: setAttrByPath [name] {}) (filter (name: name != null) selected)));
+
+  required = let
+    main = [
+      (selectedFrontend host)
+    ];
+  in {
+    core = materialize (main ++ map selectedFrontend (attrValues (getInteractiveUsers host)));
+    home = user: materialize (main ++ [(selectedFrontend user)]);
+  };
+
   activeBackendNames = attrNames (selection host);
   primaryBackend =
     if length activeBackendNames > 0
@@ -27,7 +73,7 @@
     if primaryBackend != null
     then registry.${primaryBackend} or {}
     else {};
-  registryFrontend = primaryEnv.frontend or null;
+  registryFrontend = registryFrontendOf host;
   isWayland = primaryEnv.protocol or null == "wayland";
 
   mkMod = {
@@ -36,14 +82,32 @@
     pkgs,
     path ? path',
   }: let
-    module = mkModuleArgs {inherit top config path scope pkgs;};
+    users = getInteractiveUsers host;
+    module = mkModuleArgs {inherit top config path scope pkgs users;};
+    inherit (module) name prettyName opt;
+
+    fields = {
+      enable = mkEnable {
+        inherit name scope;
+        default =
+          if scope == "home"
+          then hasAttr name (required.home module.user)
+          else hasAttr name required.core;
+      };
+      package = mkOption {
+        type = nullOr package;
+        default = attrByPath [name] (attrByPath ["${name}-shell"] null pkgs) pkgs;
+        description = "Package backing the ${prettyName} frontend layer.";
+      };
+    };
   in {
-    inherit (module) opt cfg name;
+    inherit fields;
     args = {inherit module;};
-    # No per-child option stub declared here — frontend.selected is the
-    # only real option; children just read it and contribute config.
-    options = {};
-    config = {};
+    options = module.opt fields;
+    config = mkMerge [
+      (opt {enable = mkDefault fields.enable.default;})
+      (mkIf (fields.package.default != null) (opt {package = mkDefault fields.package.default;}))
+    ];
   };
 
   inner = mkModules (args
@@ -86,9 +150,10 @@
         type = submodule {
           freeformType = attrs;
           options.selected = mkOption {
-            type = nullOr (enum ["dank-material" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
-            default = host.interface.frontend or registryFrontend;
-            description = "Graphical frontend layer for the selected desktop session backend.";
+            type = nullOr (enum frontendValues);
+            apply = normalize;
+            default = normalize (host.interface.frontend or registryFrontend);
+            description = "Graphical frontend layer for the selected desktop session backend. `dms` is accepted as an alias for `dank-material`.";
           };
         };
         default = {};

@@ -15,6 +15,7 @@
         mkOpt
         # mkEnableMod
         mkModuleArgs
+        mkModuleArgs'
         mkFloatOption
         mkLatitudeOption
         mkLongitudeOption
@@ -27,81 +28,11 @@
     global = {inherit mkModuleArgs;};
   };
 
-  inherit (attrsets) attrByPath setAttrByPath optionalAttrs;
-  inherit (lists) asList hasAny init last;
+  inherit (attrsets) attrByPath genAttrs mkNamespaced optionalAttrs recursiveUpdate setAttrByPath;
+  inherit (lists) asList elem hasAny head init last;
   inherit (options) mkOption mkEnableOption;
   inherit (types) nullOr addCheck float str;
-  inherit (strings) toSentenceCase;
-
-  mkEnable = {
-    name ? null,
-    mod ? null,
-    leaf ? null,
-    description ? null,
-    scope ? "core",
-    default ? null,
-  }: let
-    module =
-      if name != null && name != ""
-      then name
-      else if mod != null && mod != ""
-      then mod
-      else if leaf != null && leaf != ""
-      then leaf
-      else null;
-
-    description' =
-      if description != null
-      then description
-      else if module != null
-      then "Whether ${module} should be enabled ${
-        if scope == "core"
-        then "system-wide"
-        else if scope == "home"
-        then "for the user"
-        else throw "Expected scope to be one of [core home], got ${scope}"
-      }"
-      else "Whether to enable this module";
-    mk = condition: mkEnableOption description' // {default = condition;};
-  in
-    if default != null
-    then mk default
-    else {
-      false = mk false;
-      true = mk true;
-    };
-
-  # mkEnable' = {
-  #   name ? null,
-  #   mod ? null,
-  #   description ? null,
-  #   scope ? "core",
-  #   default ? false,
-  # }:
-  #   (mkEnable {inherit name mod description scope;}).${
-  #     if default
-  #     then "true"
-  #     else "false"
-  #   };
-
-  mkCfg = {
-    config,
-    path,
-  }:
-    attrByPath (asList path) {} config;
-
-  mkOpt = {
-    options,
-    path,
-  }:
-    setAttrByPath (asList path) options;
-
-  # mkEnableMod = {
-  #   leaf,
-  #   scope,
-  #   default ? false,
-  # }:
-  #   (mkEnable {inherit leaf scope default;}).default;
+  inherit (strings) toSentenceCase concatStringsSep;
 
   /**
   Build standard module args (cfg/opt/enable/etc.) for an option whose
@@ -120,6 +51,174 @@
 
   If both `path` and `dom`/`mod` are supplied, `path` wins.
   */
+  mkModuleArgs' = {
+    config,
+    options ? {},
+    top,
+    path ? null,
+    dom ? null,
+    mod ? null,
+    pkgs ? {},
+    host ? {},
+    users ? {},
+    scope ? "core",
+  }: let
+    targets = [
+      "main"
+      "custom"
+      "domain"
+      "parent"
+      "module"
+    ];
+
+    paths = let
+      segments =
+        if path != null
+        then path
+        else
+          (
+            if dom != null
+            then [dom mod]
+            else [mod]
+          );
+    in {
+      validate = path: target:
+        if path != null
+        then path
+        else if elem target targets
+        then paths.${target}
+        else throw "Invalid target: '${target}'. Valid targets are: ${concatStringsSep ", " targets}";
+
+      main = [];
+      custom = [top];
+      module = paths.custom ++ segments;
+      parent = init paths.module;
+      domain = paths.custom ++ [(head segments)];
+    };
+
+    get = {
+      inherit host scope paths;
+
+      config = genAttrs targets (
+        target: set.config {inherit target;}
+      );
+
+      options = genAttrs targets (
+        target: attrByPath (asList (paths.validate null target)) {} options
+      );
+
+      top =
+        if top != null
+        then top
+        else get.names.custom;
+
+      dom =
+        if dom != null
+        then dom
+        else get.names.domain;
+
+      names =
+        genAttrs targets (
+          target: let
+            path = paths.validate null target;
+          in
+            if path != []
+            then last path
+            else "main"
+        )
+        // {
+          user =
+            get.config.main.home.username or (
+              get.config.custom.users.primary.name or null
+            );
+        };
+      name = get.names.module;
+      prettyName = set.name {pretty = true;};
+
+      user = let
+        name = get.names.user;
+      in
+        optionalAttrs (name != null)
+        ((users.${name} or {}) // {inherit name;});
+
+      package = pkgs.${get.name} or null;
+    };
+
+    set = {
+      config = {
+        target ? "module",
+        path ? null,
+        extra ? {},
+      }:
+        attrByPath
+        (asList (paths.validate path target))
+        {}
+        (recursiveUpdate config extra);
+      options = genAttrs targets (target: extra: extra);
+      # options = genAttrs targets (
+      #   target: args:
+      #     if args ? path || args ? extra
+      #     then setAttrByPath (asList (paths.validate (args.path or null) target)) (args.extra or args)
+      #     else args
+      # );
+      # options = genAttrs targets (
+      #   target: args: let
+      #     hasPath = args ? path || args ? extra;
+      #     extra =
+      #       if hasPath
+      #       then (args.extra or {})
+      #       else args;
+      #     path = args.path or null;
+      #   in
+      #     setAttrByPath (asList (paths.validate path target)) extra
+      # );
+
+      enable = {default ? false}:
+        mkEnable {
+          inherit (get) scope name;
+          inherit default;
+        };
+
+      name = {
+        name ? get.names.module,
+        pretty ? true,
+      }:
+        if pretty
+        then toSentenceCase name
+        else name;
+
+      bin = {
+        module ? get.names.module,
+        package ? get.package,
+      }: let
+        name =
+          if package != null
+          then package.NIX_MAIN_PROGRAM or module
+          else null;
+        path =
+          if package != null
+          then "/run/current-system/sw/bin/${module}"
+          else null;
+      in {inherit package name path;};
+    };
+  in
+    (mkNamespaced {inherit get set;})
+    // get
+    // {
+      inherit get set;
+
+      #~@ Legacy Fallbacks
+      cfg = get.config.module;
+      opt = extra: set.options.module extra;
+      mkConfig = set.config.module;
+      mkOptions = extra: set.options.module extra;
+      # opt = extra: set.options.module extra;
+      # mkConfig = set.config.module;
+      # mkConfig' = set.config;
+      # mkOptions' = set.options;
+      # mkOptions = extra: set.options.module extra;
+    };
+
   mkModuleArgs = {
     config,
     top,
@@ -221,6 +320,56 @@
   #     # package = pkgs.${leaf} or {};
   #   };
   # };
+
+  mkEnable = {
+    name ? null,
+    mod ? null,
+    leaf ? null,
+    description ? null,
+    scope ? "core",
+    default ? null,
+  }: let
+    module =
+      if name != null && name != ""
+      then name
+      else if mod != null && mod != ""
+      then mod
+      else if leaf != null && leaf != ""
+      then leaf
+      else null;
+
+    description' =
+      if description != null
+      then description
+      else if module != null
+      then "Whether ${module} should be enabled ${
+        if scope == "core"
+        then "system-wide"
+        else if scope == "home"
+        then "for the user"
+        else throw "Expected scope to be one of [core home], got ${scope}"
+      }"
+      else "Whether to enable this module";
+    mk = condition: mkEnableOption description' // {default = condition;};
+  in
+    if default != null
+    then mk default
+    else {
+      false = mk false;
+      true = mk true;
+    };
+
+  mkCfg = {
+    config,
+    path,
+  }:
+    attrByPath (asList path) {} config;
+
+  mkOpt = {
+    options,
+    path,
+  }:
+    setAttrByPath (asList path) options;
 
   mkFloatOption = {
     description,
