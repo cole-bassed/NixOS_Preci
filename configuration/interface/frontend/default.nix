@@ -2,101 +2,116 @@
   lix,
   top,
   host,
+  path,
+  registry,
+  selection,
   ...
-}: let
-  inherit (lix.attrsets) attrNames;
-  inherit (lix.lists) elem elemAt isList;
+} @ args: let
+  inherit (lix.attrsets) attrByPath attrNames;
+  inherit (lix.lists) elemAt length;
+  inherit (lix.modules) mkModules;
   inherit (lix.options) mkModuleArgs mkOption;
-  inherit (lix.types) enum nullOr;
+  inherit (lix.types) enum nullOr attrs submodule;
 
-  args = config: scope:
-    mkModuleArgs {
+  path' = path;
+
+  # `selection host` returns an attrset keyed by backend name (see
+  # registry.nix's `normalize`/`select`), not an ordered list — mirror
+  # session.nix's `resolveBackends`/`backendNames` handling of the same shape.
+  activeBackendNames = attrNames (selection host);
+  primaryBackend =
+    if length activeBackendNames > 0
+    then elemAt activeBackendNames 0
+    else null;
+  primaryEnv =
+    if primaryBackend != null
+    then registry.${primaryBackend} or {}
+    else {};
+  registryFrontend = primaryEnv.frontend or null;
+  isWayland = primaryEnv.protocol or null == "wayland";
+
+  mkMod = {
+    config,
+    scope ? "core",
+    pkgs,
+    path ? path',
+  }: let
+    module = mkModuleArgs {inherit top config path scope pkgs;};
+  in {
+    inherit (module) opt cfg name;
+    args = {inherit module;};
+    # No per-child option stub declared here — frontend.selected is the
+    # only real option; children just read it and contribute config.
+    options = {};
+    config = {};
+  };
+
+  inner = mkModules (args
+    // {
+      base = ./.;
+      excludes = [];
+      declareRegistry = false;
+      childPath = path;
+      extraArgs = {
+        mkArgs = {
+          config,
+          options ? {},
+          path,
+          pkgs ? {},
+          scope ? "core",
+          osConfig ? config,
+          defaults ? {},
+        }: let
+          mod = mkMod {inherit config path pkgs scope;};
+          initiated = mod.args.module;
+          evaluated = {inherit (mod) options config;};
+          cfgOr = key:
+            attrByPath
+            ([top] ++ path ++ [key]) (defaults.${key} or null)
+            osConfig;
+        in
+          initiated // {inherit initiated evaluated cfgOr;};
+      };
+    });
+
+  mk = scope: {config, ...}: let
+    mod = mkModuleArgs {
       inherit config top scope;
       path = ["interface"];
     };
-
-  hostInterface = host.interface or {};
-  backend = host.interface.backends or [];
-  primaryBackend = firstBackend backend;
-
-  # Get first backend name
-  firstBackend = raw:
-    if isList raw
-    then
-      if raw == []
-      then null
-      else elemAt raw 0
-    else if raw != {}
-    then elemAt (attrNames raw) 0
-    else null;
-
-  compositors = ["hyprland" "niri" "sway"];
-in {
-  core = {config, ...}: let
-    inherit ((args config "core")) cfg opt;
+    inherit (mod) opt cfg;
   in {
     options = opt {
       frontend = mkOption {
-        type = nullOr (enum ["dms" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
-        default = hostInterface.frontend or null;
-        description = "Graphical frontend layer for the selected desktop session backend.";
-      };
-    };
-
-    config = {
-      assertions = [
-        {
-          assertion = cfg.frontend == null || primaryBackend != null;
-          message = "interface.frontend requires an active interface.backend.";
-        }
-        {
-          assertion = !(elem cfg.frontend ["dms" "noctalia" "caelestia"]) || config.${top}.interface.protocol.wayland;
-          message = "The selected interface.frontend requires a Wayland session.";
-        }
-        {
-          assertion = cfg.frontend != "dms" || (primaryBackend != null && elem primaryBackend compositors);
-          message = "The dms frontend requires a supported compositor (hyprland, niri, or sway).";
-        }
-        {
-          assertion = cfg.frontend != "gnome" || primaryBackend == "gnome";
-          message = "interface.frontend = \"gnome\" requires interface.backend to include \"gnome\".";
-        }
-        {
-          assertion = cfg.frontend != "plasma" || primaryBackend == "plasma";
-          message = "interface.frontend = \"plasma\" requires interface.backend to include \"plasma\".";
-        }
-        {
-          assertion = cfg.frontend != "cosmic" || primaryBackend == "cosmic";
-          message = "interface.frontend = \"cosmic\" requires the active backend to be cosmic.";
-        }
-      ];
-
-      programs.dms-shell = {
-        enable = {enable = cfg.frontend == "dms";};
-      };
-    };
-  };
-
-  home = {config, ...}: let
-    inherit ((args config "home")) cfg opt;
-    hasNiri = config.programs.niri.enable or false;
-  in {
-    options = opt {
-      frontend = mkOption {
-        type = nullOr (enum ["dms" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
-        default = hostInterface.frontend or null;
-        description = "Graphical frontend layer for the selected desktop session backend.";
-      };
-    };
-
-    config = {
-      programs.dank-material-shell = {
-        enable = {enable = cfg.frontend == "dms";};
-        niri = {
-          enableKeybinds = hasNiri;
-          enableSpawn = hasNiri;
+        type = submodule {
+          freeformType = attrs;
+          options.selected = mkOption {
+            type = nullOr (enum ["dank-material" "noctalia" "caelestia" "gnome" "plasma" "cosmic"]);
+            default = host.interface.frontend or registryFrontend;
+            description = "Graphical frontend layer for the selected desktop session backend.";
+          };
         };
+        default = {};
+        description = "Graphical frontend configuration.";
       };
     };
+
+    config.assertions = [
+      {
+        assertion = cfg.frontend.selected == null || primaryBackend != null;
+        message = "interface.frontend requires an active interface.backend.";
+      }
+      {
+        assertion = cfg.frontend.selected == null || isWayland;
+        message = "The selected interface.frontend requires a Wayland session.";
+      }
+      {
+        assertion = cfg.frontend.selected == null || cfg.frontend.selected == registryFrontend;
+        message = "interface.frontend.selected (${toString cfg.frontend.selected}) doesn't match the frontend the registry declares for '${toString primaryBackend}' (${toString registryFrontend}).";
+      }
+    ];
   };
+in {
+  core.imports = (inner.imports or []) ++ [(mk "core")];
+  home.imports = (inner.home-manager.sharedModules or []) ++ [(mk "home")];
 }

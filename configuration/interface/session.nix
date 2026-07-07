@@ -5,17 +5,37 @@
   dom,
   mod,
   registry,
-  resolveBackends,
   ...
 }: let
-  inherit (lix.api) getAdminUsers;
+  inherit (lix.api) attrNames getAdminUsers;
   inherit (lix.attrsets) attrValues;
-  inherit (lix.lists) elem elemAt length;
+  inherit (lix.lists) elem elemAt filter isList length;
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
 
   args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
+
+  resolveBackends = {
+    registry,
+    spec,
+  }:
+    filter (x: x != null) (map (
+        name: let
+          env = registry.${name} or null;
+        in
+          if env == null
+          then null
+          else env // {inherit name;}
+      )
+      (
+        let
+          raw = spec.interface.backends or [];
+        in
+          if isList raw
+          then raw
+          else attrNames raw
+      ));
 
   first = list:
     if length list > 0
@@ -45,14 +65,12 @@
     user = login.autoLogin.user or fallback.user;
   };
 
-  # Resolved backends for a spec
   resolved = spec:
     resolveBackends {
       inherit registry;
       inherit spec;
     };
 
-  # Primary backend from resolved list
   primaryBackend = spec: first (resolved spec);
 
   sessionName = env:
@@ -71,9 +89,12 @@
       else "none"
     );
 
+  greeterValues = map (env: env.greeter or "none") (attrValues registry);
+  managerEnumValues = ["none" "dms" "regreet"] ++ greeterValues;
+
   opts = manager: session: {
     manager = mkOption {
-      type = enum ["none" "dms" "gdm" "sddm" "greetd" "regreet" "lightdm"];
+      type = enum managerEnumValues;
       default = manager;
       description = "Display manager or greeter used to start graphical sessions.";
     };

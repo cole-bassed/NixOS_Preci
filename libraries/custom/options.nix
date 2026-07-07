@@ -128,6 +128,7 @@
     mod ? null,
     pkgs ? {},
     host ? {},
+    users ? {},
     scope ? "core",
   }: let
     segments =
@@ -139,6 +140,16 @@
           then [dom mod]
           else [mod]
         );
+
+    user = let
+      name =
+        if scope == "home"
+        then config.home.username or null
+        else null;
+    in
+      if name != null
+      then (users.${name} or {}) // {inherit name;}
+      else {};
 
     path' = [top] ++ segments;
     leaf = last segments;
@@ -185,21 +196,22 @@
   in {
     inherit
       base
-      config
-      configs
-      name
-      host
-      leaf
-      opt
-      parent
-      scope
-      top
       bin
-      mkName
       cfg
       cfgDom
+      config
+      configs
+      host
+      leaf
       mkEnableDefault
+      mkName
+      name
+      opt
+      parent
       prettyName
+      scope
+      top
+      user
       ;
   };
   # // optionalAttrs (cfg?enable && cfg?package) {

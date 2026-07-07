@@ -21,13 +21,12 @@
     then raw
     else attrNames raw;
 
-  # Derive protocol support from registry
   per = protocol: names:
     any (
       name: let
-        env = registry.environments.${name} or {};
+        env = registry.${name} or {};
       in
-        env.protocol or null == protocol
+        (env.protocol or null) == protocol
     )
     names;
 

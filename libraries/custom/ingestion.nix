@@ -335,6 +335,53 @@
     home-manager.sharedModules = specs.home or [];
   };
 
+  # importModules = args @ {
+  #   base,
+  #   data ? extraArgs.registry or {},
+  #   excludes ? null,
+  #   extraArgs ? {},
+  #   includeFiles ? true,
+  #   includes ? [],
+  #   path ? [],
+  #   childPath ? path,
+  #   recurse ? true,
+  #   tags ? defaults.tags,
+  #   top,
+  #   declareRegistry ? true,
+  #   ...
+  # }: let
+  #   hasData = isNotEmptyAttr data && declareRegistry;
+  #   specs = collectSpecs {
+  #     inherit args base excludes includes tags includeFiles recurse;
+  #     path = childPath;
+  #     extraArgs =
+  #       extraArgs
+  #       // (
+  #         optionalAttrs
+  #         hasData
+  #         ({registry = data;} // registry)
+  #       );
+  #   };
+  # in {
+  #   imports =
+  #     (specs.core or [])
+  #     ++ optionals hasData [
+  #       {
+  #         options = setAttrByPath ([top] ++ path) (mkOption {
+  #           type = submodule {
+  #             freeformType = attrs;
+  #             options.registry = mkOption {
+  #               type = attrs;
+  #               default = data;
+  #               readOnly = true;
+  #             };
+  #           };
+  #           default = {};
+  #         });
+  #       }
+  #     ];
+  #   home-manager.sharedModules = specs.home or [];
+  # };
   importModules = args @ {
     base,
     data ? extraArgs.registry or {},
@@ -347,7 +394,7 @@
     recurse ? true,
     tags ? defaults.tags,
     top,
-    declareRegistry ? true,
+    declareRegistry ? false,
     ...
   }: let
     hasData = isNotEmptyAttr data && declareRegistry;
@@ -359,28 +406,21 @@
         // (
           optionalAttrs
           hasData
-          ({registry = data;} // registry)
+          {registry = data;}
         );
     };
+
+    registryModule = {
+      options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
+        type = attrs;
+        default = data;
+        readOnly = true;
+      });
+    };
+    registryModules = optionals hasData [registryModule];
   in {
-    imports =
-      (specs.core or [])
-      ++ optionals hasData [
-        {
-          options = setAttrByPath ([top] ++ path) (mkOption {
-            type = submodule {
-              freeformType = attrs;
-              options.registry = mkOption {
-                type = attrs;
-                default = data;
-                readOnly = true;
-              };
-            };
-            default = {};
-          });
-        }
-      ];
-    home-manager.sharedModules = specs.home or [];
+    imports = (specs.core or []) ++ registryModules;
+    home-manager.sharedModules = (specs.home or []) ++ registryModules;
   };
 in
   exports

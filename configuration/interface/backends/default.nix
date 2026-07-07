@@ -4,8 +4,7 @@
   host,
   path,
   registry,
-  registryOf,
-  selectionOf,
+  selection,
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
@@ -15,7 +14,6 @@
   inherit (lix.options) mkModuleArgs mkEnable mkEnableOption mkOption;
   inherit (lix.types) submodule str nullOr package;
 
-  selection = spec: selectionOf {inherit top registry spec;};
   path' = path;
   materialize = selected:
     mapAttrs
@@ -38,12 +36,13 @@
     pkgs,
     path ? path',
   }: let
-    module = mkModuleArgs {inherit top config path scope pkgs;};
+    users = getInteractiveUsers host;
+    module = mkModuleArgs {inherit top config path scope pkgs users;};
     parent = mkModuleArgs {
       inherit config top scope;
       path = init path;
     };
-    inherit (module) bin prettyName name configs cfg opt;
+    inherit (module) bin prettyName name configs cfg opt user;
     data = registry.${module.name} or {};
     isWayland = data.protocol or null == "wayland";
 
@@ -53,7 +52,7 @@
           inherit name scope;
           default =
             if scope == "home"
-            then hasAttr name configs.parent
+            then hasAttr name (required.home user)
             else hasAttr name required.core;
         };
         package = mkOption {
@@ -150,7 +149,7 @@
       declareRegistry = false;
       childPath = path;
       extraArgs = {
-        cfgOf = spec: registryOf {inherit top registry spec;};
+        # cfgOf = spec: registryOf {inherit top registry spec;};
 
         mkArgs = {
           config,
