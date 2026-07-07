@@ -7,21 +7,27 @@
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lix) mkModuleArgs;
+  inherit (lix.options) mkModuleArgs;
 
   mk = scope: {
     config,
     pkgs,
     ...
   }: let
-    _ = mkModuleArgs {inherit config top dom mod scope pkgs;};
-    inherit (_) opt package programs enable;
+    module = mkModuleArgs {inherit config top dom mod scope pkgs;};
+    opt = module.set.options.module;
+    package = module.get.package;
+    enable = module.get.config.module.enable or false;
   in {
-    options = opt {enable = config.${top}.interface.protocol.wayland;};
+    options = opt {enable = module.set.enable {default = config.${top}.interface.protocol.wayland;};};
     config = mkIf enable (
       if scope == "core"
       then {environment.systemPackages = [package];}
-      else {inherit programs;}
+      else {
+        programs.${mod} = {
+          inherit enable package;
+        };
+      }
     );
   };
 in {

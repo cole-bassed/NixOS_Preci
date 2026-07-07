@@ -12,12 +12,15 @@
   inherit (lib.modules) mkDefault mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) attrs bool int listOf package str;
-  inherit (lix) mkModuleArgs;
+  inherit (lix.options) mkModuleArgs;
 
   dom = "ai";
   mod = "hermes";
 
-  inherit (mkModuleArgs {inherit config top dom mod;}) cfg opt mkEnableMod;
+  module = mkModuleArgs {inherit config top dom mod;};
+  cfg = module.get.config.module;
+  opt = module.set.options.module;
+  mkEnable = default: module.set.enable {inherit default;};
 
   hermesGateway = pkgs.writeShellApplication {
     name = "hermes-gateway";
@@ -45,7 +48,7 @@ in {
   imports = [hermes-agent.nixosModules.default];
 
   options = opt {
-    enable = mkEnableMod.true;
+    enable = mkEnable true;
 
     gatewayPackage = mkOption {
       type = package;

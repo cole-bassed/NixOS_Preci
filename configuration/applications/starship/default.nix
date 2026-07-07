@@ -7,14 +7,15 @@
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lix) mkModuleArgs;
+  inherit (lix.options) mkModuleArgs;
 
   mk = scope: {config, ...}: let
-    _ = mkModuleArgs {inherit config top dom mod scope;};
-    inherit (_) cfg opt mkEnableMod;
-    inherit (cfg) enable;
+    module = mkModuleArgs {inherit config top dom mod scope;};
+    cfg = module.get.config.module;
+    opt = module.set.options.module;
+    enable = cfg.enable or false;
   in {
-    options = opt {enable = mkEnableMod.false;};
+    options = opt {enable = module.set.enable {default = false;};};
     config = mkIf enable (
       if scope == "core"
       then {programs.${mod} = {inherit enable;};}

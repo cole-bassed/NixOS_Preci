@@ -9,7 +9,7 @@
 } @ args: let
   inherit (lib.lists) concatMap;
   inherit (lix.lists) asList;
-  inherit (lix) mkModuleArgs;
+  inherit (lixmkModuleArgs;
 
   mkArgs = {
     config,

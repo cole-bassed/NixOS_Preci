@@ -7,7 +7,7 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs;
+  inherit (lix.optionsmkModuleArgs;
 
   mkArgs = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};

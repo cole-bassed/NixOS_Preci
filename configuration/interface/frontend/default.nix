@@ -84,7 +84,8 @@
   }: let
     users = getInteractiveUsers host;
     module = mkModuleArgs {inherit top config path scope pkgs users;};
-    inherit (module) name prettyName opt;
+    inherit (module.get) name prettyName;
+    opt = module.set.options.module;
 
     fields = {
       enable = mkEnable {
@@ -103,7 +104,7 @@
   in {
     inherit fields;
     args = {inherit module;};
-    options = module.opt fields;
+    options = module.set.options.module fields;
     config = mkMerge [
       (opt {enable = mkDefault fields.enable.default;})
       (mkIf (fields.package.default != null) (opt {package = mkDefault fields.package.default;}))
@@ -134,7 +135,11 @@
             ([top] ++ path ++ [key]) (defaults.${key} or null)
             osConfig;
         in
-          initiated // {inherit initiated evaluated cfgOr;};
+          initiated
+          // {
+            inherit initiated evaluated cfgOr;
+            inherit (initiated) get set;
+          };
       };
     });
 
@@ -143,7 +148,8 @@
       inherit config top scope;
       path = ["interface"];
     };
-    inherit (mod) opt cfg;
+    opt = mod.set.options.module;
+    cfg = mod.get.config.module;
   in {
     options = opt {
       frontend = mkOption {

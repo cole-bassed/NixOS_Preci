@@ -28,10 +28,11 @@ in {
     pkgs,
     ...
   }: let
-    inherit (mk {inherit config options pkgs;}) initiated evaluated;
-    inherit (initiated) opt cfg name;
+    inherit (mk {inherit config options pkgs;}) get set evaluated;
+    cfg = get.config.module;
+    name = get.name;
   in {
-    options = recursiveUpdate evaluated.options (opt (mkOptions {}));
+    options = recursiveUpdate evaluated.options (set.options.module (mkOptions {}));
     config = mkMerge [
       evaluated.config
       {
@@ -51,13 +52,14 @@ in {
   }: let
     scope = "home";
     mod = mk {inherit config osConfig options pkgs scope defaults;};
-    inherit (mod) initiated evaluated cfgOr;
-    inherit (initiated) opt cfg name;
+    inherit (mod) get set evaluated cfgOr;
+    cfg = get.config.module;
+    name = get.name;
   in {
     options =
       recursiveUpdate
       evaluated.options
-      (opt (mkOptions (genAttrs ["configType"] cfgOr)));
+      (set.options.module (mkOptions (genAttrs ["configType"] cfgOr)));
     config = mkMerge [
       evaluated.config
       {wayland.windowManager.${name}.configType = cfg.configType;}

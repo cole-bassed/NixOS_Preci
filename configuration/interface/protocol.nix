@@ -48,7 +48,9 @@
     pkgs ? null,
     ...
   }: let
-    inherit ((args config scope)) cfg opt;
+    mod = args config scope;
+    cfg = mod.get.config.module;
+    opt = mod.set.options.module;
     names = backendNames config;
   in {
     options = opt (opts names);

@@ -15,7 +15,6 @@
         mkOpt
         # mkEnableMod
         mkModuleArgs
-        mkModuleArgs'
         mkFloatOption
         mkLatitudeOption
         mkLongitudeOption
@@ -25,7 +24,9 @@
         mkLocaleOption
         ;
     };
-    global = {inherit mkModuleArgs;};
+    global = {
+      inherit mkModuleArgs;
+    };
   };
 
   inherit (attrsets) attrByPath genAttrs mkNamespaced optionalAttrs recursiveUpdate setAttrByPath;
@@ -51,7 +52,7 @@
 
   If both `path` and `dom`/`mod` are supplied, `path` wins.
   */
-  mkModuleArgs' = {
+  mkModuleArgs = {
     config,
     options ? {},
     top,
@@ -154,24 +155,17 @@
         (asList (paths.validate path target))
         {}
         (recursiveUpdate config extra);
-      options = genAttrs targets (target: extra: extra);
-      # options = genAttrs targets (
-      #   target: args:
-      #     if args ? path || args ? extra
-      #     then setAttrByPath (asList (paths.validate (args.path or null) target)) (args.extra or args)
-      #     else args
-      # );
-      # options = genAttrs targets (
-      #   target: args: let
-      #     hasPath = args ? path || args ? extra;
-      #     extra =
-      #       if hasPath
-      #       then (args.extra or {})
-      #       else args;
-      #     path = args.path or null;
-      #   in
-      #     setAttrByPath (asList (paths.validate path target)) extra
-      # );
+      options = genAttrs targets (
+        target: args: let
+          hasPath = args ? path || args ? extra;
+          extra =
+            if hasPath
+            then (args.extra or {})
+            else args;
+          path = args.path or null;
+        in
+          setAttrByPath (asList (paths.validate path target)) extra
+      );
 
       enable = {default ? false}:
         mkEnable {
@@ -204,122 +198,7 @@
   in
     (mkNamespaced {inherit get set;})
     // get
-    // {
-      inherit get set;
-
-      #~@ Legacy Fallbacks
-      cfg = get.config.module;
-      opt = extra: set.options.module extra;
-      mkConfig = set.config.module;
-      mkOptions = extra: set.options.module extra;
-      # opt = extra: set.options.module extra;
-      # mkConfig = set.config.module;
-      # mkConfig' = set.config;
-      # mkOptions' = set.options;
-      # mkOptions = extra: set.options.module extra;
-    };
-
-  mkModuleArgs = {
-    config,
-    top,
-    path ? null,
-    dom ? null,
-    mod ? null,
-    pkgs ? {},
-    host ? {},
-    users ? {},
-    scope ? "core",
-  }: let
-    segments =
-      if path != null
-      then path
-      else
-        (
-          if dom != null
-          then [dom mod]
-          else [mod]
-        );
-
-    user = let
-      name =
-        if scope == "home"
-        then config.home.username or null
-        else null;
-    in
-      if name != null
-      then (users.${name} or {}) // {inherit name;}
-      else {};
-
-    path' = [top] ++ segments;
-    leaf = last segments;
-    parent = last (init segments);
-    configs = {
-      main = config;
-      leaf = mkCfg {
-        inherit config;
-        path = path';
-      };
-      parent = mkCfg {
-        inherit config;
-        path = init path';
-      };
-    };
-    opt = options:
-      mkOpt {
-        inherit options;
-        path = path';
-      };
-    base = leaf;
-    bin = {
-      pkg = pkgs.${leaf} or null;
-      name =
-        if bin.pkg != null
-        then pkgs.${leaf}.NIX_MAIN_PROGRAM or leaf
-        else null;
-      path =
-        if bin.pkg != null
-        then "/run/current-system/sw/bin/${bin.name}"
-        else null;
-    };
-    mkName = {pretty ? true}:
-      if pretty
-      then toSentenceCase leaf
-      else leaf;
-
-    cfg = configs.leaf;
-    cfgDom = configs.parent;
-    mkEnableDefault = {default ? false}:
-      (mkEnable {inherit default leaf scope;}).default;
-    prettyName = mkName {};
-    name = leaf;
-  in {
-    inherit
-      base
-      bin
-      cfg
-      cfgDom
-      config
-      configs
-      host
-      leaf
-      mkEnableDefault
-      mkName
-      name
-      opt
-      parent
-      prettyName
-      scope
-      top
-      user
-      ;
-  };
-  # // optionalAttrs (cfg?enable && cfg?package) {
-  #   inherit (cfg) enable;
-  #   programs.${leaf} = {
-  #     inherit (cfg) enable;
-  #     # package = pkgs.${leaf} or {};
-  #   };
-  # };
+    // {inherit get set;};
 
   mkEnable = {
     name ? null,

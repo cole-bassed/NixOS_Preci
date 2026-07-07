@@ -11,7 +11,7 @@
   inherit (lix.attrsets) attrValues optionalAttrs;
   inherit (lix.lists) elemAt length;
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
+  inherit (lix.optionsmkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum nullOr str;
 
   args = config: scope:

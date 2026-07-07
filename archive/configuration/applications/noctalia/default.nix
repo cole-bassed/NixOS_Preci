@@ -9,7 +9,7 @@
   inherit (lib.modules) mkDefault mkForce mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) package str;
-  inherit (lix) mkModuleArgs mkEnable;
+  inherit (lixmkModuleArgs mkEnable;
 in {
   core = [];
 

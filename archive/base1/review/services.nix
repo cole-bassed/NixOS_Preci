@@ -7,7 +7,7 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.optionsmkModuleArgs mkOption;
   inherit (lix.types) listOf str;
 
   mk = scope: {config, ...}: let

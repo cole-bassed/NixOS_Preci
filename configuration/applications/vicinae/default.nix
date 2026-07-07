@@ -10,19 +10,22 @@
   inherit (lib.modules) mkDefault mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) bool package;
-  inherit (lix) mkEnable mkModuleArgs;
+  inherit (lix) mkEnable;
+  inherit (lix.options) mkModuleArgs;
 in {
   core = [];
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnableMod;
+    module = mkModuleArgs {inherit config top dom mod scope;};
+    cfg = module.get.config.module;
+    opt = module.set.options.module;
 
     # Shared launch command used by both compositors
     launch = "${cfg.package}/bin/vicinae";
   in {
     options = opt {
-      enable = mkEnableMod.false;
+      enable = module.set.enable {default = false;};
 
       package = mkOption {
         type = package;

@@ -7,7 +7,7 @@
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lix) mkModuleArgs;
+  inherit (lixmkModuleArgs;
 
   mk = scope: {
     config,

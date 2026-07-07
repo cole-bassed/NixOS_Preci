@@ -10,7 +10,7 @@
   inherit (lix.attrsets) optionalAttrs;
   inherit (lix.lists) any elem optionals;
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkEnableOption;
+  inherit (lix.optionsmkModuleArgs mkEnableOption;
 
   args = config: scope:
     mkModuleArgs {inherit config top dom mod scope;};

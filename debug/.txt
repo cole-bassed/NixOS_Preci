@@ -779,7 +779,7 @@ contents:
 }: let
   inherit (inputs) hermes-agent;
   inherit (lib.modules) mkDefault mkIf;
-  inherit (lib.options) mkModuleArgs mkOption;
+  inherit (lib.optionsmkModuleArgs mkOption;
   inherit (lib.types) attrs bool int listOf package str;
 
   dom = "ai";
@@ -1034,7 +1034,7 @@ contents:
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 
   mk = scope: {config, ...}: let
     _ = mkModuleArgs {inherit config top dom mod scope;};
@@ -1085,7 +1085,7 @@ contents:
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 
   mk = scope: {config, ...}: let
     _ = mkModuleArgs {inherit config top dom mod scope;};
@@ -1119,7 +1119,7 @@ contents:
   ...
 } @ args: let
   inherit (lib.lists) concatMap asList;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 
   mkArgs = {
     config,
@@ -1605,7 +1605,7 @@ contents:
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 
   mk = scope: {config, ...}: let
     _ = mkModuleArgs {inherit config top dom mod scope;};
@@ -1643,7 +1643,7 @@ contents:
   inherit (lib.modules) mkDefault mkForce mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) package str;
-  inherit (lix) mkModuleArgs mkEnable;
+  inherit (lixmkModuleArgs mkEnable;
 in {
   core = [];
 
@@ -1699,7 +1699,7 @@ contents:
   ...
 }: let
   inherit (lib.modules) mkIf;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 
   mk = scope: {config, ...}: let
     _ = mkModuleArgs {inherit config top dom mod scope;};
@@ -1914,7 +1914,7 @@ contents:
   ...
 } @ args: let
   inherit (lib.lists) asList concatMap;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 
   mkArgs = {
     config,
@@ -3799,7 +3799,7 @@ contents:
   inherit (lib.modules) mkDefault mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) listOf str;
-  inherit (lib.options) mkModuleArgs;
+  inherit (lib.optionsmkModuleArgs;
 in {
   core = {config, ...}: let
     inherit (mkModuleArgs {inherit config top dom mod;}) cfg opt mkEnableMod;

@@ -11,7 +11,7 @@
   inherit (lib.attrsets) attrValues isAttrs filterAttrs hasAttr getAttr;
   inherit (lib.modules) mkIf mkMerge;
   inherit (lix.lists) foldl' optionals unique;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.optionsmkModuleArgs mkOption;
   inherit (lix.types) attrsOf anything bool;
 
   getAttrPathOr = path: fallback: value: let

@@ -37,13 +37,16 @@
     path ? path',
   }: let
     users = getInteractiveUsers host;
-    module = mkModuleArgs {inherit top config path scope pkgs users;};
+    module = mkModuleArgs {inherit top config path scope pkgs users options;};
     parent = mkModuleArgs {
       inherit config top scope;
       path = init path;
     };
-    inherit (module) bin prettyName name cfg opt user;
-    data = registry.${module.name} or {};
+    bin = module.set.bin {};
+    inherit (module.get) prettyName name user;
+    cfg = module.get.config.module;
+    opt = module.set.options.module;
+    data = registry.${name} or {};
     isWayland = data.protocol or null == "wayland";
 
     fields =
@@ -99,7 +102,7 @@
       inherit module parent;
       registry = data;
     };
-    options = module.opt fields;
+    options = module.set.options.module fields;
     config =
       if scope == "home"
       then let
@@ -168,7 +171,11 @@
             ([top] ++ path ++ [key]) (defaults.${key} or null)
             osConfig;
         in
-          initiated // {inherit initiated evaluated cfgOr;};
+          initiated
+          // {
+            inherit initiated evaluated cfgOr;
+            inherit (initiated) get set;
+          };
 
         mkEnable = {
           config,

@@ -6,7 +6,7 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.optionsmkModuleArgs mkOption;
   inherit (lix.types) bool;
 
   mk = scope: {config, ...}: let

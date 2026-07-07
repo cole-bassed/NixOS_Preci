@@ -9,16 +9,19 @@
   inherit (lib.modules) mkDefault mkForce mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) package str;
-  inherit (lix) mkModuleArgs mkEnable;
+  inherit (lix.options) mkModuleArgs;
+  inherit (lix) mkEnable;
 in {
   core = [];
 
   home = {config, ...}: let
     scope = "home";
-    inherit (mkModuleArgs {inherit config top dom mod scope;}) cfg opt mkEnableMod;
+    module = mkModuleArgs {inherit config top dom mod scope;};
+    cfg = module.get.config.module;
+    opt = module.set.options.module;
   in {
     options = opt {
-      enable = mkEnableMod.false;
+      enable = module.set.enable {default = false;};
       package = mkOption {
         type = package;
         # default = pkgs.noctalia-shell;

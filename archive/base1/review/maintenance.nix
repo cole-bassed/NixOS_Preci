@@ -9,7 +9,7 @@
   ...
 }: let
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.optionsmkModuleArgs mkOption;
   inherit (lix.types) bool;
 
   apps = config.programs;

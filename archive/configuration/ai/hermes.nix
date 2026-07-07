@@ -12,7 +12,7 @@
   inherit (lib.modules) mkDefault mkIf;
   inherit (lib.options) mkOption;
   inherit (lib.types) attrs bool int listOf package str;
-  inherit (lix) mkModuleArgs;
+  inherit (lixmkModuleArgs;
 
   dom = "ai";
   mod = "hermes";

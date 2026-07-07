@@ -27,8 +27,8 @@ in {
     pkgs,
     ...
   }: let
-    inherit (mk {inherit config options pkgs;}) initiated evaluated;
-    enabled = (config.${initiated.top}.interface.frontend.selected or null) == initiated.name;
+    inherit (mk {inherit config options pkgs;}) get evaluated;
+    enabled = (get.config.parent.selected or null) == get.name;
   in {
     inherit (evaluated) options;
     config = mkMerge [
@@ -50,8 +50,8 @@ in {
     ...
   }: let
     scope = "home";
-    inherit (mk {inherit config options pkgs scope;}) initiated evaluated;
-    enabled = (config.${initiated.top}.interface.frontend.selected or null) == initiated.name;
+    inherit (mk {inherit config options pkgs scope;}) get evaluated;
+    enabled = (get.config.parent.selected or null) == get.name;
   in {
     inherit (evaluated) options;
     config = mkMerge [

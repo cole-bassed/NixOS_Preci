@@ -10,7 +10,7 @@
   inherit (lix.attrsets) asAttrs namesOf valuesOf;
   inherit (lix.lists) elem concatMap;
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
+  inherit (lix.optionsmkModuleArgs mkEnableOption mkOption;
   inherit (lix.types) enum listOf;
 
   setOf = list: namesOf (asAttrs list);
