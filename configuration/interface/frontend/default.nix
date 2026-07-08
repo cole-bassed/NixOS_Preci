@@ -8,8 +8,8 @@
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
-  inherit (lix.attrsets) attrByPath attrNames attrValues foldMerge hasAttr mapAttrs setAttrByPath;
-  inherit (lix.lists) elemAt filter length;
+  inherit (lix.attrsets) attrByPath attrNames attrValues foldMerge hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
+  inherit (lix.lists) elemAt filter findFirst length;
   inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) attrs enum nullOr package submodule;
@@ -117,8 +117,8 @@
       excludes = [];
       declareRegistry = false;
       childPath = path;
-      extraArgs = {
-        mkArgs = {
+      extraArgs = let
+        buildChild = {
           config,
           options ? {},
           path,
@@ -128,18 +128,63 @@
           defaults ? {},
         }: let
           mod = mkMod {inherit config path pkgs scope;};
-          initiated = mod.args.module;
-          evaluated = {inherit (mod) options config;};
+          module = mod.args.module;
           cfgOr = key:
             attrByPath
             ([top] ++ path ++ [key]) (defaults.${key} or null)
             osConfig;
+          enableTarget = {
+            options,
+            enabled,
+            target ? null,
+            targets ? [],
+          }: let
+            target' =
+              if target != null
+              then target
+              else findFirst (candidate: hasAttrByPath candidate options) null targets;
+            hasSub = key: target' != null && hasAttrByPath (target' ++ [key]) options;
+            frontendCfg = optionalAttrs (hasSub "enable") {enable = enabled;};
+          in
+            optionalAttrs (target' != null && frontendCfg != {}) (setAttrByPath target' frontendCfg);
         in
-          initiated
+          module
           // {
-            inherit initiated evaluated cfgOr;
-            inherit (initiated) get set;
+            inherit cfgOr enableTarget;
+            inherit (mod) options config;
           };
+
+        mkChild = {
+          path,
+          scope ? "core",
+          target ? null,
+          targets ? [],
+          mkOptions ? (_: {}),
+          extraConfig ? (_: {}),
+        }: {
+          config,
+          options,
+          pkgs,
+          ...
+        }: let
+          child = buildChild {inherit config options path pkgs scope;};
+          cfg = child.get.config.module;
+          enabled = cfg.enable or (cfg.isRequired or false);
+          extraOptions = mkOptions child;
+        in {
+          options =
+            if extraOptions == {}
+            then child.options
+            else recursiveUpdate child.options (child.set.options.module extraOptions);
+          config = mkMerge [
+            child.config
+            (child.enableTarget {inherit options enabled target targets;})
+            (extraConfig {inherit child cfg enabled config options pkgs;})
+          ];
+        };
+      in {
+        inherit mkChild;
+        mkArgs = buildChild;
       };
     });
 
