@@ -13,6 +13,7 @@
         getBySpec
         getOrderedOr
         inspect
+        normalize
         inspectJSON
         isEmpty
         isNotEmpty
@@ -36,6 +37,7 @@
       # inherit mapAttrs;
     };
     global = {
+      normalizeAttrs = normalize;
       findFirstAttrs = findFirst;
       getAttrBySpec = getBySpec;
       inspectAttr = inspect;
@@ -61,6 +63,7 @@
     attrNames
     concatMapAttrs
     filterAttrs
+    genAttrs
     hasAttr
     attrByPath
     getAttr
@@ -282,5 +285,43 @@
         }) (attrNames attrset))
     )
     namespaces;
+
+  normalize = args: let
+    isDescriptor =
+      isAttrs args
+      && args ? flag
+      && isString args.flag
+      && args ? value;
+
+    input = {
+      flag =
+        if isDescriptor
+        then args.flag
+        else "enable";
+      value =
+        if isDescriptor
+        then args.value
+        else args;
+    };
+
+    inherit (input) flag value;
+
+    resolved = {
+      ${flag} = true;
+      inherit value;
+    };
+
+    type = typeOf value;
+
+    list = genAttrs value (_: removeAttrs resolved ["value"]);
+    bool = {${flag} = value;};
+    set =
+      if value ? ${flag} || value ? value
+      then (removeAttrs value ["value"]) // {${flag} = value.${flag} or true;}
+      else mapAttrs (_: value: normalize {inherit flag value;}) value;
+
+    handlers = {inherit list bool set;};
+  in
+    handlers.${type} or resolved;
 in
   exports

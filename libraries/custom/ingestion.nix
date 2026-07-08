@@ -43,6 +43,7 @@
     mapAttrs
     mapAttrs'
     optionalAttrs
+    recursiveUpdate
     setAttrByPath
     ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
@@ -240,10 +241,6 @@
             optionals
             (type == "directory" && !(hasEntrypointDir base name) && recurse)
             (collect path' (base + "/${name}"));
-          # children =
-          #   optionals
-          #   (type == "directory" && (recurse || !(hasEntrypointDir base name)))
-          #   (collect path' (base + "/${name}"));
         in
           [(wrap module)] ++ children
       ) (attrNames entries);
@@ -334,53 +331,6 @@
     home-manager.sharedModules = specs.home or [];
   };
 
-  # importModules = args @ {
-  #   base,
-  #   data ? extraArgs.registry or {},
-  #   excludes ? null,
-  #   extraArgs ? {},
-  #   includeFiles ? true,
-  #   includes ? [],
-  #   path ? [],
-  #   childPath ? path,
-  #   recurse ? true,
-  #   tags ? defaults.tags,
-  #   top,
-  #   declareRegistry ? true,
-  #   ...
-  # }: let
-  #   hasData = isNotEmptyAttr data && declareRegistry;
-  #   specs = collectSpecs {
-  #     inherit args base excludes includes tags includeFiles recurse;
-  #     path = childPath;
-  #     extraArgs =
-  #       extraArgs
-  #       // (
-  #         optionalAttrs
-  #         hasData
-  #         ({registry = data;} // registry)
-  #       );
-  #   };
-  # in {
-  #   imports =
-  #     (specs.core or [])
-  #     ++ optionals hasData [
-  #       {
-  #         options = setAttrByPath ([top] ++ path) (mkOption {
-  #           type = submodule {
-  #             freeformType = attrs;
-  #             options.registry = mkOption {
-  #               type = attrs;
-  #               default = data;
-  #               readOnly = true;
-  #             };
-  #           };
-  #           default = {};
-  #         });
-  #       }
-  #     ];
-  #   home-manager.sharedModules = specs.home or [];
-  # };
   importModules = args @ {
     base,
     data ? extraArgs.registry or {},
@@ -397,16 +347,13 @@
     ...
   }: let
     hasData = isNotEmptyAttr data && declareRegistry;
+
     specs = collectSpecs {
       inherit args base excludes includes tags includeFiles recurse;
       path = childPath;
       extraArgs =
-        extraArgs
-        // (
-          optionalAttrs
-          hasData
-          {registry = data;}
-        );
+        recursiveUpdate (args.extraArgs or {}) extraArgs
+        // optionalAttrs hasData {registry = data;};
     };
 
     registryModule = {
