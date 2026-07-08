@@ -8,24 +8,34 @@
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
-  inherit (lix.attrsets) attrByPath attrValues hasAttr hasAttrByPath foldMerge mapAttrs optionalAttrs setAttrByPath;
+  inherit (lix.attrsets) attrByPath attrValues foldMerge hasAttr hasAttrByPath isAttrs mapAttrs optionalAttrs setAttrByPath;
   inherit (lix.lists) findFirst init;
   inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
-  inherit (lix.options) mkModuleArgs mkEnable mkEnableOption mkOption;
-  inherit (lix.types) submodule str nullOr package;
+  inherit (lix.options) mkEnable mkEnableOption mkModuleArgs mkOption;
+  inherit (lix.types) enum nullOr package str submodule;
 
   path' = path;
+
   materialize = selected:
     mapAttrs
     (_: extra: {enable = true;} // extra)
     (foldMerge selected);
 
+  backendApiOf = spec: let
+    interface = spec.interface or {};
+    raw = interface.backends or null;
+    legacy = interface.environment or {};
+  in
+    if isAttrs raw
+    then raw
+    else legacy;
+
+  backendApiFor = spec: name: (backendApiOf spec).${name} or {};
+
   required = let
     main = [(selection host)];
   in {
-    core =
-      materialize
-      (main ++ (map selection (attrValues (getInteractiveUsers host))));
+    core = materialize (main ++ map selection (attrValues (getInteractiveUsers host)));
     home = user: materialize (main ++ [(selection user)]);
   };
 
@@ -47,22 +57,65 @@
     cfg = module.get.config.module;
     opt = module.set.options.module;
     data = registry.${name} or {};
-    isWayland = data.protocol or null == "wayland";
+    api =
+      if scope == "home"
+      then (backendApiFor host name) // (backendApiFor user name)
+      else backendApiFor host name;
+    enabledDefault =
+      if scope == "home"
+      then hasAttr name (required.home user)
+      else hasAttr name required.core;
+    resolvedOr = key:
+      api.${key} or (data.${key} or null);
+    protocolDefault = resolvedOr "protocol";
+    isWayland = protocolDefault == "wayland";
 
     fields =
       {
         enable = mkEnable {
           inherit name scope;
-          default =
-            if scope == "home"
-            then hasAttr name (required.home user)
-            else hasAttr name required.core;
+          default = enabledDefault;
         };
         package = mkOption {
           type = nullOr package;
           default = pkgs.${name} or null;
           description = "Package backing the ${prettyName} compositor component.";
         };
+        protocol = mkOption {
+          type = nullOr (enum ["x11" "wayland"]);
+          default = protocolDefault;
+          description = "Display protocol for ${prettyName}. Defaults to the backend registry or host/user API override.";
+        };
+        session = mkOption {
+          type = nullOr str;
+          default = let
+            value = resolvedOr "session";
+          in
+            if value != null
+            then value
+            else name;
+          description = "Session name exported by ${prettyName}. Defaults to the backend registry or host/user API override.";
+        };
+        greeter = mkOption {
+          type = nullOr str;
+          default = resolvedOr "greeter";
+          description = "Greeter or display manager preferred for ${prettyName}. Defaults to the backend registry or host/user API override.";
+        };
+        frontend = mkOption {
+          type = nullOr str;
+          default = resolvedOr "frontend";
+          description = "Frontend layer paired with ${prettyName}. Defaults to the backend registry or host/user API override.";
+        };
+        needsXwaylandSatellite =
+          mkEnableOption "xwayland-satellite support for ${prettyName}"
+          // {
+            default = let
+              value = resolvedOr "needsXwaylandSatellite";
+            in
+              if value != null
+              then value
+              else false;
+          };
       }
       // optionalAttrs (scope == "core") {
         uwsm = mkOption {
@@ -72,10 +125,12 @@
               enable =
                 mkEnableOption "${prettyName} UWSM support."
                 // {
-                  default =
-                    if hasAttr "uwsm" data
-                    then data.uwsm
-                    else isWayland && fields.enable.default;
+                  default = let
+                    choice = resolvedOr "uwsm";
+                  in
+                    if choice != null
+                    then choice
+                    else isWayland && enabledDefault;
                 };
               name = mkOption {
                 type = str;
@@ -117,10 +172,25 @@
       in
         mkMerge [
           (opt {enable = mkDefault fields.enable.default;})
+          (opt {
+            protocol = mkDefault fields.protocol.default;
+            session = mkDefault fields.session.default;
+            greeter = mkDefault fields.greeter.default;
+            frontend = mkDefault fields.frontend.default;
+            needsXwaylandSatellite = mkDefault fields.needsXwaylandSatellite.default;
+          })
           (optionalAttrs (target != null && homeCfg != {}) (setAttrByPath target homeCfg))
         ]
       else
         mkMerge [
+          (opt {
+            enable = mkDefault fields.enable.default;
+            protocol = mkDefault fields.protocol.default;
+            session = mkDefault fields.session.default;
+            greeter = mkDefault fields.greeter.default;
+            frontend = mkDefault fields.frontend.default;
+            needsXwaylandSatellite = mkDefault fields.needsXwaylandSatellite.default;
+          })
           (mkIf (cfg.enable or false) {
             programs.${name}.enable = cfg.enable;
           })
@@ -132,7 +202,7 @@
             ) {
               programs.${name}.package = cfg.package;
             })
-          (mkIf ((cfg.enable or false) && isWayland && (cfg.uwsm.enable or false)) {
+          (mkIf ((cfg.enable or false) && cfg.protocol == "wayland" && (cfg.uwsm.enable or false)) {
             programs.uwsm = {
               enable = true;
               waylandCompositors.${name} = with cfg.uwsm; {
@@ -152,8 +222,6 @@
       declareRegistry = false;
       childPath = path;
       extraArgs = {
-        # cfgOf = spec: registryOf {inherit top registry spec;};
-
         mkArgs = {
           config,
           options ? {},
@@ -166,14 +234,20 @@
           mod = mkMod {inherit config options path pkgs scope;};
           initiated = mod.args.module;
           evaluated = {inherit (mod) options config;};
+          api =
+            if scope == "home"
+            then (backendApiFor host initiated.get.name) // (backendApiFor initiated.user initiated.get.name)
+            else backendApiFor host initiated.get.name;
           cfgOr = key:
             attrByPath
             ([top] ++ path ++ [key]) (defaults.${key} or null)
             osConfig;
+          apiOr = key:
+            api.${key} or (defaults.${key} or null);
         in
           initiated
           // {
-            inherit initiated evaluated cfgOr;
+            inherit initiated evaluated cfgOr apiOr;
             inherit (initiated) get set;
           };
 

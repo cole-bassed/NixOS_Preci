@@ -27,9 +27,9 @@ in {
     pkgs,
     ...
   }: let
-    inherit (mk {inherit config options pkgs;}) set evaluated;
+    inherit (mk {inherit config options pkgs defaults;}) apiOr set evaluated;
   in {
-    options = recursiveUpdate evaluated.options (set.options.module (mkOptions {}));
+    options = recursiveUpdate evaluated.options (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
     inherit (evaluated) config;
   };
 
@@ -42,12 +42,12 @@ in {
   }: let
     scope = "home";
     mod = mk {inherit config options osConfig pkgs scope defaults;};
-    inherit (mod) set evaluated cfgOr;
+    inherit (mod) apiOr set evaluated;
   in {
     options =
       recursiveUpdate
       evaluated.options
-      (set.options.module (mkOptions (genAttrs ["fallbackConfig"] cfgOr)));
+      (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
     inherit (evaluated) config;
   };
 }

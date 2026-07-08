@@ -419,9 +419,7 @@
     registerLibraries = source: let
       set = source.lib or {};
     in
-      set
-      // optionalAttrs (set ? hm) set.hm
-      // {};
+      set // optionalAttrs (set ? hm) set.hm;
 
     registerOverlays = {
       name,
@@ -516,6 +514,8 @@
             specs = {
               niri = "niri-unstable";
               xwayland-satellite = "xwayland-satellite-unstable";
+              dank-material = "dms-shell";
+              caelestia = "caelestia-shell";
             };
           in [
             (

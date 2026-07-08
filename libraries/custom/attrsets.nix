@@ -70,7 +70,7 @@
     recursiveUpdate
     ;
   inherit (lists) concatMap filter findFirstList foldl' genList isList length map nthOr;
-  inherit (strings) concatStringsSep toJSON toUpper substring stringLength;
+  inherit (strings) concatStringsSep toJSON toUpper substring;
   inherit (debug) withContext;
   inherit (types) isAttrs typeOf isString isFunction' isPath;
 

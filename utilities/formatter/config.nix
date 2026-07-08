@@ -7,6 +7,7 @@
     ".direnv/*"
     ".envrc"
     ".sops.yaml"
+    "archive/**"
     "flake.lock"
     "node_modules/*"
     "result*"

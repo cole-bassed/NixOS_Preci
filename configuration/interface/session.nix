@@ -9,13 +9,22 @@
   ...
 }: let
   inherit (lix.api) getAdminUsers;
-  inherit (lix.attrsets) attrNames attrValues;
+  inherit (lix.attrsets) attrNames attrValues isAttrs;
   inherit (lix.lists) elem elemAt filter length;
   inherit (lix.modules) mkIf;
-  inherit (lix.options) mkModuleArgs mkEnableOption mkOption;
+  inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
   inherit (lix.types) enum nullOr str;
 
   args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
+
+  backendApiOf = spec: let
+    interface = spec.interface or {};
+    raw = interface.backends or null;
+    legacy = interface.environment or {};
+  in
+    if isAttrs raw
+    then raw
+    else legacy;
 
   resolveBackends = {
     registry,
@@ -24,10 +33,11 @@
     filter (x: x != null) (map (
         name: let
           env = registry.${name} or null;
+          api = (backendApiOf spec).${name} or {};
         in
           if env == null
           then null
-          else env // {inherit name;}
+          else env // api // {inherit name;}
       )
       (attrNames (selection spec)));
 

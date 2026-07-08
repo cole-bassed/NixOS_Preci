@@ -24,9 +24,7 @@
 
     needsNiri =
       mkEnableOption "Whether this ${child.get.name} is selected by the host or user"
-      // {
-        default = child.get.config.domain.backends.niri.enable or false;
-      };
+      // {default = child.get.config.domain.backends.niri.enable or false;};
   };
 in {
   core = mkChild {

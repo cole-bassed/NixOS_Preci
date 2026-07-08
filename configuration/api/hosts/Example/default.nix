@@ -675,16 +675,19 @@ in {
     };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    backends = ["hyprland" "niri"];
-    # environment = {
-    #   hyprland = {
-    #     # protocol = "wayland";
-    #     # session = "hyprland";
-    #     # greeter = "dank-material-shell";
-    #     # uwsm = true;
-    #     # frontend = "dank-material-shell";
-    #   };
-    # };
+    backends = {
+      hyprland = {
+        # session = "hyprland";
+        # greeter = "dank-material-shell";
+        # frontend = "dank-material";
+        # uwsm = true;
+        # configType = "lua";
+      };
+      niri = {
+        # needsXwaylandSatellite = true;
+        # fallbackConfig = "config/niri/config.kdl";
+      };
+    };
     keyboard = {
       modifier = "SUPER";
       swapCapsEscape = false;
