@@ -27,7 +27,8 @@ _flake: {
       builtins.listToAttrs (map (name: {
           inherit name;
           value = {enable = true;};
-        }) value)
+        })
+        value)
     else if builtins.isAttrs value
     then builtins.mapAttrs (_: normalizeValue) value
     else {};
@@ -39,9 +40,8 @@ _flake: {
   tailscaleSecretCfg = tailscaleCfg.authKeySecret or {};
 
   hostSecretFile = let
-    hostRoots = [
+    hostRoots = filter pathExists [
       ../../api/hosts
-      ../../api/hosts/review
     ];
 
     dirNames = root:
@@ -71,7 +71,6 @@ _flake: {
     existing = filter (file: file != null && pathExists file) (
       [
         ../../api/hosts/${hostName}/secrets.yaml
-        ../../api/hosts/review/${hostName}/secrets.yaml
       ]
       ++ discovered
     );

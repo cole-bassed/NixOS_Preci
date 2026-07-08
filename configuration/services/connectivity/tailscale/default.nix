@@ -96,7 +96,7 @@
         mkIf cfg.enable {
           services.tailscale = {
             enable = true;
-            openFirewall = cfg.openFirewall;
+            inherit (cfg) openFirewall;
           };
         }
       else {};

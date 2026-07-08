@@ -6,7 +6,7 @@
   entry,
   ...
 }: let
-  inherit (lix.attrsets) optionalAttrs;
+  inherit (lix.attrsets) hasAttrByPath optionalAttrs;
   # inherit (lix.modules) mkIf;
   inherit (lix.displays) mkHyprland mkNiri;
   inherit (lix.options) mkOption;
@@ -52,10 +52,13 @@
     config =
       if scope == "core"
       then {}
-      else {
-        wayland.windowManager.hyprland.settings = outputs.hyprland;
-        programs.niri.settings.outputs = outputs.niri;
-      };
+      else
+        optionalAttrs (hasAttrByPath ["wayland" "windowManager" "hyprland" "settings"] config) {
+          wayland.windowManager.hyprland.settings = outputs.hyprland;
+        }
+        // optionalAttrs (hasAttrByPath ["programs" "niri" "settings"] config) {
+          programs.niri.settings.outputs = outputs.niri;
+        };
   };
 in {
   core = mk "core";

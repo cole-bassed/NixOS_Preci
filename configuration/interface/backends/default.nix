@@ -34,9 +34,22 @@
 
   required = let
     main = [(selection host)];
+    isDesktopHost = builtins.elem (host.type or "desktop") ["desktop" "laptop"];
+    userSelections =
+      if isDesktopHost
+      then map selection (attrValues (getInteractiveUsers host))
+      else [];
   in {
-    core = materialize (main ++ map selection (attrValues (getInteractiveUsers host)));
-    home = user: materialize (main ++ [(selection user)]);
+    core = materialize (main ++ userSelections);
+    home = user:
+      materialize (
+        main
+        ++ (
+          if isDesktopHost
+          then [(selection user)]
+          else []
+        )
+      );
   };
 
   mkMod = {
@@ -181,7 +194,13 @@
           })
           (optionalAttrs (target != null && homeCfg != {}) (setAttrByPath target homeCfg))
         ]
-      else
+      else let
+        target = findFirst (path: hasAttrByPath path options) null [
+          ["wayland" "windowManager" name]
+          ["programs" name]
+        ];
+        hasSub = key: target != null && hasAttrByPath (target ++ [key]) options;
+      in
         mkMerge [
           (opt {
             enable = mkDefault fields.enable.default;
@@ -191,17 +210,16 @@
             frontend = mkDefault fields.frontend.default;
             needsXwaylandSatellite = mkDefault fields.needsXwaylandSatellite.default;
           })
-          (mkIf (cfg.enable or false) {
-            programs.${name}.enable = cfg.enable;
-          })
-          (mkIf (
-              (cfg.enable or false)
-              && hasAttr "programs" options
-              && hasAttr name options.programs
-              && hasAttr "package" options.programs.${name}
-            ) {
-              programs.${name}.package = cfg.package;
-            })
+          (mkIf (cfg.enable or false) (
+            if hasSub "enable"
+            then setAttrByPath (target ++ ["enable"]) cfg.enable
+            else {}
+          ))
+          (mkIf (cfg.enable or false) (
+            if hasSub "package"
+            then setAttrByPath (target ++ ["package"]) cfg.package
+            else {}
+          ))
           (mkIf ((cfg.enable or false) && cfg.protocol == "wayland" && (cfg.uwsm.enable or false)) {
             programs.uwsm = {
               enable = true;

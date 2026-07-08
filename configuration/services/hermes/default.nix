@@ -21,26 +21,28 @@
 
   mk = scope: {
     config,
-    dots,
     pkgs,
     ...
   }: let
     module = mkModuleArgs {inherit config top dom mod scope;};
     cfg = module.get.config.module;
     opt = module.set.options.module;
+    inherit (cfg) stateDirectory;
+    hermesHomeDirectory = "${stateDirectory}/.hermes";
+    workspaceDirectory = "${stateDirectory}/workspace";
     mkEnable = default: module.set.enable {inherit default;};
     repoRoot =
       config.${top}.paths.local.src
       or config.${top}.paths.local.dots
-      or "/var/lib/hermes/workspace";
+      or workspaceDirectory;
 
     hermesGateway = pkgs.writeShellApplication {
       name = "hermes-gateway";
       text = ''
         exec /run/wrappers/bin/sudo -u hermes \
           env \
-            HERMES_HOME=/var/lib/hermes/.hermes \
-            HOME=/var/lib/hermes \
+            HERMES_HOME=${hermesHomeDirectory} \
+            HOME=${stateDirectory} \
             /run/current-system/sw/bin/hermes "$@"
       '';
     };
@@ -56,6 +58,12 @@
   in {
     options = opt {
       enable = mkEnable (staged.enable or false);
+
+      stateDirectory = mkOption {
+        type = str;
+        default = "/var/lib/hermes";
+        description = "Persistent runtime root for the system Hermes instance. Rebuild-safe mutable state lives here rather than in the Nix store.";
+      };
 
       gatewayPackage = mkOption {
         type = package;
@@ -117,7 +125,7 @@
 
           terminal = {
             backend = "local";
-            cwd = "/var/lib/hermes/workspace";
+            cwd = workspaceDirectory;
             timeout = 180;
           };
 
@@ -211,18 +219,22 @@
             restartSec = mkDefault cfg.restartSec;
           };
 
-          systemd.services.hermes-agent.serviceConfig = {
-            TimeoutStopSec = 240;
-            UnsetEnvironment = ["MESSAGING_CWD"];
-          } // optionalAttrs cfg.envSecret.enable {
-            EnvironmentFile = cfg.envSecret.path;
-          };
+          systemd.services.hermes-agent.serviceConfig =
+            {
+              TimeoutStopSec = 240;
+              UnsetEnvironment = ["MESSAGING_CWD"];
+            }
+            // optionalAttrs cfg.envSecret.enable {
+              EnvironmentFile = cfg.envSecret.path;
+            };
 
-          systemd.tmpfiles.rules = [
-            "d /var/lib/hermes 0750 hermes hermes - -"
-            "d /var/lib/hermes/.hermes 0750 hermes hermes - -"
-            "d /var/lib/hermes/workspace 0750 hermes hermes - -"
-          ] ++ optional cfg.envSecret.enable "L+ /var/lib/hermes/.hermes/.env - - - - ${cfg.envSecret.path}";
+          systemd.tmpfiles.rules =
+            [
+              "d ${stateDirectory} 0750 hermes hermes - -"
+              "d ${hermesHomeDirectory} 0750 hermes hermes - -"
+              "d ${workspaceDirectory} 0750 hermes hermes - -"
+            ]
+            ++ optional cfg.envSecret.enable "L+ ${hermesHomeDirectory}/.env - - - - ${cfg.envSecret.path}";
 
           sops.secrets = optionalAttrs cfg.envSecret.enable {
             ${cfg.envSecret.name} = {

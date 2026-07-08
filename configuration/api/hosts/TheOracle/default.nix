@@ -116,6 +116,10 @@ in {
   ];
 
   services = {
+    hermes = {
+      enable = true;
+      envSecret.enable = true;
+    };
     tailscale = {
       enable = true;
       openFirewall = true;

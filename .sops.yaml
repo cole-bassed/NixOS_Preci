@@ -1,65 +1,66 @@
 keys:
-  - &user_craole age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
-  - &user_cc age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
-  # qyatt currently reuses the shared admin recipient until they have a dedicated key.
-  - &user_qyatt age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
-  - &host_Preci age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
-  - &host_QBX age1j5cug724x386nygk8dhc38tujhzhp9nyzyelzl0yaz3ndgtq3qwqxtkfpv
-  - &host_Victus age1j5cug724x386nygk8dhc38tujhzhp9nyzyelzl0yaz3ndgtq3qwqxtkfpv
-  - &host_TheOracle age14ju8288fj59hh3xw5zqx8tklpyhp23gzc8fhj9m5l46h0vwxtuuqugmxzz
+# TODO: Should these live in the individual APIs and then just be referenced here? Can they?
+- &user_craole age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+- &user_cc age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+# qyatt currently reuses the shared admin recipient until they have a dedicated key.
+- &user_qyatt age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg
+- &host_Preci age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m
+- &host_QBX age1j5cug724x386nygk8dhc38tujhzhp9nyzyelzl0yaz3ndgtq3qwqxtkfpv
+- &host_Victus age1j5cug724x386nygk8dhc38tujhzhp9nyzyelzl0yaz3ndgtq3qwqxtkfpv
+- &host_TheOracle age14ju8288fj59hh3xw5zqx8tklpyhp23gzc8fhj9m5l46h0vwxtuuqugmxzz
 
 creation_rules:
-  # Example host stays user-managed because it is documentation/scaffolding, not a live machine.
-  - path_regex: configuration/api/hosts/Example/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *user_craole
-          - *user_cc
+# Example host stays user-managed because it is documentation/scaffolding, not a live machine.
+- path_regex: configuration/api/hosts/Example/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *user_craole
+    - *user_cc
 
-  - path_regex: configuration/api/hosts/Preci/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *host_Preci
-          - *user_craole
-          - *user_cc
+- path_regex: configuration/api/hosts/Preci/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *host_Preci
+    - *user_craole
+    - *user_cc
 
-  - path_regex: configuration/api/hosts/QBX/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *host_QBX
-          - *user_craole
-          - *user_cc
+- path_regex: configuration/api/hosts/QBX/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *host_QBX
+    - *user_craole
+    - *user_cc
 
-  - path_regex: configuration/api/hosts/Victus/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *host_Victus
-          - *user_craole
-          - *user_cc
+- path_regex: configuration/api/hosts/Victus/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *host_Victus
+    - *user_craole
+    - *user_cc
 
-  - path_regex: configuration/api/hosts/review/TheOracle/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *host_TheOracle
-          - *user_craole
-          - *user_cc
+- path_regex: configuration/api/hosts/TheOracle/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *host_TheOracle
+    - *user_craole
+    - *user_cc
 
-  - path_regex: configuration/api/users/craole/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *user_craole
-          - *user_cc
+- path_regex: configuration/api/users/craole/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *user_craole
+    - *user_cc
 
-  - path_regex: configuration/api/users/cc/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *user_craole
-          - *user_cc
+- path_regex: configuration/api/users/cc/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *user_craole
+    - *user_cc
 
-  # qyatt now has normalized API metadata, but still reuses the shared admin recipient.
-  - path_regex: configuration/api/users/qyatt/secrets\.ya?ml$
-    key_groups:
-      - age:
-          - *user_qyatt
-          - *user_craole
-          - *user_cc
+# qyatt now has normalized API metadata, but still reuses the shared admin recipient.
+- path_regex: configuration/api/users/qyatt/secrets\.ya?ml$
+  key_groups:
+  - age:
+    - *user_qyatt
+    - *user_craole
+    - *user_cc

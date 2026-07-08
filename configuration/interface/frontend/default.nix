@@ -59,9 +59,22 @@
     main = [
       (selectedFrontend host)
     ];
+    isDesktopHost = builtins.elem (host.type or "desktop") ["desktop" "laptop"];
+    userSelections =
+      if isDesktopHost
+      then map selectedFrontend (attrValues (getInteractiveUsers host))
+      else [];
   in {
-    core = materialize (main ++ map selectedFrontend (attrValues (getInteractiveUsers host)));
-    home = user: materialize (main ++ [(selectedFrontend user)]);
+    core = materialize (main ++ userSelections);
+    home = user:
+      materialize (
+        main
+        ++ (
+          if isDesktopHost
+          then [(selectedFrontend user)]
+          else []
+        )
+      );
   };
 
   activeBackendNames = attrNames (selection host);
@@ -140,7 +153,7 @@
             targets ? [],
           }: let
             target' =
-              if target != null
+              if target != null && hasAttrByPath target options
               then target
               else findFirst (candidate: hasAttrByPath candidate options) null targets;
             hasSub = key: target' != null && hasAttrByPath (target' ++ [key]) options;

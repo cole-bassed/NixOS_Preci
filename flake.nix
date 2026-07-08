@@ -220,7 +220,7 @@
       };
       hermes-agent = {
         input = "aiHermes";
-        scopes = ["development" "ai"];
+        scopes = ["core" "infrastructure" "ai"];
         modules.nixos = ["default"];
       };
       home-manager = {

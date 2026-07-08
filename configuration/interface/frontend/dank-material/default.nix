@@ -4,6 +4,7 @@
   path,
   ...
 }: let
+  inherit (lix.attrsets) hasAttrByPath optionalAttrs;
   inherit (lix.options) mkEnableOption;
   inherit (lix.lists) elem;
   inherit (lix.types) isList isString;
@@ -40,14 +41,21 @@ in {
       config,
       cfg,
       enabled,
+      options,
       ...
     }: let
-      includesEnable = config.programs.dank-material-shell.niri.includes.enable or true;
-    in {
-      programs.dank-material-shell.niri = {
-        enableKeybinds = enabled && (cfg.needsNiri or false) && !includesEnable;
-        enableSpawn = enabled && (cfg.needsNiri or false);
+      target = ["programs" "dank-material-shell" "niri"];
+      targetExists = hasAttrByPath target options;
+      includesEnable =
+        if targetExists
+        then config.programs.dank-material-shell.niri.includes.enable or true
+        else true;
+    in
+      optionalAttrs targetExists {
+        programs.dank-material-shell.niri = {
+          enableKeybinds = enabled && (cfg.needsNiri or false) && !includesEnable;
+          enableSpawn = enabled && (cfg.needsNiri or false);
+        };
       };
-    };
   };
 }
