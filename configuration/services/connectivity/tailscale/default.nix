@@ -1,14 +1,14 @@
 {
   lix,
   top,
-  stagedServices,
+  shared,
   ...
 }: let
   inherit (lix.modules) mkIf;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) anything attrsOf bool listOf nullOr str submodule;
 
-  staged = stagedServices.tailscale or {};
+  staged = shared.tailscale or {};
   stagedSecret = staged.authKeySecret or {};
   stagedNetwork = staged.network or {};
 

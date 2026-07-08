@@ -1,14 +1,14 @@
 {
   lix,
   top,
-  stagedServices,
+  shared,
   ...
 }: let
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) anything attrsOf submodule;
 
-  stagedAi = stagedServices.ai or {};
-  staged = stagedAi.ollama or {};
+  name = "ollama";
+  staged = shared.ai.${name} or {};
 
   mk = scope: {config, ...}: let
     mod = mkModuleArgs {
@@ -18,12 +18,11 @@
     opt = mod.set.options.module;
   in {
     options = opt {
-      ai.ollama = mkOption {
+      ai.${name} = mkOption {
         type = submodule {
           freeformType = attrsOf anything;
           options.enable = mkEnable {
-            name = "ollama";
-            inherit scope;
+            inherit name scope;
             default = staged.enable or false;
           };
         };

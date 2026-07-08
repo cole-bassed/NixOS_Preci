@@ -1,13 +1,13 @@
 {
   lix,
   top,
-  stagedServices,
+  shared,
   ...
 }: let
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) anything attrsOf nullOr str submodule;
 
-  staged = stagedServices.streaming or {};
+  staged = shared.streaming or {};
   stagedIngress = staged.ingress or {};
 
   mk = scope: {config, ...}: let
