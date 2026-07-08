@@ -64,6 +64,10 @@ in {
     display = {};
   };
 
+  access = {
+    age = "age14ju8288fj59hh3xw5zqx8tklpyhp23gzc8fhj9m5l46h0vwxtuuqugmxzz";
+  };
+
   firewall = {
     enable = true;
     tcp = {
@@ -111,5 +115,11 @@ in {
     "wired"
   ];
 
-  services = ["tailscale"];
+  services = {
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+      authKeySecret.enable = true;
+    };
+  };
 }

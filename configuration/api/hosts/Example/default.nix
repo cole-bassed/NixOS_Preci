@@ -721,8 +721,13 @@ in {
     # "webcam"
   ];
 
-  services = [
-    "tailscale"
-    "streaming"
-  ];
+  services = {
+    hermes.enable = true;
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+      authKeySecret.enable = true;
+    };
+    streaming.enable = true;
+  };
 }

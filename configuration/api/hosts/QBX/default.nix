@@ -271,5 +271,5 @@ in {
     # "webcam"
   ];
 
-  services = [];
+  services = {};
 }

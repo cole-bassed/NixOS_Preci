@@ -153,6 +153,13 @@ in {
   };
 
   # ---------------------------------------------------------
+  # ACCESS & REMOTE OPERATIONS
+  # ---------------------------------------------------------
+  access = {
+    age = "age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m";
+  };
+
+  # ---------------------------------------------------------
   # BOOT & INTERFACE
   # ---------------------------------------------------------
   interface = {
@@ -199,8 +206,13 @@ in {
     # "webcam"
   ];
 
-  services = [
-    "tailscale"
-    "streaming"
-  ];
+  services = {
+    hermes.enable = true;
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+      authKeySecret.enable = true;
+    };
+    streaming.enable = true;
+  };
 }

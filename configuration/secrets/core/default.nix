@@ -2,6 +2,7 @@ _flake: {
   config,
   host,
   pkgs,
+  top,
   ...
 }: let
   inherit (builtins) attrNames concatLists filter listToAttrs map pathExists readDir;
@@ -9,6 +10,33 @@ _flake: {
   hostName = host.name;
   enabledUsers = host.users.byStatus.enabled.values or {};
   enabledUserNames = attrNames enabledUsers;
+
+  normalizeValue = value:
+    if builtins.isBool value
+    then {enable = value;}
+    else if builtins.isAttrs value
+    then ({enable = value.enable or true;} // value)
+    else {
+      enable = true;
+      inherit value;
+    };
+
+  normalizeServices = value:
+    if builtins.isList value
+    then
+      builtins.listToAttrs (map (name: {
+          inherit name;
+          value = {enable = true;};
+        }) value)
+    else if builtins.isAttrs value
+    then builtins.mapAttrs (_: normalizeValue) value
+    else {};
+
+  hostServices = normalizeServices (host.services or {});
+  hermesCfg = hostServices.hermes or {};
+  hermesSecretCfg = hermesCfg.envSecret or {};
+  tailscaleCfg = hostServices.tailscale or {};
+  tailscaleSecretCfg = tailscaleCfg.authKeySecret or {};
 
   hostSecretFile = let
     hostRoots = [
@@ -40,7 +68,7 @@ _flake: {
       hostRoots
     );
 
-    existing = filter (path: path != null && pathExists path) (
+    existing = filter (file: file != null && pathExists file) (
       [
         ../../api/hosts/${hostName}/secrets.yaml
         ../../api/hosts/review/${hostName}/secrets.yaml
@@ -75,17 +103,31 @@ _flake: {
 
   dirRules = concatLists (map mkDirRules enabledUserNames);
 
+  mkHostSecret = name: {
+    inherit name;
+    value.sopsFile = hostSecretFile;
+  };
+
   hostSecrets =
     if hostSecretFile == null
     then {}
-    else {
-      "services/hermes/env" = {
-        sopsFile = hostSecretFile;
-      };
-      "services/tailscale/authKey" = {
-        sopsFile = hostSecretFile;
-      };
-    };
+    else
+      mkAttrs (
+        (
+          if hermesSecretCfg.enable or hermesCfg.enable or false
+          then [
+            (mkHostSecret (hermesSecretCfg.name or "services/hermes/env"))
+          ]
+          else []
+        )
+        ++ (
+          if tailscaleSecretCfg.enable or false
+          then [
+            (mkHostSecret (tailscaleSecretCfg.name or "services/tailscale/authKey"))
+          ]
+          else []
+        )
+      );
 
   mkPasswordSecret = userName: {
     name = "users/${userName}/passwordHash";
@@ -161,6 +203,9 @@ _flake: {
     })
     enabledUserNames
   );
+
+  hermesSecretName = hermesSecretCfg.name or "services/hermes/env";
+  tailscaleSecretName = tailscaleSecretCfg.name or "services/tailscale/authKey";
 in {
   environment.systemPackages = with pkgs; [
     age
@@ -183,6 +228,22 @@ in {
       if hostSecretFile == null
       then {}
       else {defaultSopsFile = hostSecretFile;}
+    );
+
+  ${top}.services =
+    (
+      if hostSecretFile != null && (hermesSecretCfg.enable or hermesCfg.enable or false)
+      then {
+        hermes.envSecret.path = config.sops.secrets.${hermesSecretName}.path;
+      }
+      else {}
+    )
+    // (
+      if hostSecretFile != null && (tailscaleSecretCfg.enable or false)
+      then {
+        tailscale.authKeySecret.path = config.sops.secrets.${tailscaleSecretName}.path;
+      }
+      else {}
     );
 
   users.users = passwordAssignments;

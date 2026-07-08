@@ -221,7 +221,7 @@
       hermes-agent = {
         input = "aiHermes";
         scopes = ["development" "ai"];
-        # modules.nixos = ["default"];
+        modules.nixos = ["default"];
       };
       home-manager = {
         input = "nixHome";
