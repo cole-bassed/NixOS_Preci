@@ -722,7 +722,7 @@ in {
   ];
 
   services = {
-    hermes.enable = true;
+    ai.hermes.enable = true;
     tailscale = {
       enable = true;
       openFirewall = true;

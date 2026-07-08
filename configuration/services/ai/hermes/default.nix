@@ -1,21 +1,17 @@
 {
-  lib,
   lix,
-  stagedServices,
   top,
+  stagedServices,
   ...
 }: let
-  inherit (lib.attrsets) optionalAttrs;
-  inherit (lib.lists) optional;
-  inherit (lib.modules) mkDefault mkIf;
-  inherit (lib.options) mkOption;
-  inherit (lib.types) attrs bool int listOf nullOr package str submodule;
-  inherit (lix.options) mkModuleArgs;
+  inherit (lix.attrsets) optionalAttrs;
+  inherit (lix.lists) optional;
+  inherit (lix.modules) mkDefault mkIf;
+  inherit (lix.options) mkEnable mkModuleArgs mkOption;
+  inherit (lix.types) anything attrs attrsOf bool int listOf nullOr package str submodule;
 
-  dom = "services";
-  mod = "hermes";
-
-  staged = stagedServices.hermes or {};
+  stagedAi = stagedServices.ai or {};
+  staged = stagedAi.hermes or {};
   stagedContainer = staged.container or {};
   stagedEnvSecret = staged.envSecret or {};
 
@@ -24,13 +20,15 @@
     pkgs,
     ...
   }: let
-    module = mkModuleArgs {inherit config top dom mod scope;};
-    cfg = module.get.config.module;
-    opt = module.set.options.module;
+    mod = mkModuleArgs {
+      inherit config top scope;
+      path = ["services"];
+    };
+    opt = mod.set.options.module;
+    cfg = config.${top}.services.ai.hermes;
     inherit (cfg) stateDirectory;
     hermesHomeDirectory = "${stateDirectory}/.hermes";
     workspaceDirectory = "${stateDirectory}/workspace";
-    mkEnable = default: module.set.enable {inherit default;};
     repoRoot =
       config.${top}.paths.local.src
       or config.${top}.paths.local.dots
@@ -39,11 +37,7 @@
     hermesGateway = pkgs.writeShellApplication {
       name = "hermes-gateway";
       text = ''
-        exec /run/wrappers/bin/sudo -u hermes \
-          env \
-            HERMES_HOME=${hermesHomeDirectory} \
-            HOME=${stateDirectory} \
-            /run/current-system/sw/bin/hermes "$@"
+        exec /run/wrappers/bin/sudo -u hermes           env             HERMES_HOME=${hermesHomeDirectory}             HOME=${stateDirectory}             /run/current-system/sw/bin/hermes "$@"
       '';
     };
 
@@ -57,134 +51,147 @@
     };
   in {
     options = opt {
-      enable = mkEnable (staged.enable or false);
-
-      stateDirectory = mkOption {
-        type = str;
-        default = "/var/lib/hermes";
-        description = "Persistent runtime root for the system Hermes instance. Rebuild-safe mutable state lives here rather than in the Nix store.";
-      };
-
-      gatewayPackage = mkOption {
-        type = package;
-        default = hermesGateway;
-        description = "Wrapper package for running the system Hermes instance as the hermes user.";
-      };
-
-      dotsPackage = mkOption {
-        type = package;
-        default = dotsHermes;
-        description = "Wrapper package for launching Hermes from the dotfiles checkout.";
-      };
-
-      container.enable = mkOption {
-        type = bool;
-        default = stagedContainer.enable or false;
-        description = "Whether Hermes Agent should run inside its upstream container integration.";
-      };
-
-      envSecret = mkOption {
+      ai.hermes = mkOption {
         type = submodule {
+          freeformType = attrsOf anything;
           options = {
-            enable = mkEnable (stagedEnvSecret.enable or staged.enable or false);
-            name = mkOption {
+            enable = mkEnable {
+              name = "hermes";
+              inherit scope;
+              default = staged.enable or false;
+            };
+
+            stateDirectory = mkOption {
               type = str;
-              default = stagedEnvSecret.name or "services/hermes/env";
-              description = "Logical sops secret name that stores the Hermes environment file for this host.";
+              default = "/var/lib/hermes";
+              description = "Persistent runtime root for the system Hermes instance. Rebuild-safe mutable state lives here rather than in the Nix store.";
             };
-            path = mkOption {
-              type = nullOr str;
-              default = null;
-              description = "Resolved filesystem path for the decrypted Hermes environment file, materialized by the secrets layer.";
+
+            gatewayPackage = mkOption {
+              type = package;
+              default = hermesGateway;
+              description = "Wrapper package for running the system Hermes instance as the hermes user.";
+            };
+
+            dotsPackage = mkOption {
+              type = package;
+              default = dotsHermes;
+              description = "Wrapper package for launching Hermes from the dotfiles checkout.";
+            };
+
+            container = mkOption {
+              type = submodule {
+                freeformType = attrsOf anything;
+                options.enable = mkOption {
+                  type = bool;
+                  default = stagedContainer.enable or false;
+                  description = "Whether Hermes Agent should run inside its upstream container integration.";
+                };
+              };
+              default = stagedContainer;
+              description = "Container integration settings for Hermes Agent.";
+            };
+
+            envSecret = mkOption {
+              type = submodule {
+                freeformType = attrsOf anything;
+                options = {
+                  enable = mkEnable {
+                    name = "hermes env secret";
+                    inherit scope;
+                    default = stagedEnvSecret.enable or staged.enable or false;
+                  };
+                  name = mkOption {
+                    type = str;
+                    default = stagedEnvSecret.name or "services/ai/hermes/env";
+                    description = "Logical sops secret name that stores the Hermes environment file for this host.";
+                  };
+                  path = mkOption {
+                    type = nullOr str;
+                    default = null;
+                    description = "Resolved filesystem path for the decrypted Hermes environment file, materialized by the secrets layer.";
+                  };
+                };
+              };
+              default = stagedEnvSecret;
+              description = "Staged sops-backed environment secret metadata for the Hermes service.";
+            };
+
+            extraDependencyGroups = mkOption {
+              type = listOf str;
+              default = ["messaging" "edge-tts"];
+              description = "Hermes Agent optional dependency groups to install.";
+            };
+
+            settings = mkOption {
+              type = attrs;
+              default = {
+                model = {
+                  provider = "openai-codex";
+                  default = "gpt-5.5";
+                };
+                toolsets = ["all"];
+                max_turns = 100;
+                terminal = {
+                  backend = "local";
+                  cwd = workspaceDirectory;
+                  timeout = 180;
+                };
+                compression = {
+                  enabled = true;
+                  threshold = 0.85;
+                  summary_model = "gpt-5.4-mini";
+                };
+                memory = {
+                  memory_enabled = true;
+                  user_profile_enabled = true;
+                };
+                display = {
+                  compact = false;
+                  personality = "kawaii";
+                };
+                agent = {
+                  max_turns = 60;
+                  verbose = false;
+                };
+              };
+              description = "Hermes Agent config.yaml settings rendered by the NixOS module.";
+            };
+
+            documents = mkOption {
+              type = attrs;
+              default = {
+                "USER.md" = ./documents/USER.md;
+              };
+              description = "Documents linked into Hermes Agent context.";
+            };
+
+            addToSystemPackages = mkOption {
+              type = bool;
+              default = true;
+              description = "Whether the upstream Hermes package should be added to system packages.";
+            };
+
+            extraArgs = mkOption {
+              type = listOf str;
+              default = [];
+              description = "Extra command-line arguments passed to the Hermes Agent service.";
+            };
+
+            restart = mkOption {
+              type = str;
+              default = "always";
+              description = "Systemd Restart policy for the Hermes Agent service.";
+            };
+
+            restartSec = mkOption {
+              type = int;
+              default = 5;
+              description = "Seconds to wait before restarting the Hermes Agent service.";
             };
           };
         };
-        default = stagedEnvSecret;
-        description = "Staged sops-backed environment secret metadata for the Hermes service.";
-      };
-
-      extraDependencyGroups = mkOption {
-        type = listOf str;
-        default = [
-          "messaging"
-          "edge-tts"
-        ];
-        description = "Hermes Agent optional dependency groups to install.";
-      };
-
-      settings = mkOption {
-        type = attrs;
-        default = {
-          model = {
-            provider = "openai-codex";
-            default = "gpt-5.5";
-          };
-
-          toolsets = ["all"];
-          max_turns = 100;
-
-          terminal = {
-            backend = "local";
-            cwd = workspaceDirectory;
-            timeout = 180;
-          };
-
-          compression = {
-            enabled = true;
-            threshold = 0.85;
-            summary_model = "gpt-5.4-mini";
-          };
-
-          memory = {
-            memory_enabled = true;
-            user_profile_enabled = true;
-          };
-
-          display = {
-            compact = false;
-            personality = "kawaii";
-          };
-
-          agent = {
-            max_turns = 60;
-            verbose = false;
-          };
-        };
-        description = "Hermes Agent config.yaml settings rendered by the NixOS module.";
-      };
-
-      documents = mkOption {
-        type = attrs;
-        default = {
-          "USER.md" = ./documents/USER.md;
-        };
-        description = "Documents linked into Hermes Agent context.";
-      };
-
-      addToSystemPackages = mkOption {
-        type = bool;
-        default = true;
-        description = "Whether the upstream Hermes package should be added to system packages.";
-      };
-
-      extraArgs = mkOption {
-        type = listOf str;
-        default = [
-          # "--verbose"
-        ];
-        description = "Extra command-line arguments passed to the Hermes Agent service.";
-      };
-
-      restart = mkOption {
-        type = str;
-        default = "always";
-        description = "Systemd Restart policy for the Hermes Agent service.";
-      };
-
-      restartSec = mkOption {
-        type = int;
-        default = 5;
-        description = "Seconds to wait before restarting the Hermes Agent service.";
+        default = {};
       };
     };
 
@@ -195,7 +202,7 @@
           assertions = [
             {
               assertion = !cfg.envSecret.enable || cfg.envSecret.path != null;
-              message = "${top}.services.hermes.envSecret.enable requires the secrets layer to materialize ${cfg.envSecret.name}.";
+              message = "${top}.services.ai.hermes.envSecret.enable requires the secrets layer to materialize ${cfg.envSecret.name}.";
             }
           ];
 
@@ -206,13 +213,11 @@
 
           services.hermes-agent = {
             enable = mkDefault true;
-
             container.enable = mkDefault cfg.container.enable;
             extraDependencyGroups = mkDefault cfg.extraDependencyGroups;
             settings = mkDefault cfg.settings;
             environmentFiles = optional cfg.envSecret.enable cfg.envSecret.path;
             documents = mkDefault cfg.documents;
-
             addToSystemPackages = mkDefault cfg.addToSystemPackages;
             extraArgs = mkDefault cfg.extraArgs;
             restart = mkDefault cfg.restart;

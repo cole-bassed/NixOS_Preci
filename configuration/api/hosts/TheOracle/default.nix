@@ -117,7 +117,7 @@ in {
   ];
 
   services = {
-    hermes = {
+    ai.hermes = {
       enable = true;
       envSecret.enable = true;
     };

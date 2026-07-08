@@ -34,7 +34,8 @@ _flake: {
     else {};
 
   hostServices = normalizeServices (host.services or {});
-  hermesCfg = hostServices.hermes or {};
+  aiServices = hostServices.ai or {};
+  hermesCfg = aiServices.hermes or {};
   hermesSecretCfg = hermesCfg.envSecret or {};
   tailscaleCfg = hostServices.tailscale or {};
   tailscaleSecretCfg = tailscaleCfg.authKeySecret or {};
@@ -115,7 +116,7 @@ _flake: {
         (
           if hermesSecretCfg.enable or hermesCfg.enable or false
           then [
-            (mkHostSecret (hermesSecretCfg.name or "services/hermes/env"))
+            (mkHostSecret (hermesSecretCfg.name or "services/ai/hermes/env"))
           ]
           else []
         )
@@ -203,7 +204,7 @@ _flake: {
     enabledUserNames
   );
 
-  hermesSecretName = hermesSecretCfg.name or "services/hermes/env";
+  hermesSecretName = hermesSecretCfg.name or "services/ai/hermes/env";
   tailscaleSecretName = tailscaleSecretCfg.name or "services/tailscale/authKey";
 in {
   environment.systemPackages = with pkgs; [
@@ -233,7 +234,7 @@ in {
     (
       if hostSecretFile != null && (hermesSecretCfg.enable or hermesCfg.enable or false)
       then {
-        hermes.envSecret.path = config.sops.secrets.${hermesSecretName}.path;
+        ai.hermes.envSecret.path = config.sops.secrets.${hermesSecretName}.path;
       }
       else {}
     )
