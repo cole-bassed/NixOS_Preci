@@ -1,14 +1,8 @@
 {
   lix,
-  top,
   host,
-  config,
   ...
-}: let
-  inherit (lix.modules) mkIf;
-  inherit (lix.options) mkOption;
-  inherit (lix.types) attrsOf anything;
-
+} @ args: let
   raw = host.services or [];
 
   normalizeValue = value:
@@ -33,29 +27,19 @@
     then builtins.mapAttrs (_: normalizeValue) value
     else {};
 
-  data = normalize raw;
+  stagedServices = normalize raw;
 
-  mk = scope: _: {
-    options.${top}.services = mkOption {
-      type = attrsOf anything;
-      default = {};
-      description = "Resolved service selections and per-service metadata sourced from the host/user API.";
-    };
-
-    config =
-      {${top}.services = data;}
-      // (
-        if scope == "core"
-        then {
-          services.tailscale = mkIf (config.${top}.services.tailscale.enable or false) {
-            enable = true;
-            openFirewall = true;
-          };
-        }
-        else {}
-      );
-  };
+  inner = lix.importModules (args
+    // {
+      base = ./.;
+      recurse = true;
+      extraArgs =
+        (args.extraArgs or {})
+        // {
+          inherit stagedServices;
+        };
+    });
 in {
-  core = mk "core";
-  home = mk "home";
+  core.imports = inner.imports or [];
+  home.imports = inner.home-manager.sharedModules or [];
 }

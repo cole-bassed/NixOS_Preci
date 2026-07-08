@@ -512,10 +512,10 @@
 
           aliases = let
             specs = {
+              caelestia = "caelestia-shell";
+              dank-material = "dms-shell";
               niri = "niri-unstable";
               xwayland-satellite = "xwayland-satellite-unstable";
-              dank-material = "dms-shell";
-              caelestia = "caelestia-shell";
             };
           in [
             (
