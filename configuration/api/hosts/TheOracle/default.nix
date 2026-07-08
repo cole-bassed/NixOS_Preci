@@ -49,14 +49,15 @@ in {
   modules = [];
 
   devices = {
-    boot = {
-      device = "/dev/disk/by-label/NIXBOOT"; # Standard target for systemd-boot installers
-      fsType = "vfat";
-    };
+    boot = {};
     file = {
       "/" = {
         device = "/dev/disk/by-label/nixos";
         fsType = "ext4";
+      };
+      "/boot" = {
+        device = "/dev/disk/by-label/NIXBOOT"; # Standard target for systemd-boot installers
+        fsType = "vfat";
       };
     };
     swap = [];

@@ -13,7 +13,11 @@
   inherit (lix.lists) any;
   inherit (lix.types) attrs attrsOf;
 
-  mk = scope: {config, ...}: let
+  mk = scope: {
+    config,
+    options ? {},
+    ...
+  }: let
     hasHyprland = any (x: x) [
       (config.programs.hyprland.enable or false)
       (config.wayland.windowManager.hyprland.enable or false)
@@ -53,10 +57,10 @@
       if scope == "core"
       then {}
       else
-        optionalAttrs (hasAttrByPath ["wayland" "windowManager" "hyprland" "settings"] config) {
+        optionalAttrs (hasAttrByPath ["wayland" "windowManager" "hyprland" "settings"] options) {
           wayland.windowManager.hyprland.settings = outputs.hyprland;
         }
-        // optionalAttrs (hasAttrByPath ["programs" "niri" "settings"] config) {
+        // optionalAttrs (hasAttrByPath ["programs" "niri" "settings"] options) {
           programs.niri.settings.outputs = outputs.niri;
         };
   };
