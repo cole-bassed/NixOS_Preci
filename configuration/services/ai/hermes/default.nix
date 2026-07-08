@@ -6,7 +6,7 @@
 }: let
   inherit (lix.attrsets) optionalAttrs recursiveUpdate;
   inherit (lix.lists) optional;
-  inherit (lix.modules) mkDefault mkIf;
+  inherit (lix.modules) mkDefault;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) anything attrs attrsOf bool int listOf nullOr package str submodule;
 
@@ -17,6 +17,7 @@
     inherit state;
     home = "${state}/.hermes";
     workspace = "${state}/workspace";
+    docs = ./instructions;
   };
 
   defaults = {
@@ -66,10 +67,10 @@
       };
     } (staged.settings or {});
 
-    documents =
+    instructions =
       recursiveUpdate
-      {"USER" = ./documents/USER.md;}
-      (staged.documents or {});
+      {"USER" = defaults.directories.docs + "/USER.md";}
+      (staged.instructions or {});
   };
 
   resolved = {workspace ? defaults.directories.workspace, ...}: {
@@ -78,40 +79,64 @@
     };
   };
 
-  mk = scope: {
+  module = {
     config,
+    options,
     pkgs,
     ...
   }: let
+    scope = "core";
     mod = mkModuleArgs {
-      inherit config top scope;
+      inherit config options top scope;
       path = ["services"];
     };
     opt = mod.set.options.module;
     cfg = config.${top}.services.ai.hermes;
+
+    inherit
+      (cfg)
+      enable
+      stateDirectory
+      gatewayPackage
+      dotsPackage
+      container
+      envSecret
+      extraDependencyGroups
+      settings
+      instructions
+      addToSystemPackages
+      extraArgs
+      restart
+      restartSec
+      ;
+    inherit (pkgs) writeShellApplication;
+
     directories = let
-      built = mkDirs cfg.stateDirectory;
+      built = mkDirs stateDirectory;
       local = config.${top}.paths.local or {};
     in
       built // {root = local.src or (local.dots or built.workspace);};
+
     runtime = resolved {inherit (directories) workspace;};
 
-    hermesGateway = pkgs.writeShellApplication {
-      name = "hermes-gateway";
-      text = ''
-        exec /run/wrappers/bin/sudo -u hermes \
-          env HERMES_HOME="${directories.home}" HOME="${directories.state}" \
-          /run/current-system/sw/bin/hermes "$@"
-      '';
-    };
+    applications = {
+      gateway = writeShellApplication {
+        name = "hermes-gateway";
+        text = ''
+          exec /run/wrappers/bin/sudo -u hermes \
+            env HERMES_HOME="${directories.home}" HOME="${directories.state}" \
+            /run/current-system/sw/bin/hermes "$@"
+        '';
+      };
 
-    dotsHermes = pkgs.writeShellApplication {
-      name = "dots-hermes";
-      text = ''
-        unset HERMES_HOME
-        cd "''${DOTS:-${directories.root}}"
-        exec hermes "$@"
-      '';
+      dots = writeShellApplication {
+        name = "dots-hermes";
+        text = ''
+          unset HERMES_HOME
+          cd "''${DOTS:-${directories.root}}"
+          exec hermes "$@"
+        '';
+      };
     };
   in {
     options = opt {
@@ -120,7 +145,8 @@
           freeformType = attrsOf anything;
           options = {
             enable = mkEnable {
-              inherit name scope;
+              inherit name;
+              scope = "core";
               default = defaults.enable;
             };
 
@@ -132,13 +158,13 @@
 
             gatewayPackage = mkOption {
               type = package;
-              default = hermesGateway;
+              default = applications.gateway;
               description = "Wrapper package for running the system Hermes instance as the hermes user.";
             };
 
             dotsPackage = mkOption {
               type = package;
-              default = dotsHermes;
+              default = applications.dots;
               description = "Wrapper package for launching Hermes from the dotfiles checkout.";
             };
 
@@ -161,7 +187,7 @@
                 options = {
                   enable = mkEnable {
                     name = "hermes env secret";
-                    inherit scope;
+                    scope = "core";
                     default = defaults.envSecret.enable;
                   };
                   name = mkOption {
@@ -192,9 +218,9 @@
               description = "Hermes Agent config.yaml settings rendered by the NixOS module.";
             };
 
-            documents = mkOption {
+            instructions = mkOption {
               type = attrs;
-              default = defaults.documents;
+              default = defaults.instructions;
               description = "Documents linked into Hermes Agent context.";
             };
 
@@ -227,62 +253,58 @@
       };
     };
 
-    config =
-      if scope == "core"
-      then
-        mkIf cfg.enable {
-          assertions = [
-            {
-              assertion = !cfg.envSecret.enable || cfg.envSecret.path != null;
-              message = "${top}.services.ai.hermes.envSecret.enable requires the secrets layer to materialize ${cfg.envSecret.name}.";
-            }
-          ];
-
-          environment.systemPackages = with cfg; [gatewayPackage dotsPackage];
-
-          services.hermes-agent = {
-            enable = mkDefault true;
-            container.enable = mkDefault cfg.container.enable;
-            extraDependencyGroups = mkDefault cfg.extraDependencyGroups;
-            settings = mkDefault cfg.settings;
-            environmentFiles = optional cfg.envSecret.enable cfg.envSecret.path;
-            documents = mkDefault cfg.documents;
-            addToSystemPackages = mkDefault cfg.addToSystemPackages;
-            extraArgs = mkDefault cfg.extraArgs;
-            restart = mkDefault cfg.restart;
-            restartSec = mkDefault cfg.restartSec;
-          };
-
-          systemd.services.hermes-agent.serviceConfig =
-            {
-              TimeoutStopSec = 240;
-              UnsetEnvironment = ["MESSAGING_CWD"];
-            }
-            // optionalAttrs cfg.envSecret.enable {
-              EnvironmentFile = cfg.envSecret.path;
-            };
-
-          systemd.tmpfiles.rules =
-            [
-              "d ${directories.state} 0750 hermes hermes - -"
-              "d ${directories.home} 0750 hermes hermes - -"
-              "d ${directories.workspace} 0750 hermes hermes - -"
-            ]
-            ++ optional cfg.envSecret.enable "L+ ${directories.home}/.env - - - - ${cfg.envSecret.path}";
-
-          sops.secrets = optionalAttrs cfg.envSecret.enable {
-            ${cfg.envSecret.name} = {
-              owner = "hermes";
-              group = "hermes";
-              mode = "0400";
-            };
-          };
-
-          virtualisation.docker.enable = true;
+    config = optionalAttrs enable {
+      assertions = [
+        {
+          assertion = !envSecret.enable || envSecret.path != null;
+          message = "${top}.services.ai.hermes.envSecret.enable requires the secrets layer to materialize ${envSecret.name}.";
         }
-      else {};
+      ];
+
+      environment.systemPackages = [gatewayPackage dotsPackage];
+
+      services.hermes-agent = {
+        enable = mkDefault true;
+        container.enable = mkDefault container.enable;
+        extraDependencyGroups = mkDefault extraDependencyGroups;
+        settings = mkDefault settings;
+        environmentFiles = optional envSecret.enable envSecret.path;
+        documents = mkDefault instructions;
+        addToSystemPackages = mkDefault addToSystemPackages;
+        extraArgs = mkDefault extraArgs;
+        restart = mkDefault restart;
+        restartSec = mkDefault restartSec;
+      };
+
+      systemd.services.hermes-agent.serviceConfig =
+        {
+          TimeoutStopSec = 240;
+          UnsetEnvironment = ["MESSAGING_CWD"];
+        }
+        // optionalAttrs envSecret.enable {
+          EnvironmentFile = envSecret.path;
+        };
+
+      systemd.tmpfiles.rules =
+        [
+          "d ${directories.state} 0750 hermes hermes - -"
+          "d ${directories.home} 0750 hermes hermes - -"
+          "d ${directories.workspace} 0750 hermes hermes - -"
+        ]
+        ++ optional envSecret.enable "L+ ${directories.home}/.env - - - - ${envSecret.path}";
+
+      sops.secrets = optionalAttrs envSecret.enable {
+        ${envSecret.name} = {
+          owner = "hermes";
+          group = "hermes";
+          mode = "0400";
+        };
+      };
+
+      virtualisation.docker.enable = true;
+    };
   };
 in {
-  core = mk "core";
-  home = mk "home";
+  core = {};
+  home = {};
 }

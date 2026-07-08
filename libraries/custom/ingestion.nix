@@ -228,7 +228,7 @@
           module = importModule {
             inherit base name;
             args =
-              args
+              (removeAttrs args ["excludes" "includes"])
               // legacy
               // {
                 path = path';

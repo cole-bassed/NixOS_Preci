@@ -5,10 +5,8 @@ lix.importModules (base
     recurse = false;
     excludes = [
       "libraries"
-      "ai"
       "api"
       "applications"
       "test"
-      # "secrets"
     ];
   })

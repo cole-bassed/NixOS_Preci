@@ -1,6 +1,1 @@
-{lix, ...} @ args:
-lix.importModules (args
-  // {
-    base = ./.;
-    recurse = true;
-  })
+{lix, ...} @ args: lix.importModules (args // {base = ./.;})
