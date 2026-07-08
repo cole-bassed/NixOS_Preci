@@ -359,7 +359,7 @@
     };
 
     lib = inputs.${inputs'.nixpkgs.input}.lib;
-    inherit (lib.attrsets) attrNames attrValues filterAttrs getAttr genAttrs hasAttr mapAttrs optionalAttrs recursiveUpdate;
+    inherit (lib.attrsets) attrNames attrValues filterAttrs getAttr getAttrFromPath genAttrs hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate;
     inherit (lib.lists) any concatMap elem filter findFirst foldl' optionals unique;
     inherit (lib.strings) concatStringsSep;
 
@@ -460,8 +460,7 @@
           extra =
             foldl'
             (acc: name: recursiveUpdate acc entries.${name}.libraries)
-            {}
-            ["nix-darwin"];
+            {} ["nix-darwin"];
           named =
             mapAttrs
             (_: entry: entry.libraries)
@@ -510,36 +509,48 @@
             entryList;
           scopes = unique (concatMap (entry: entry.scopes) entryList);
 
-          aliases = let
-            specs = {
-              caelestia = "caelestia-shell";
-              dank-material = "dms-shell";
-              niri = "niri-unstable";
-              xwayland-satellite = "xwayland-satellite-unstable";
-            };
-          in [
+          # aliases = let
+          #   specs = {
+          #     caelestia = ["caelestia-shell"];
+          #     dank-material = ["dms-shell"];
+          #     hermes = ["hermes-agent"];
+          #     niri = ["niri-unstable"];
+          #     xwayland-satellite = ["xwayland-satellite-unstable"];
+          #     openclaw = ["llm-agents" "openclaw"];
+          #   };
+          # in [
+          #   (
+          #     final: prev:
+          #       foldl' (acc: shortcut: let
+          #         path = specs.${shortcut};
+          #       in
+          #         acc
+          #         // optionalAttrs (hasAttrByPath path final) {
+          #           ${shortcut} = getAttrFromPath path final;
+          #         }) {} (attrNames specs)
+          #   )
+          # ];
+          aliases = [
             (
               final: prev:
-                foldl' (
-                  acc: shortcut: let
-                    target = specs.${shortcut};
-                  in
-                    acc
-                    // optionalAttrs (hasAttr target prev) {
-                      ${shortcut} = final.${target};
-                    }
-                ) {} (attrNames specs)
+                foldl'
+                (acc: name:
+                  acc
+                  // optionalAttrs
+                  (hasAttr name prev && builtins.isAttrs (getAttr name prev))
+                  (getAttr name prev))
+                {}
+                (attrNames (
+                  filterAttrs (_: entry: entry.overlays != {})
+                  entries
+                ))
             )
           ];
         in
           {
             all = (concatMap values entryList) ++ aliases;
             select = wanted:
-              (
-                concatMap
-                values
-                (attrValues (matchingScopes wanted))
-              )
+              (concatMap values (attrValues (matchingScopes wanted)))
               ++ aliases;
           }
           // genAttrs scopes (scope: (byScope scope) ++ aliases);
