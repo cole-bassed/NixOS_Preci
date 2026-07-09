@@ -359,7 +359,20 @@
     };
 
     lib = inputs.${inputs'.nixpkgs.input}.lib;
-    inherit (lib.attrsets) attrNames attrValues filterAttrs getAttr getAttrFromPath genAttrs hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate;
+    inherit
+      (lib.attrsets)
+      attrNames
+      attrValues
+      filterAttrs
+      getAttr
+      genAttrs
+      hasAttr
+      # isAttrs
+      # isDerivation
+      mapAttrs
+      optionalAttrs
+      recursiveUpdate
+      ;
     inherit (lib.lists) any concatMap elem filter findFirst foldl' optionals unique;
     inherit (lib.strings) concatStringsSep;
 
@@ -460,7 +473,8 @@
           extra =
             foldl'
             (acc: name: recursiveUpdate acc entries.${name}.libraries)
-            {} ["nix-darwin"];
+            {}
+            ["nix-darwin"];
           named =
             mapAttrs
             (_: entry: entry.libraries)
@@ -500,6 +514,7 @@
         in
           genAttrs classes.names forClass;
 
+        # TODO: Overlays should completely replace any nixpkgs packages for instance pkgs.openclaw should be replaced by pkgs.llm-agents.openclaw
         overlays = let
           entryList = attrValues entries;
           values = entry: filter (v: v != null) (attrValues entry.overlays);
@@ -508,52 +523,12 @@
             (entry: optionals (elem scope entry.scopes) (values entry))
             entryList;
           scopes = unique (concatMap (entry: entry.scopes) entryList);
-
-          # aliases = let
-          #   specs = {
-          #     caelestia = ["caelestia-shell"];
-          #     dank-material = ["dms-shell"];
-          #     hermes = ["hermes-agent"];
-          #     niri = ["niri-unstable"];
-          #     xwayland-satellite = ["xwayland-satellite-unstable"];
-          #     openclaw = ["llm-agents" "openclaw"];
-          #   };
-          # in [
-          #   (
-          #     final: prev:
-          #       foldl' (acc: shortcut: let
-          #         path = specs.${shortcut};
-          #       in
-          #         acc
-          #         // optionalAttrs (hasAttrByPath path final) {
-          #           ${shortcut} = getAttrFromPath path final;
-          #         }) {} (attrNames specs)
-          #   )
-          # ];
-          aliases = [
-            (
-              final: prev:
-                foldl'
-                (acc: name:
-                  acc
-                  // optionalAttrs
-                  (hasAttr name prev && builtins.isAttrs (getAttr name prev))
-                  (getAttr name prev))
-                {}
-                (attrNames (
-                  filterAttrs (_: entry: entry.overlays != {})
-                  entries
-                ))
-            )
-          ];
         in
           {
-            all = (concatMap values entryList) ++ aliases;
-            select = wanted:
-              (concatMap values (attrValues (matchingScopes wanted)))
-              ++ aliases;
+            all = concatMap values entryList;
+            select = wanted: (concatMap values (attrValues (matchingScopes wanted)));
           }
-          // genAttrs scopes (scope: (byScope scope) ++ aliases);
+          // genAttrs scopes (scope: (byScope scope));
 
         packages = let
           validEntries = filterAttrs (_: entry: entry.packages != {}) entries;
@@ -578,24 +553,25 @@
     in
       entries // {inherit aggregated;};
 
-    defaults = {allowUnfree = true;};
+    defaults = {
+      allowUnfree = true;
+      pkgAliases = {};
+    };
     flake = {inherit defaults registry;};
     src = import ./. {inherit flake;};
     base = src.${src.names.src};
     libs = src.${src.names.lib};
+    inherit (libs.assembly) mkFlake';
   in
     {
       lib = base;
       inherit flake;
     }
-    // libs.mkFlake {
-      inherit base;
-      mods = {
-        configuration = true;
-        utilities = true;
-        shells = true;
-        templates = true;
-      };
+    // mkFlake' base {
+      configuration = true;
+      utilities = true;
+      shells = true;
+      templates = true;
     }
     // {};
 }

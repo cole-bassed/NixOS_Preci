@@ -590,6 +590,7 @@ in {
         key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
       };
     };
+    aliases = {};
   };
 
   # ---------------------------------------------------------

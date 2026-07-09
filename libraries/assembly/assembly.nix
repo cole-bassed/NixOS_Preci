@@ -14,233 +14,295 @@
   ...
 }: let
   exports = {
-    scoped = {inherit mkConfiguration mkFlake mkPaths mkSrc;};
-    global = {inherit mkFlake mkConfiguration mkSrc;};
+    scoped = {inherit mkConfiguration mkConfiguration' mkFlake mkFlake' mkFlakeModules mkPaths mkSrc;};
+    global = {inherit mkFlake mkFlake' mkFlakeModules mkConfiguration mkConfiguration' mkSrc;};
   };
 
-  # Fallback for non-registry setups.  Returns a no-op if neither path works so
-  # we get a clear failure at build time rather than a cryptic null-call error.
-  mkFlakeModules = flake.modules.mkFlakeModules or flake.modules.mkFlake or (_: []);
-
-  inherit (attrsets) attrNames filterAttrs genAttrs mapAttrs mapAttrsToList mergeAttrsList optionalAttrs recursiveUpdate;
   inherit (api) hosts getHostScopes;
+  inherit
+    (attrsets)
+    attrNames
+    filterAttrs
+    genAttrs
+    hasAttr
+    mapAttrs
+    mapAttrsToList
+    mergeAttrsList
+    mkNamespaced
+    optionalAttrs
+    recursiveUpdate
+    removeAttrs
+    ;
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
-  inherit (lists) elem foldl' groupBy;
+  inherit (lists) elem filter foldl' groupBy;
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
   inherit (flake.registry.aggregated) overlays packages;
 
-  mkFlake = arg: let
-    _name = "config.assembly.mkFlake";
-    exec = base: mods: let
-      normalize = value:
-        assert withContext {
-          name = _name;
-          assertion = isBool value || isAttrs value;
-          message = "expected a bool or attrset, got ${typeOf value}";
-          context = "normalising path spec in assemble";
-        };
-          optionalAttrs (isAttrs value) (removeAttrs value ["enable"]);
+  mkFlakeModules = flake.modules.mkFlakeModules or (flake.modules.mkFlake or (_: []));
 
-      resolved = {
-        paths = mkPaths {
-          store = base.paths.store or (base.paths or (paths.store or null));
-          local = base.paths.local or (paths.local or null);
-        };
+  # =============================================================================
+  # ==| FLAKE ASSEMBLY
+  # =============================================================================
+
+  mkFlake = {
+    base,
+    mods,
+  }: let
+    ctx = "mkFlake";
+    normalize = value:
+      assert withContext {
+        name = ctx;
+        assertion = isBool value || isAttrs value;
+        message = "expected a bool or attrset, got ${typeOf value}";
+        context = "normalising path spec in assemble";
       };
-      paths' = removeAttrs resolved.paths.store ["api"];
+        optionalAttrs (isAttrs value) (removeAttrs value ["enable"]);
 
-      enabled =
-        filterAttrs (
-          name: value:
-            assert withContext {
-              inherit name;
-              assertion = paths' ? ${name};
-              message = "'${name}' is not a known path in paths.store. Known paths are [${concat {
-                delim = ", ";
-                parts = attrNames paths';
-              }}]";
-              context = "resolving path for '${name}' in assemble";
-            };
-              (name != "configuration") && (isEnabled value)
-        )
-        mods;
-    in
-      mergeAttrsList (
-        mapAttrsToList
-        (
-          name: args:
-            import paths'.${name}
-            (base // {args = normalize args;})
-        )
-        enabled
+    resolved = {
+      paths = mkPaths {
+        store = base.paths.store or (base.paths or (paths.store or null));
+        local = base.paths.local or (paths.local or null);
+      };
+    };
+    paths' = removeAttrs resolved.paths.store ["api"];
+
+    enabled =
+      filterAttrs (
+        name: value:
+          assert withContext {
+            inherit name;
+            assertion = paths' ? ${name};
+            message = "'${name}' is not a known path in paths.store. Known paths are [${concat {
+              delim = ", ";
+              parts = attrNames paths';
+            }}]";
+            context = "resolving path for '${name}' in assemble";
+          };
+            (name != "configuration") && (isEnabled value)
       )
-      // (
-        let
-          configuration = mods.configuration or false;
-        in
-          optionalAttrs (isEnabled configuration) (
-            mkConfiguration {
-              inherit base;
-              args = {
-                modules = {
-                  core = [resolved.paths.store.configuration];
-                  home = [];
-                };
-              };
-            }
-          )
-      );
-  in
-    if isAttrs arg && arg ? base && arg ? mods
-    then exec arg.base arg.mods
-    else mods: exec arg mods;
+      mods;
 
-  mkConfiguration = arg: let
-    _name = "config.assembly.mkConfiguration";
-    exec = base: args: let
+    outputs = {
+      flake = let
+        imported =
+          mapAttrsToList
+          (name: args: import paths'.${name} (base // {args = normalize args;}))
+          enabled;
+      in
+        mergeAttrsList imported;
+
+      configuration =
+        optionalAttrs
+        (isEnabled (mods.configuration or false))
+        (
+          mkConfiguration' base {
+            modules = {
+              core = [resolved.paths.store.configuration];
+              home = [];
+            };
+          }
+        );
+    };
+  in
+    outputs.flake // outputs.configuration;
+
+  mkFlake' = base: mods: mkFlake {inherit base mods;};
+
+  # =============================================================================
+  # ==| Getters & Setters
+  # =============================================================================
+
+  inherit
+    (mkNamespaced {inherit get set;})
+    getClass
+    getNixpkgs
+    getPkgs
+    getScopes
+    getSystem
+    setPkgAliases
+    ;
+
+  set = {
+    pkgAliases = host: {
+      final,
+      prev,
+      aliases ? {},
+    }: let
+      updated =
+        recursiveUpdate (
+          recursiveUpdate
+          ((flake.defaults or {}).pkgAliases or {})
+          host.packages.aliases
+        )
+        aliases;
+      active =
+        filter
+        (shortcut: hasAttr updated.${shortcut} prev)
+        (attrNames aliases);
+    in
+      genAttrs active (shortcut: final.${updated.${shortcut}});
+  };
+
+  get = {
+    class = host: host.class or hosts.default.class;
+
+    scopes = host: getHostScopes host;
+
+    nixpkgs = host: let
+      name =
+        if host.packages.stable or false
+        then "nixpkgs-stable"
+        else "nixpkgs";
+    in
+      if hasAttr name (flake.registry or {})
+      then flake.registry.${name}
+      else flake.registry.nixpkgs;
+
+    system = host: host.system or (host.platform or hosts.default.system);
+
+    pkgs = host: let
+      system = getSystem host;
+      nixpkgs = getNixpkgs host;
+      scopes = getScopes host;
+    in
+      import nixpkgs.source.outPath {
+        inherit system;
+        config = {
+          allowUnfree =
+            host.packages.allowUnfree or (
+              (flake.defaults or {}).allowUnfree or false
+            );
+          allowBroken =
+            host.packages.allowBroken or (
+              (flake.defaults or {}).allowBroken or false
+            );
+        };
+        overlays =
+          overlays.select scopes
+          ++ [(final: prev: (packages.${system} or {})) (setPkgAliases host)];
+      };
+  };
+
+  mkHost = {
+    base,
+    args,
+    host,
+  }: let
+    ctx = "mkHost";
+
+    class = getClass host;
+    scopes = getScopes host;
+    pkgs = getPkgs host;
+
+    src = mkSrc {
+      inherit host;
       extraArgs =
         recursiveUpdate (expect {
-          name = _name;
+          name = ctx;
           type = "attrs";
           value = base;
           context = "validating base in systems";
         }) (
-          optionalAttrs (args != null)
-          (expect {
-            name = _name;
+          optionalAttrs (args != null) (expect {
+            name = ctx;
             type = "attrs";
             value = args;
             context = "validating args type in systems";
           })
         );
+      libraries = base.libraries or (args.libraries or null);
+    };
+    top = src.name or (src.names.top or (names.top or names.src));
 
-      resolved =
-        mapAttrs (_: host: let
-          class = host.class or hosts.default.class;
+    specialArgs =
+      {
+        inherit args host top;
+        inherit (src) paths;
+        mkPkgs = pkgs: pkgs // (packages.${systemOf pkgs} or {});
+      }
+      // (removeAttrs src ["lib" "name"]);
 
-          # ── Per-host scope-based module selection ─────────────────────────
-          #
-          # 1. Derive which topic scopes this host needs (e.g. a VPS gets
-          #    ["core" "infrastructure" "secrets" "deployment"] while a desktop
-          #    also gets ["desktop" "ui" "window-manager" ...]).
-          #
-          # 2. registry.aggregated.modules.${class}.select filters the registry
-          #    entries whose `scopes` field intersects the wanted set, returning
-          #    only the module values they contribute.
-          #
-          # 3. Apply allowUnfree and registry overlays when constructing the
-          #    shared global pkgs for the system builder. They must not be
-          #    declared through nixpkgs.* module options when Home Manager uses
-          #    useGlobalPkgs = true.
-          #
-          # 4. Fall back to mkFlakeModules (which returns all modules) when no
-          #    registry is available, preserving the original behaviour for
-          #    non-registry flake setups.
-          # ────────────────────────────────────────────────────────────────────
-          hostScopes = getHostScopes host;
+    modules = let
+      modulesFor = class: let
+        aggregated = flake.registry.aggregated or {};
+        registry = (aggregated.modules or {}).${class} or null;
+      in
+        if registry != null
+        then registry.select scopes
+        else mkFlakeModules class;
+      core = (modulesFor class) ++ (args.modules.core or []);
+      home = {
+        environment = {
+          pathsToLink = ["/share/applications" "/share/xdg-desktop-portal"];
+        };
 
-          scopedModsFor = type: let
-            reg = flake.registry or {};
-            agg = reg.aggregated or {};
-            mods = (agg.modules or {}).${type} or null;
-          in
-            if mods != null
-            then mods.select hostScopes
-            else
-              # Fallback: all modules + mkCore
-              mkFlakeModules type;
-
-          overlaysForHost = overlays.select hostScopes;
-          allowUnfree = host.packages.allowUnfree or ((flake.defaults or {}).allowUnfree or false);
-          nixpkgsName =
-            if host.packages.unstable or false
-            then "nixpkgs"
-            else "nixpkgs-stable";
-          nixpkgsEntry =
-            if builtins.hasAttr nixpkgsName (flake.registry or {})
-            then flake.registry.${nixpkgsName}
-            else flake.registry.nixpkgs;
-          system = host.system or host.platform or hosts.default.system;
-          pkgs = import nixpkgsEntry.source.outPath {
-            inherit system;
-            config.allowUnfree = allowUnfree;
-            overlays = overlaysForHost;
+        home-manager = {
+          extraSpecialArgs = specialArgs;
+          backupFileExtension = concat {
+            delim = "-";
+            parts = [top "backup"];
           };
-
-          src = mkSrc {
-            inherit host extraArgs;
-            libraries = base.libraries or (args.libraries or null);
-          };
-          specialArgs =
-            {
-              inherit host args;
-              top = src.name or (src.names.top or (names.top or names.src));
-              inherit (src) paths;
-              mkPkgs = pkgs: pkgs // (packages.${systemOf pkgs} or {});
-            }
-            // (removeAttrs src ["lib" "name"]);
-        in {
-          inherit class pkgs specialArgs;
-          modules =
-            (scopedModsFor class)
-            ++ (args.modules.core or [])
-            ++ [
-              {
-                environment.pathsToLink = [
-                  "/share/applications"
-                  "/share/xdg-desktop-portal"
-                ];
-
-                home-manager = {
-                  extraSpecialArgs = specialArgs;
-                  backupFileExtension = concat {
-                    delim = "-";
-                    parts = [src.name "backup"];
-                  };
-                  sharedModules =
-                    (scopedModsFor "home")
-                    ++ (args.modules.home or []);
-                  useGlobalPkgs = true;
-                  useUserPackages = true;
-                };
-              }
-            ];
-        })
-        hosts;
+          sharedModules = (modulesFor "home") ++ (args.modules.home or []);
+          useGlobalPkgs = true;
+          useUserPackages = true;
+        };
+      };
     in
-      foldl' recursiveUpdate {} (
-        mapAttrsToList (
-          class: hostNames: let
-            classification = getClassification class;
-            builder = getBuilder class;
-            opts = ["nixos" "darwin"];
-          in
-            assert withContext {
-              name = _name;
-              assertion = elem class opts;
-              message = "unknown class '${class}' in host specs, expected one of [${concat {
-                delim = ", ";
-                parts = opts;
-              }}]";
-              context = "grouping hosts by class";
-            }; {
-              ${classification} = genAttrs hostNames (
-                name:
-                  builder {
-                    inherit (resolved.${name}) modules pkgs specialArgs;
-                  }
-              );
-            }
-        )
-        (groupBy (name: resolved.${name}.class) (attrNames resolved))
-      );
+      core ++ [home];
+  in {inherit class pkgs specialArgs modules;};
+
+  # =============================================================================
+  # ==| CONFIGURATION ASSEMBLY
+  # =============================================================================
+
+  mkConfiguration = {
+    base,
+    args ? {},
+  }: let
+    ctx = "mkConfiguration";
+
+    resolved = mapAttrs (_: host: mkHost {inherit base args host;}) hosts;
+
+    hostsByClass =
+      groupBy
+      (name: resolved.${name}.class)
+      (attrNames resolved);
+
+    build = class: names: let
+      classification = getClassification class;
+      builder = getBuilder class;
+      classes = ["nixos" "darwin"];
+    in
+      assert withContext {
+        name = ctx;
+        assertion = elem class classes;
+        message = "unknown class '${class}' in host specs, expected one of [${concat {
+          delim = ", ";
+          parts = classes;
+        }}]";
+        context = "grouping hosts by class";
+      }; {
+        ${classification} = genAttrs names (
+          name:
+            builder
+            {inherit (resolved.${name}) modules pkgs specialArgs;}
+        );
+      };
   in
-    if isAttrs arg && arg ? base
-    then exec arg.base (arg.args or {})
-    else args: exec arg args;
+    foldl' recursiveUpdate {} (mapAttrsToList build hostsByClass);
+
+  # mkConfiguration' = arg:
+  #   if isAttrs arg && arg ? base
+  #   then
+  #     mkConfiguration {
+  #       inherit (arg) base;
+  #       args = arg.args or {};
+  #     }
+  #   else args: let base = arg; in mkConfiguration {inherit base args;};
+  mkConfiguration' = base: args: mkConfiguration {inherit base args;};
 in
   exports

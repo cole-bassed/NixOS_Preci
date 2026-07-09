@@ -29,7 +29,7 @@
       assembleFlake = assemble.flake;
       buildSystems = systems;
       forEachSystem = perSystem;
-      mkConfigurations = systems;
+      s = systems;
     };
   };
 
