@@ -1,15 +1,16 @@
 {
-  config,
   lib,
+  niriActions ? {},
+  niriEnable ? false,
+  niriSemanticKeybinds ? false,
   options,
-  top,
   ...
 }: let
-  cfg = config.${top}.interface.backends.niri;
-
   inherit (lib.attrsets) filterAttrs optionalAttrs;
 
-  actions = cfg.actions or {};
+  enable = niriEnable == true;
+  semanticKeybinds = niriSemanticKeybinds == true;
+  actions = niriActions;
   hasNiriProgram = options.programs ? niri;
   enabled = filterAttrs (_: action: action.command != null) actions;
 
@@ -152,7 +153,7 @@
     "Mod+Escape" = {action.toggle-keyboard-shortcuts-inhibit = [];};
   };
 in {
-  config = optionalAttrs (hasNiriProgram && cfg.enable && (cfg.semanticKeybinds or false)) {
+  config = optionalAttrs (hasNiriProgram && enable && semanticKeybinds) {
     programs.niri.settings.binds =
       defaults
       // (optionalAttrs (enabled ? secondaryLauncher) (withTitle "Mod+Space" "Open Fuzzel" enabled.secondaryLauncher))

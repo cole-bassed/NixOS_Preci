@@ -44,12 +44,23 @@ in {
   }: let
     scope = "home";
     mod = mk {inherit config options osConfig pkgs scope defaults;};
-    inherit (mod) apiOr set evaluated;
+    inherit (mod) apiOr cfgOr set evaluated;
+    keybindsModule = args:
+      import ./keybinds.nix ({
+          niriEnable = (cfgOr "enable") == true;
+          niriSemanticKeybinds = (cfgOr "semanticKeybinds") == true;
+          niriActions = let
+            actions = cfgOr "actions";
+          in
+            if actions == null then {} else actions;
+        }
+        // args);
   in {
     imports = [
       ./options.nix
       ./packages.nix
-    ] ++ [./keybinds.nix];
+      keybindsModule
+    ];
     options =
       recursiveUpdate
       evaluated.options
