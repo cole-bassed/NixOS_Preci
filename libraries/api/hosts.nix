@@ -4,15 +4,25 @@
   lists,
   users,
   displays,
+  collections,
   ...
-} @ args: let
+}: let
+  exports = {
+    scoped = {
+      inherit registry getScopes normalize;
+      inherit (registry) default;
+    };
+
+    global = {
+      hostAPI = registry;
+      getHostScopes = getScopes;
+      normalizeHost = normalize;
+    };
+  };
   inherit (attrsets) attrNames mapAttrs;
   inherit (lists) asListIf elem head unique;
 
-  collections = args.collections or (import ./collections.nix args).scoped;
-  rawHosts = collections.hosts;
-
-  normalizeHost = host: let
+  normalize = host: let
     arch = host.arch or "x86_64";
     os = host.os or "linux";
     class = host.class or "nixos";
@@ -24,21 +34,21 @@
     specs =
       mapAttrs
       (_: host:
-        normalizeHost (
+        normalize (
           host
           // {
             users = users.resolveUsers host;
             devices = (host.devices or {}) // {display = displays.resolveDisplays host;};
           }
         ))
-      rawHosts;
+      collections.hosts;
 
     known = specs;
     fallback = known.${defaults.host} or known.${head (attrNames known)};
   in
-    known // {default = normalizeHost fallback;};
+    known // {default = normalize fallback;};
 
-  getHostScopes = host: let
+  getScopes = host: let
     type = host.type or "desktop";
     isDesktop = type == "laptop" || type == "desktop";
 
@@ -74,14 +84,5 @@
       ++ (asListIf hasUI ["window-manager" "shell"])
       ++ (asListIf (elem "storage" funcs) "storage")
     );
-in {
-  scoped = {
-    inherit registry getHostScopes normalizeHost;
-    inherit (registry) default;
-  };
-
-  global = {
-    hostAPI = registry;
-    inherit getHostScopes normalizeHost;
-  };
-}
+in
+  exports

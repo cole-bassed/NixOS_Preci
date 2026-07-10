@@ -1,12 +1,42 @@
 {
   attrsets,
   lists,
+  collections,
   ...
-} @ args: let
+}: let
+  exports = {
+    scoped = {
+      inherit
+        registry
+        getUsers
+        getEnabledUsers
+        getAdminUsers
+        getNormalUsers
+        getInteractiveUsers
+        resolveUsers
+        ;
+    };
+
+    global = {
+      userAPI = registry;
+      admins = getAdminUsers;
+      enabledUsers = getEnabledUsers;
+      loginUsers = getInteractiveUsers;
+      normalUsers = getNormalUsers;
+      inherit
+        getUsers
+        getEnabledUsers
+        getAdminUsers
+        getNormalUsers
+        getInteractiveUsers
+        resolveUsers
+        ;
+    };
+  };
+
   inherit (attrsets) attrNames filterAttrs genAttrs listToAttrs mapAttrs;
   inherit (lists) elemAt filter imap0 isList length;
 
-  collections = args.collections or (import ./collections.nix args).scoped;
   registry = collections.users;
 
   getUsers = spec: let
@@ -171,32 +201,5 @@
     };
   in
     resolved // {inherit primary;};
-in {
-  scoped = {
-    inherit
-      registry
-      getUsers
-      getEnabledUsers
-      getAdminUsers
-      getNormalUsers
-      getInteractiveUsers
-      resolveUsers
-      ;
-  };
-
-  global = {
-    userAPI = registry;
-    admins = getAdminUsers;
-    enabledUsers = getEnabledUsers;
-    loginUsers = getInteractiveUsers;
-    normalUsers = getNormalUsers;
-    inherit
-      getUsers
-      getEnabledUsers
-      getAdminUsers
-      getNormalUsers
-      getInteractiveUsers
-      resolveUsers
-      ;
-  };
-}
+in
+  exports

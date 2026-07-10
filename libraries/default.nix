@@ -69,9 +69,11 @@
 
   global = let
     base =
-      paths.store.libraries.global or
-    (paths.libraries.global or
-      (paths.global or ./imports));
+      paths.store.libraries.global or (
+        paths.libraries.global or (
+          paths.global or ./imports
+        )
+      );
 
     built = mkLibrary {
       inherit base;
@@ -146,76 +148,83 @@
   in
     updated;
 
-  api = let
-    scope = custom.charged // {staged = custom;};
-    base = ./api;
-    excluded = [
-      "default"
-      "review"
-      "api"
-      "collection"
-      "collections"
-    ];
+  # api = let
+  #   scope = custom.charged // {staged = custom;};
+  #   base = ./api;
+  #   excluded = [
+  #     "default"
+  #     "review"
+  #     "api"
+  #     "collection"
+  #     "collections"
+  #   ];
 
-    call = file: extra:
-      import (base + "/${file}") (scope // extra // {args = scope;});
+  #   call = file: extra:
+  #     import (base + "/${file}") (scope // extra // {args = scope;});
 
-    collectionsRaw = call "collections.nix" {};
-    collected = collectionsRaw.scoped;
-    usersRaw = call "users.nix" {collections = collected;};
-    displaysRaw = call "displays.nix" {collections = collected;};
-    interfaceRaw = call "interface.nix" {collections = collected;};
-    hostsRaw = call "hosts.nix" {
-      collections = collected;
-      users = usersRaw.scoped;
-      displays = displaysRaw.scoped;
-    };
+  #   collectionsRaw = call "collections.nix" {};
+  #   collected = collectionsRaw.scoped;
+  #   usersRaw = call "users.nix" {collections = collected;};
+  #   displaysRaw = call "displays.nix" {collections = collected;};
+  #   interfaceRaw = call "interface.nix" {collections = collected;};
+  #   hostsRaw = call "hosts.nix" {
+  #     collections = collected;
+  #     users = usersRaw.scoped;
+  #     displays = displaysRaw.scoped;
+  #   };
 
-    valueOf = spec: recursiveUpdate (spec.global or {}) (spec.scoped or {});
+  #   valueOf = spec: recursiveUpdate (spec.global or {}) (spec.scoped or {});
 
-    domains = {
-      hosts = valueOf hostsRaw;
-      users = valueOf usersRaw;
-      displays = valueOf displaysRaw;
-      interface = valueOf interfaceRaw;
-    };
+  #   domains = {
+  #     hosts = valueOf hostsRaw;
+  #     users = valueOf usersRaw;
+  #     displays = valueOf displaysRaw;
+  #     interface = valueOf interfaceRaw;
+  #   };
 
-    aliases =
-      recursiveUpdate
-      (recursiveUpdate hostsRaw.global usersRaw.global)
-      (recursiveUpdate displaysRaw.global interfaceRaw.global);
+  #   aliases =
+  #     recursiveUpdate
+  #     (recursiveUpdate hostsRaw.global usersRaw.global)
+  #     (recursiveUpdate displaysRaw.global interfaceRaw.global);
 
-    collections = collected;
+  #   collections = collected;
 
-    hosts = hostsRaw.scoped.registry // {default = hostsRaw.scoped.default;};
-    users = usersRaw.scoped.registry;
-    displays = displaysRaw.scoped.registry;
-    interface = interfaceRaw.scoped.registry;
+  #   hosts = hostsRaw.scoped.registry // {default = hostsRaw.scoped.default;};
+  #   users = usersRaw.scoped.registry;
+  #   displays = displaysRaw.scoped.registry;
+  #   interface = interfaceRaw.scoped.registry;
 
-    apiCompat = {
-      inherit hosts users displays interface collections;
-      hostAPI = hosts;
-      userAPI = users;
-      displayAPI = displays;
-      interfaceAPI = interface;
-      getUsers = usersRaw.scoped.getUsers;
-      getEnabledUsers = usersRaw.scoped.getEnabledUsers;
-      getAdminUsers = usersRaw.scoped.getAdminUsers;
-      getNormalUsers = usersRaw.scoped.getNormalUsers;
-      getInteractiveUsers = usersRaw.scoped.getInteractiveUsers;
-      getHostScopes = hostsRaw.scoped.getHostScopes;
-      admins = usersRaw.scoped.getAdminUsers;
-      normalUsers = usersRaw.scoped.getNormalUsers;
-      enabledUsers = usersRaw.scoped.getEnabledUsers;
-      loginUsers = usersRaw.scoped.getInteractiveUsers;
-    };
+  #   apiCompat = {
+  #     inherit hosts users displays interface collections;
+  #     hostAPI = hosts;
+  #     userAPI = users;
+  #     displayAPI = displays;
+  #     interfaceAPI = interface;
+  #     getUsers = usersRaw.scoped.getUsers;
+  #     getEnabledUsers = usersRaw.scoped.getEnabledUsers;
+  #     getAdminUsers = usersRaw.scoped.getAdminUsers;
+  #     getNormalUsers = usersRaw.scoped.getNormalUsers;
+  #     getInteractiveUsers = usersRaw.scoped.getInteractiveUsers;
+  #     getHostScopes = hostsRaw.scoped.getHostScopes;
+  #     admins = usersRaw.scoped.getAdminUsers;
+  #     normalUsers = usersRaw.scoped.getNormalUsers;
+  #     enabledUsers = usersRaw.scoped.getEnabledUsers;
+  #     loginUsers = usersRaw.scoped.getInteractiveUsers;
+  #   };
 
-    charged = recursiveUpdate scope (recursiveUpdate domains (recursiveUpdate aliases (apiCompat // {api = apiCompat;})));
-  in {
-    inherit aliases charged domains excluded;
-    ${names.lib or "lix"} = charged;
-    lib = charged.lib or charged;
-  };
+  #   charged = recursiveUpdate scope (recursiveUpdate domains (recursiveUpdate aliases (apiCompat // {api = apiCompat;})));
+  # in {
+  #   inherit aliases charged domains excluded;
+  #   ${names.lib or "lix"} = charged;
+  #   lib = charged.lib or charged;
+  # };
+
+  config = let
+    args = api.charged // {staged = api;};
+    base = ./config;
+    seed = args;
+  in
+    mkLibrary {inherit args base seed;};
 
   config = let
     args = api.charged // {staged = api;};

@@ -2,17 +2,24 @@
   attrsets,
   lists,
   strings,
+  collections,
   ...
-} @ args: let
-  inherit (builtins) elemAt length;
+}: let
+  exports = {
+    scoped = {inherit registry resolve;};
+    global = {
+      displayAPI = registry;
+      resolveDisplays = resolve;
+    };
+  };
+
   inherit (attrsets) listToAttrs mapAttrs mapAttrsToList;
-  inherit (lists) foldl' imap0 isList sort;
+  inherit (lists) elemAt foldl' length imap0 isList sort;
   inherit (strings) isString splitString toInt;
 
-  collections = args.collections or (import ./collections.nix args).scoped;
   registry = collections.displays;
 
-  resolveDisplays = host: let
+  resolve = host: let
     hostPath = "api/hosts/${host.name}";
     fail = msg: throw "${hostPath}: ${msg}";
     raw = (host.devices or {}).display or [];
@@ -171,13 +178,5 @@
     };
   in
     listToAttrs (map place ordered);
-in {
-  scoped = {
-    inherit registry resolveDisplays;
-  };
-
-  global = {
-    displayAPI = registry;
-    inherit resolveDisplays;
-  };
-}
+in
+  exports
