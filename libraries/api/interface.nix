@@ -1,4 +1,4 @@
-{...} @ args: let
+args: let
   registry = (import ./collections.nix args).scoped.interface;
 in {
   scoped = {

@@ -3,7 +3,6 @@
   lists,
   ...
 } @ args: let
-  inherit (builtins) removeAttrs;
   inherit (attrsets) attrNames filterAttrs genAttrs listToAttrs mapAttrs;
   inherit (lists) elemAt filter imap0 isList length;
 

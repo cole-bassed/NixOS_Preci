@@ -4,9 +4,9 @@
   strings,
   ...
 } @ args: let
-  inherit (builtins) elemAt length removeAttrs;
+  inherit (builtins) elemAt length;
   inherit (attrsets) listToAttrs mapAttrs mapAttrsToList;
-  inherit (lists) filter foldl' imap0 isList sort;
+  inherit (lists) foldl' imap0 isList sort;
   inherit (strings) isString splitString toInt;
 
   registry = (import ./collections.nix args).scoped.displays;

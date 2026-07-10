@@ -76,7 +76,7 @@
 in {
   scoped = {
     inherit registry getHostScopes normalizeHost;
-    default = registry.default;
+    inherit (registry) default;
   };
 
   global = {
