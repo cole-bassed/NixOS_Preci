@@ -169,8 +169,10 @@ in {
     };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
+    displayManager = "dms";
+    windowManager = "niri";
     backend = {
-      managers = [];
+      managers = ["niri"];
       desktops = [];
     };
     keyboard = {

@@ -5,6 +5,7 @@
   ...
 }: let
   inherit (lix.attrsets) genAttrs recursiveUpdate;
+  inherit (lix.lists) optional;
   inherit (lix.options) mkOption;
   inherit (lix.types) str;
 
@@ -29,6 +30,7 @@ in {
   }: let
     inherit (mk {inherit config options pkgs defaults;}) apiOr set evaluated;
   in {
+    imports = [./options.nix];
     options = recursiveUpdate evaluated.options (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
     inherit (evaluated) config;
   };
@@ -44,6 +46,10 @@ in {
     mod = mk {inherit config options osConfig pkgs scope defaults;};
     inherit (mod) apiOr set evaluated;
   in {
+    imports = [
+      ./options.nix
+      ./packages.nix
+    ] ++ [./keybinds.nix];
     options =
       recursiveUpdate
       evaluated.options

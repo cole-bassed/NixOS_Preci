@@ -42,7 +42,7 @@ _flake: {
 
   hostSecretFile = let
     hostRoots = filter pathExists [
-      ../../data/hosts
+      ../../../data/hosts
     ];
 
     dirNames = root:
@@ -71,7 +71,7 @@ _flake: {
 
     existing = filter (file: file != null && pathExists file) (
       [
-        ../../data/hosts/${hostName}/secrets.yaml
+        ../../../data/hosts/${hostName}/secrets.yaml
       ]
       ++ discovered
     );
@@ -80,7 +80,7 @@ _flake: {
     then null
     else builtins.head existing;
 
-  userSecretFile = userName: ../../data/users/${userName}/secrets.yaml;
+  userSecretFile = userName: ../../../data/users/${userName}/secrets.yaml;
 
   homeDir = userName: "/home/${userName}";
   sshDir = userName: "${homeDir userName}/.ssh";
