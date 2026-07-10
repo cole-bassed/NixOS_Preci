@@ -5,24 +5,35 @@
   ...
 }: let
   name = "delta";
+  pkgName = name;
   inherit (lib.modules) mkDefault mkIf;
 in {
-  core = {config, ...}: let
+  core = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "core";
     inherit (mkArgs {inherit config scope;}) cfg;
   in {
-    config = mkIf cfg.enable {environment.systemPackages = [packages.delta];};
+    config = mkIf cfg.enable {
+      environment.systemPackages = [pkgs.${pkgName}];
+    };
   };
 
-  home = {config, ...}: let
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "home";
     inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
   in {
     options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
     config = mkIf cfg.enable {
-      programs.delta = {
+      programs.${name} = {
         enable = mkDefault true;
-        package = mkDefault packages.delta;
+        package = mkDefault pkgs.${pkgName};
         enableGitIntegration = mkDefault true;
         options = {
           navigate = mkDefault true;

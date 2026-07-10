@@ -8,12 +8,20 @@
   inherit (lix.ingestion) mkModules;
   inherit (lix.options) mkEnable mkModuleArgs;
 
-  getPackages = pkgs:
-    with pkgs; {
-      inherit delta gitui gh jujutsu;
-      lfs = git-lfs;
-      git = gitFull;
-    };
+  registry = {
+    git = {package = "gitFull";};
+    lfs = {package = "git-lfs";};
+    gh = {package = "gh";};
+    jj = {package = "jujutsu";};
+    gitui = {package = "gitui";};
+    delta = {package = "delta";};
+  };
+
+  getPkg = {
+    name,
+    pkgs,
+  }:
+    pkgs.${name};
 
   mkArgs = {
     config,
@@ -37,8 +45,8 @@
   inner = mkModules (args
     // {
       base = ./.;
-      declareRegistry = false;
-      extraArgs = {inherit getPackages mkArgs;};
+      declareRegistry = true;
+      extraArgs = {inherit registry getPkg mkArgs;};
     });
 in {
   core.imports = inner.imports or [];
