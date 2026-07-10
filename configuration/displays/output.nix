@@ -40,7 +40,9 @@
 
     outputs = {
       monitors = registry;
-      hyprland = optionalAttrs hasHyprland (mkHyprland registry);
+      hyprland = optionalAttrs hasHyprland {
+        monitor = (mkHyprland registry).monitors;
+      };
       niri = optionalAttrs hasNiri (mkNiri registry);
     };
 

@@ -100,7 +100,7 @@
     if isAttrs entry && entry ? value
     then let
       inherit (entry) value;
-      meta = builtins.removeAttrs entry ["value"];
+      meta = removeAttrs entry ["value"];
     in
       if isAttrs value
       then value // meta

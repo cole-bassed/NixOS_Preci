@@ -36,7 +36,7 @@
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
-  inherit (lists) elem filter foldl' groupBy;
+  inherit (lists) elem filter foldl' groupBy toList;
   inherit (types) isAttrs isBool isEnabled typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
@@ -126,24 +126,38 @@
     ;
 
   set = {
-    pkgAliases = host: final: prev: let
+    pkgAliases = host: _final: prev: let
       updated =
         recursiveUpdate
         ((flake.defaults or {}).pkgAliases or {})
         host.packages.aliases;
+
+      # Alias targets are either a plain string (single top-level `prev`
+      # key) or a list of keys describing a path into `prev`'s nested
+      # attrsets, e.g. ["llm-agents" "openclaw"] -> prev.llm-agents.openclaw.
+      # Resolves against `prev` only — the already-overlaid, safely
+      # namespaced pkgs tree — never the raw flake registry, so an alias
+      # can only ever expose what a well-behaved overlay already put there.
+      resolve = path: let
+        segments = toList path;
+        step = acc: segment:
+          if acc == null || !(isAttrs acc) || !(hasAttr segment acc)
+          then null
+          else acc.${segment};
+      in
+        foldl' step prev segments;
+
       active =
         filter
-        (shortcut: hasAttr updated.${shortcut} prev)
+        (shortcut: resolve updated.${shortcut} != null)
         (attrNames updated);
     in
-      genAttrs active (shortcut: final.${updated.${shortcut}});
+      genAttrs active (shortcut: resolve updated.${shortcut});
   };
 
   get = {
     class = host: host.class or hosts.default.class;
-
-    scopes = host: getHostScopes host;
-
+    scopes = getHostScopes;
     nixpkgs = host: let
       name =
         if host.packages.stable or false
@@ -175,7 +189,8 @@
         };
         overlays =
           overlays.select scopes
-          ++ [(final: prev: (packages.${system} or {})) (setPkgAliases host)];
+          # ++ [(_final: _prev: {})]; # Doesn't set alias
+          ++ [(setPkgAliases host)]; # Causes infinite recursion
       };
   };
 

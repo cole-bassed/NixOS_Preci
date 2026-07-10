@@ -539,7 +539,7 @@
           bareNixpkgs = system:
             import flake.registry.nixpkgs.source.outPath {
               inherit system;
-              config = {};
+              config = {inherit (defaults) allowUnfree;};
             };
 
           validEntries = filterAttrs (_: entry: entry.packages != {}) entries;
@@ -563,7 +563,8 @@
                       "default"
                       "minimal"
                       "rust"
-                      # "full"
+                      "full"
+                      "debug"
                     ])
                   )
                   // (
@@ -580,9 +581,10 @@
     defaults = {
       allowUnfree = true;
       pkgAliases = {
-        "caelestia" = "caelestia-shell";
-        "dank-material" = "dms-shell";
-        "niri" = "niri-unstable";
+        caelestia = "caelestia-shell";
+        dank-material = "dms-shell";
+        niri = "niri-unstable";
+        openclaw = ["llm-agents" "openclaw"];
 
         # FIX: We shouldn't need to do this
         # "noctalia-shell" = "noctalia";
