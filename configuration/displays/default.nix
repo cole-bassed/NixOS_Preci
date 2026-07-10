@@ -1,5 +1,6 @@
 {
   lix,
+  api,
   host,
   ...
 } @ args: let
@@ -7,7 +8,7 @@
   inherit (lix.options) mkEnableOption mkOption;
   inherit (lix.types) asFloat int nullOr str submodule;
 
-  registry = host.devices.display or {};
+  registry = api.displays or (host.devices.display or {});
   selection = spec: (spec.devices or {}).display or {};
   entry = submodule {
     options = {

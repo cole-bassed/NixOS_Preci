@@ -530,18 +530,6 @@
           // genAttrs scopes (scope: (byScope scope));
 
         packages = let
-          # callPackage splices auto-args purely by name, so any flattened
-          # key that vanilla nixpkgs already defines — leaf package or
-          # builder function alike — silently shadows it. A hand-maintained
-          # denylist doesn't scale (llm-agents alone accounts for 60+
-          # confirmed collisions), so compare structurally against a bare,
-          # un-overlaid nixpkgs instead of tracking names by hand.
-          bareNixpkgs = system:
-            import flake.registry.nixpkgs.source.outPath {
-              inherit system;
-              config = {inherit (defaults) allowUnfree;};
-            };
-
           validEntries = filterAttrs (_: entry: entry.packages != {}) entries;
           allSystems = unique (
             concatMap
@@ -550,7 +538,12 @@
           );
         in
           genAttrs allSystems (
-            system:
+            system: let
+              nixpkgs = import flake.registry.nixpkgs.source.outPath {
+                inherit system;
+                config = {inherit (defaults) allowUnfree;};
+              };
+            in
               foldl' (
                 acc: name: let
                   pkgSet = entries.${name}.packages.${system} or {};
@@ -558,13 +551,13 @@
                   acc
                   // (
                     filterAttrs
-                    (key: _: !(hasAttr key (bareNixpkgs system)))
+                    (key: _: !(hasAttr key nixpkgs))
                     (removeAttrs pkgSet [
+                      "debug"
                       "default"
+                      "full"
                       "minimal"
                       "rust"
-                      "full"
-                      "debug"
                     ])
                   )
                   // (

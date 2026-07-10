@@ -36,8 +36,8 @@
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
-  inherit (lists) elem filter foldl' groupBy toList;
-  inherit (types) isAttrs isBool isEnabled typeOf;
+  inherit (lists) elem foldl' groupBy toList;
+  inherit (types) isAttrs isBool isEnabled isString typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
   inherit (flake.registry.aggregated) overlays packages;
@@ -114,7 +114,6 @@
   # ╔════════════════════════════════════════════════╗
   # ╠ Getters & Setters                              ╣
   # ╚════════════════════════════════════════════════╝
-
   inherit
     (mkNamespaced {inherit get set;})
     getClass
@@ -127,18 +126,13 @@
 
   set = {
     pkgAliases = host: _final: prev: let
+      system = getSystem host;
       updated =
         recursiveUpdate
         ((flake.defaults or {}).pkgAliases or {})
-        host.packages.aliases;
+        (host.packages.aliases or {});
 
-      # Alias targets are either a plain string (single top-level `prev`
-      # key) or a list of keys describing a path into `prev`'s nested
-      # attrsets, e.g. ["llm-agents" "openclaw"] -> prev.llm-agents.openclaw.
-      # Resolves against `prev` only — the already-overlaid, safely
-      # namespaced pkgs tree — never the raw flake registry, so an alias
-      # can only ever expose what a well-behaved overlay already put there.
-      resolve = path: let
+      fromPrev = path: let
         segments = toList path;
         step = acc: segment:
           if acc == null || !(isAttrs acc) || !(hasAttr segment acc)
@@ -147,12 +141,19 @@
       in
         foldl' step prev segments;
 
-      active =
-        filter
-        (shortcut: resolve updated.${shortcut} != null)
-        (attrNames updated);
+      fromRegistry = path:
+        if isString path && hasAttr path flake.registry
+        then (flake.registry.${path}.packages.${system} or {}).default or null
+        else null;
+
+      resolve = path: let
+        viaPrev = fromPrev path;
+      in
+        if viaPrev != null
+        then viaPrev
+        else fromRegistry path;
     in
-      genAttrs active (shortcut: resolve updated.${shortcut});
+      genAttrs (attrNames updated) (shortcut: resolve updated.${shortcut});
   };
 
   get = {
@@ -187,10 +188,7 @@
               (flake.defaults or {}).allowBroken or false
             );
         };
-        overlays =
-          overlays.select scopes
-          # ++ [(_final: _prev: {})]; # Doesn't set alias
-          ++ [(setPkgAliases host)]; # Causes infinite recursion
+        overlays = overlays.select scopes ++ [(setPkgAliases host)];
       };
   };
 
@@ -227,7 +225,7 @@
 
     specialArgs =
       {
-        inherit args host top;
+        inherit args host top api;
         inherit (src) paths;
         mkPkgs = pkgs: pkgs // (packages.${systemOf pkgs} or {});
       }
