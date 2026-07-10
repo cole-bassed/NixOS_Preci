@@ -20,7 +20,11 @@
     global = {inherit mkFlake mkFlake' mkFlakeModules mkConfiguration mkConfiguration' mkSrc;};
   };
 
-  inherit (api) hosts getHostScopes;
+  # `api.hosts` may be the merged host API domain (registry + helper fns), not
+  # just the plain host registry. Use the concrete registry attr when present so
+  # config assembly only iterates real host specs.
+  hosts = api.hosts.registry or api.hosts;
+  getHostScopes = api.getHostScopes or api.hosts.getScopes;
   inherit
     (attrsets)
     attrNames

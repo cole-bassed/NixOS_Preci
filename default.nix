@@ -7,7 +7,8 @@
   paths = {
     store = {
       src = ./.;
-      api = ./configuration/api;
+      data = ./data;
+      api = ./data;
       dbg = ./debug;
       documentation = ./documentation;
       configuration = ./configuration;

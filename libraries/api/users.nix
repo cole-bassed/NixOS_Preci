@@ -4,7 +4,7 @@
   api,
   ...
 }: let
-  exports = {
+  exports = let
     scoped = {
       inherit
         registry
@@ -16,22 +16,17 @@
         resolveUsers
         ;
     };
-
-    global = {
-      userAPI = registry;
-      admins = getAdminUsers;
-      enabledUsers = getEnabledUsers;
-      loginUsers = getInteractiveUsers;
-      normalUsers = getNormalUsers;
-      inherit
-        getUsers
-        getEnabledUsers
-        getAdminUsers
-        getNormalUsers
-        getInteractiveUsers
-        resolveUsers
-        ;
-    };
+  in {
+    inherit scoped;
+    global =
+      scoped
+      // {
+        userAPI = scoped.registry;
+        admins = scoped.getAdminUsers;
+        enabledUsers = scoped.getEnabledUsers;
+        loginUsers = scoped.getInteractiveUsers;
+        normalUsers = scoped.getNormalUsers;
+      };
   };
 
   inherit (attrsets) attrNames filterAttrs genAttrs listToAttrs mapAttrs;
@@ -70,17 +65,15 @@
         else role == wantedRole)
       attrs;
 
+    mkRoleIndex = attrs:
+      genAttrs ["normal" "administrator" "service" "guest"] (role:
+        mkGroup (filterByRole role attrs));
+
     mkStatusIndex = attrs:
       genAttrs ["enabled" "disabled"] (status: let
         subset = filterByStatus status attrs;
       in
         (mkGroup subset) // {byRole = mkRoleIndex subset;});
-
-    mkRoleIndex = attrs:
-      genAttrs ["normal" "administrator" "service" "guest"] (role: let
-        subset = filterByRole role attrs;
-      in
-        (mkGroup subset) // {byStatus = mkStatusIndex subset;});
 
     users =
       mapAttrs
@@ -92,16 +85,12 @@
         // user)
       spec;
   in
-    (mkGroup users)
-    // {
-      byStatus = mkStatusIndex users;
-      byRole = mkRoleIndex users;
-    };
+    (mkGroup users) // {byStatus = mkStatusIndex users;};
 
   usersOf = host:
     if host ? users.values
     then host.users
-    else getUsers (host.users or {}); # TODO: This should not be fauling as every host much define users
+    else getUsers host.users; # TODO: This should not be failing as every host much define users
 
   getEnabledUsers = host:
     (usersOf host).byStatus.enabled.values;
@@ -123,10 +112,10 @@
     hostPath = "api/hosts/${host.name}";
     fail = msg: throw "${hostPath}: ${msg}";
 
-    rawUsers = host.users or {};
+    hostUsers = host.users or {};
 
     declared =
-      if isList rawUsers
+      if isList hostUsers
       then
         listToAttrs (
           imap0
@@ -139,9 +128,9 @@
               removeAttrs user ["name"]
               // {primary = user.primary or (idx == 0);};
           })
-          rawUsers
+          hostUsers
         )
-      else rawUsers;
+      else hostUsers;
 
     isSingleUser = length (attrNames declared) == 1;
 

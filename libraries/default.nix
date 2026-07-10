@@ -50,7 +50,8 @@
         excludes = seed.excludes.paths;
         store = {
           src = ../.;
-          api = ../configuration/api;
+          data = ../data;
+          api = ../data;
           configuration = ../configuration;
         };
         local.src = "/etc/nixos";

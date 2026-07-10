@@ -63,7 +63,8 @@
           merge {
             store = {
               src = ../../.;
-              api = ../../configuration/api;
+              data = ../../data;
+              api = ../../data;
             };
             local.src = "/etc/nixos";
           }

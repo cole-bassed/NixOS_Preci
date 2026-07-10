@@ -15,11 +15,12 @@
     users.includeFiles = false;
     displays.includeFiles = true;
     interface.includeFiles = true;
+    applications.includeFiles = true;
   };
 
   api = let
-    base = paths.store.api or {};
-    src = base.src or ../../configuration/api;
+    base = paths.store.api or paths.store.data or {};
+    src = base.src or ../../data;
     derived =
       mapAttrs
       (name: _: base.${name} or (src + "/${name}"))
