@@ -44,5 +44,11 @@
     ]);
 in {
   core = [];
-  home = (if inputs == null then [] else [inputs.zen-browser.homeModules.twilight]) ++ collect "home";
+  home =
+    (
+      if inputs == null
+      then []
+      else [inputs.zen-browser.homeModules.twilight]
+    )
+    ++ collect "home";
 }

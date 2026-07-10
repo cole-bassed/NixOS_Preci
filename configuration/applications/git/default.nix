@@ -20,9 +20,10 @@
   packages =
     if pkgs == null
     then {}
-    else with pkgs; {
-      inherit git delta gitui git-lfs gh jujutsu;
-    };
+    else
+      with pkgs; {
+        inherit git delta gitui git-lfs gh jujutsu;
+      };
 
   subArgs = args // {inherit packages mkArgs;};
 

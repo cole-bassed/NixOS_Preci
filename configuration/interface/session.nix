@@ -71,7 +71,7 @@
 
   resolved = spec:
     resolveBackends {
-      backendRegistry = backendRegistry;
+      inherit backendRegistry;
       inherit spec;
     };
 

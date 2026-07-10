@@ -30,9 +30,10 @@
       concatMap valuesOf (builtins.attrValues (selectionOf spec))
     ));
 
-  selectedModules = spec:
-    let names = namesOf spec;
-    in filterAttrs (name: _: builtins.elem name names) registry;
+  selectedModules = spec: let
+    names = namesOf spec;
+  in
+    filterAttrs (name: _: builtins.elem name names) registry;
 
   exports = {
     scoped = {

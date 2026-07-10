@@ -8,8 +8,8 @@
   inherit (lix.ingestion) mkModules;
 
   registry = api.applications.modules or {};
-  selection = spec: selectionOf spec;
-  selected = spec: namesOf spec;
+  selection = selectionOf;
+  selected = namesOf;
   catalog = categories;
 in
   mkModules (
