@@ -147,11 +147,73 @@
     updated;
 
   api = let
-    args = custom.charged // {staged = custom;};
+    scope = custom.charged // {staged = custom;};
     base = ./api;
-    seed = args;
-  in
-    mkLibrary {inherit args base seed;};
+    excluded = [
+      "default"
+      "review"
+      "api"
+      "collection"
+      "collections"
+    ];
+
+    call = file: extra:
+      import (base + "/${file}") (scope // extra // {args = scope;});
+
+    collectionsRaw = call "collections.nix" {};
+    usersRaw = call "users.nix" {};
+    displaysRaw = call "displays.nix" {};
+    interfaceRaw = call "interface.nix" {};
+    hostsRaw = call "hosts.nix" {
+      users = usersRaw.scoped;
+      displays = displaysRaw.scoped;
+    };
+
+    valueOf = spec: recursiveUpdate (spec.global or {}) (spec.scoped or {});
+
+    domains = {
+      hosts = valueOf hostsRaw;
+      users = valueOf usersRaw;
+      displays = valueOf displaysRaw;
+      interface = valueOf interfaceRaw;
+    };
+
+    aliases =
+      recursiveUpdate
+      (recursiveUpdate hostsRaw.global usersRaw.global)
+      (recursiveUpdate displaysRaw.global interfaceRaw.global);
+
+    collections = collectionsRaw.scoped;
+
+    hosts = hostsRaw.scoped.registry // {default = hostsRaw.scoped.default;};
+    users = usersRaw.scoped.registry;
+    displays = displaysRaw.scoped.registry;
+    interface = interfaceRaw.scoped.registry;
+
+    apiCompat = {
+      inherit hosts users displays interface collections;
+      hostAPI = hosts;
+      userAPI = users;
+      displayAPI = displays;
+      interfaceAPI = interface;
+      getUsers = usersRaw.scoped.getUsers;
+      getEnabledUsers = usersRaw.scoped.getEnabledUsers;
+      getAdminUsers = usersRaw.scoped.getAdminUsers;
+      getNormalUsers = usersRaw.scoped.getNormalUsers;
+      getInteractiveUsers = usersRaw.scoped.getInteractiveUsers;
+      getHostScopes = hostsRaw.scoped.getHostScopes;
+      admins = usersRaw.scoped.getAdminUsers;
+      normalUsers = usersRaw.scoped.getNormalUsers;
+      enabledUsers = usersRaw.scoped.getEnabledUsers;
+      loginUsers = usersRaw.scoped.getInteractiveUsers;
+    };
+
+    charged = recursiveUpdate scope (recursiveUpdate domains (recursiveUpdate aliases (apiCompat // {api = apiCompat;})));
+  in {
+    inherit aliases charged domains excluded;
+    ${names.lib or "lix"} = charged;
+    lib = charged.lib or charged;
+  };
 
   config = let
     args = api.charged // {staged = api;};
