@@ -6,7 +6,8 @@
   inherit (attrsets) attrNames filterAttrs genAttrs listToAttrs mapAttrs;
   inherit (lists) elemAt filter imap0 isList length;
 
-  registry = (import ./collections.nix args).scoped.users;
+  collections = args.collections or (import ./collections.nix args).scoped;
+  registry = collections.users;
 
   getUsers = spec: let
     mkGroup = attrs: let

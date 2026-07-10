@@ -9,7 +9,8 @@
   inherit (attrsets) attrNames mapAttrs;
   inherit (lists) asListIf elem head unique;
 
-  rawHosts = (import ./collections.nix args).scoped.hosts;
+  collections = args.collections or (import ./collections.nix args).scoped;
+  rawHosts = collections.hosts;
 
   normalizeHost = host: let
     arch = host.arch or "x86_64";

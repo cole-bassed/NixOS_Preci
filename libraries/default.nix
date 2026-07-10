@@ -161,10 +161,12 @@
       import (base + "/${file}") (scope // extra // {args = scope;});
 
     collectionsRaw = call "collections.nix" {};
-    usersRaw = call "users.nix" {};
-    displaysRaw = call "displays.nix" {};
-    interfaceRaw = call "interface.nix" {};
+    collected = collectionsRaw.scoped;
+    usersRaw = call "users.nix" {collections = collected;};
+    displaysRaw = call "displays.nix" {collections = collected;};
+    interfaceRaw = call "interface.nix" {collections = collected;};
     hostsRaw = call "hosts.nix" {
+      collections = collected;
       users = usersRaw.scoped;
       displays = displaysRaw.scoped;
     };
@@ -183,7 +185,7 @@
       (recursiveUpdate hostsRaw.global usersRaw.global)
       (recursiveUpdate displaysRaw.global interfaceRaw.global);
 
-    collections = collectionsRaw.scoped;
+    collections = collected;
 
     hosts = hostsRaw.scoped.registry // {default = hostsRaw.scoped.default;};
     users = usersRaw.scoped.registry;

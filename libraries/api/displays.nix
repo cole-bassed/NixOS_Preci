@@ -9,7 +9,8 @@
   inherit (lists) foldl' imap0 isList sort;
   inherit (strings) isString splitString toInt;
 
-  registry = (import ./collections.nix args).scoped.displays;
+  collections = args.collections or (import ./collections.nix args).scoped;
+  registry = collections.displays;
 
   resolveDisplays = host: let
     hostPath = "api/hosts/${host.name}";
