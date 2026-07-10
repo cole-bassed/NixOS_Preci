@@ -3,7 +3,7 @@
   top,
   host,
   path,
-  registry,
+  backendRegistry,
   selection,
   ...
 } @ args: let
@@ -69,7 +69,7 @@
     inherit (module.get) prettyName name user;
     cfg = module.get.config.module;
     opt = module.set.options.module;
-    data = registry.${name} or {};
+    data = backendRegistry.${name} or {};
     api =
       if scope == "home"
       then (backendApiFor host name) // (backendApiFor user name)

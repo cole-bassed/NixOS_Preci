@@ -13,8 +13,8 @@
   };
 in {
   imports = [
-    ./applications.nix
-    ./paths.nix
+    # ./applications.nix
+    # ./paths.nix
   ];
 
   inherit applications;

@@ -1,7 +1,7 @@
 {
   lix,
   top,
-  pkgs,
+  pkgs ? null,
   lib,
   dom,
   mod,

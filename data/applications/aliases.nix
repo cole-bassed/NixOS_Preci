@@ -1,0 +1,3 @@
+{
+  zen-twilight = "zen-browser";
+}

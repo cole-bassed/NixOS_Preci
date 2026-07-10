@@ -1,9 +1,9 @@
 {
   lib,
-  inputs,
+  inputs ? null,
   top,
   lix,
-  pkgs,
+  pkgs ? null,
   dom,
   mod,
   ...
@@ -18,9 +18,12 @@
   }:
     mkModuleArgs {inherit config top dom mod scope;};
 
-  packages = {
-    inherit (pkgs) firefoxpwa;
-  };
+  packages =
+    if pkgs == null
+    then {}
+    else {
+      inherit (pkgs) firefoxpwa;
+    };
 
   subArgs = args // {inherit packages mkArgs;};
 
@@ -41,5 +44,5 @@
     ]);
 in {
   core = [];
-  home = [inputs.zen-browser.homeModules.twilight] ++ collect "home";
+  home = (if inputs == null then [] else [inputs.zen-browser.homeModules.twilight]) ++ collect "home";
 }

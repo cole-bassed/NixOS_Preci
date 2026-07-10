@@ -3,7 +3,7 @@
   top,
   host,
   path,
-  registry,
+  backendRegistry,
   selection,
   ...
 } @ args: let
@@ -43,7 +43,7 @@
       else null;
     env =
       if backend != null
-      then registry.${backend} or {}
+      then backendRegistry.${backend} or {}
       else {};
   in
     normalize (env.frontend or null);
@@ -84,7 +84,7 @@
     else null;
   primaryEnv =
     if primaryBackend != null
-    then registry.${primaryBackend} or {}
+    then backendRegistry.${primaryBackend} or {}
     else {};
   registryFrontend = registryFrontendOf host;
   isWayland = primaryEnv.protocol or null == "wayland";

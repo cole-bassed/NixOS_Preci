@@ -4,7 +4,7 @@
   host,
   dom,
   mod,
-  registry,
+  backendRegistry,
   selection,
   ...
 }: let
@@ -27,12 +27,12 @@
     else legacy;
 
   resolveBackends = {
-    registry,
+    backendRegistry,
     spec,
   }:
     filter (x: x != null) (map (
         name: let
-          env = registry.${name} or null;
+          env = backendRegistry.${name} or null;
           api = (backendApiOf spec).${name} or {};
         in
           if env == null
@@ -71,7 +71,7 @@
 
   resolved = spec:
     resolveBackends {
-      inherit registry;
+      backendRegistry = backendRegistry;
       inherit spec;
     };
 
@@ -93,7 +93,7 @@
       else "none"
     );
 
-  greeterValues = map (env: env.greeter or "none") (attrValues registry);
+  greeterValues = map (env: env.greeter or "none") (attrValues backendRegistry);
   managerEnumValues = ["none" "dms" "regreet"] ++ greeterValues;
 
   opts = manager: session: {

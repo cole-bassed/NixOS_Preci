@@ -1,7 +1,7 @@
 {
-  inputs,
+  inputs ? null,
   lib,
-  pkgs,
+  pkgs ? null,
   mkArgs,
   ...
 }: let

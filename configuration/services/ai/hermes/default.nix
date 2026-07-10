@@ -174,6 +174,11 @@
         terminal.cwd = directories.workspace;
       };
 
+      envSecretPath =
+        if cfg.envSecret.path != null
+        then cfg.envSecret.path
+        else (config.sops.secrets.${cfg.envSecret.name} or {}).path or null;
+
       applications = {
         gateway = writeShellApplication {
           name = "hermes-gateway";
@@ -196,7 +201,7 @@
     in {
       assertions = [
         {
-          assertion = !cfg.envSecret.enable || cfg.envSecret.path != null;
+          assertion = !cfg.envSecret.enable || envSecretPath != null;
           message = "${top}.services.ai.hermes.envSecret.enable requires the secrets layer to materialize ${cfg.envSecret.name}.";
         }
       ];
@@ -211,7 +216,7 @@
           container.enable = mkDefault cfg.container.enable;
           extraDependencyGroups = mkDefault cfg.extraDependencyGroups;
           settings = mkDefault settings;
-          environmentFiles = optional cfg.envSecret.enable cfg.envSecret.path;
+          environmentFiles = optional cfg.envSecret.enable envSecretPath;
           documents = mkDefault cfg.instructions;
           addToSystemPackages = mkDefault cfg.addToSystemPackages;
           extraArgs = mkDefault cfg.extraArgs;
@@ -227,7 +232,7 @@
             UnsetEnvironment = ["MESSAGING_CWD"];
           }
           // optionalAttrs cfg.envSecret.enable {
-            EnvironmentFile = cfg.envSecret.path;
+            EnvironmentFile = envSecretPath;
           };
 
         tmpfiles.rules =
@@ -239,7 +244,7 @@
           ++ (
             optional
             cfg.envSecret.enable
-            "L+ ${directories.home}/.env - - - - ${cfg.envSecret.path}"
+            "L+ ${directories.home}/.env - - - - ${envSecretPath}"
           );
       };
 

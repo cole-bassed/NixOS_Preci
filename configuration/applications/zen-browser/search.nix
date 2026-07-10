@@ -1,6 +1,6 @@
 {
   lib,
-  pkgs,
+  pkgs ? null,
   mkArgs,
   ...
 }: let

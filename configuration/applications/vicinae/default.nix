@@ -2,7 +2,7 @@
   lix,
   top,
   lib,
-  pkgs,
+  pkgs ? null,
   dom,
   mod,
   ...
