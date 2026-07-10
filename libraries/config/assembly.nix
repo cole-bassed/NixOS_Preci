@@ -44,10 +44,9 @@
 
   mkFlakeModules = flake.modules.mkFlakeModules or (flake.modules.mkFlake or (_: []));
 
-  # =============================================================================
-  # ==| FLAKE ASSEMBLY
-  # =============================================================================
-
+  # ╔════════════════════════════════════════════════╗
+  # ╠ FLAKE ASSEMBLY                                 ╣
+  # ╚════════════════════════════════════════════════╝
   mkFlake = {
     base,
     mods,
@@ -112,9 +111,9 @@
 
   mkFlake' = base: mods: mkFlake {inherit base mods;};
 
-  # =============================================================================
-  # ==| Getters & Setters
-  # =============================================================================
+  # ╔════════════════════════════════════════════════╗
+  # ╠ Getters & Setters                              ╣
+  # ╚════════════════════════════════════════════════╝
 
   inherit
     (mkNamespaced {inherit get set;})
@@ -127,22 +126,15 @@
     ;
 
   set = {
-    pkgAliases = host: {
-      final,
-      prev,
-      aliases ? {},
-    }: let
+    pkgAliases = host: final: prev: let
       updated =
-        recursiveUpdate (
-          recursiveUpdate
-          ((flake.defaults or {}).pkgAliases or {})
-          host.packages.aliases
-        )
-        aliases;
+        recursiveUpdate
+        ((flake.defaults or {}).pkgAliases or {})
+        host.packages.aliases;
       active =
         filter
         (shortcut: hasAttr updated.${shortcut} prev)
-        (attrNames aliases);
+        (attrNames updated);
     in
       genAttrs active (shortcut: final.${updated.${shortcut}});
   };
@@ -255,10 +247,9 @@
       core ++ [home];
   in {inherit class pkgs specialArgs modules;};
 
-  # =============================================================================
-  # ==| CONFIGURATION ASSEMBLY
-  # =============================================================================
-
+  # ╔════════════════════════════════════════════════╗
+  # ╠ CONFIGURATION ASSEMBLY                         ╣
+  # ╚════════════════════════════════════════════════╝
   mkConfiguration = {
     base,
     args ? {},
@@ -295,14 +286,6 @@
   in
     foldl' recursiveUpdate {} (mapAttrsToList build hostsByClass);
 
-  # mkConfiguration' = arg:
-  #   if isAttrs arg && arg ? base
-  #   then
-  #     mkConfiguration {
-  #       inherit (arg) base;
-  #       args = arg.args or {};
-  #     }
-  #   else args: let base = arg; in mkConfiguration {inherit base args;};
   mkConfiguration' = base: args: mkConfiguration {inherit base args;};
 in
   exports

@@ -514,7 +514,6 @@
         in
           genAttrs classes.names forClass;
 
-        # TODO: Overlays should completely replace any nixpkgs packages for instance pkgs.openclaw should be replaced by pkgs.llm-agents.openclaw
         overlays = let
           entryList = attrValues entries;
           values = entry: filter (v: v != null) (attrValues entry.overlays);
@@ -531,6 +530,18 @@
           // genAttrs scopes (scope: (byScope scope));
 
         packages = let
+          # callPackage splices auto-args purely by name, so any flattened
+          # key that vanilla nixpkgs already defines — leaf package or
+          # builder function alike — silently shadows it. A hand-maintained
+          # denylist doesn't scale (llm-agents alone accounts for 60+
+          # confirmed collisions), so compare structurally against a bare,
+          # un-overlaid nixpkgs instead of tracking names by hand.
+          bareNixpkgs = system:
+            import flake.registry.nixpkgs.source.outPath {
+              inherit system;
+              config = {};
+            };
+
           validEntries = filterAttrs (_: entry: entry.packages != {}) entries;
           allSystems = unique (
             concatMap
@@ -545,8 +556,21 @@
                   pkgSet = entries.${name}.packages.${system} or {};
                 in
                   acc
-                  // (removeAttrs pkgSet ["default"])
-                  // (optionalAttrs (pkgSet ? default) {${name} = pkgSet.default;})
+                  // (
+                    filterAttrs
+                    (key: _: !(hasAttr key (bareNixpkgs system)))
+                    (removeAttrs pkgSet [
+                      "default"
+                      "minimal"
+                      "rust"
+                      # "full"
+                    ])
+                  )
+                  // (
+                    optionalAttrs
+                    (pkgSet ? default)
+                    {${name} = pkgSet.default;}
+                  )
               ) {} (attrNames validEntries)
           );
       };
@@ -555,7 +579,15 @@
 
     defaults = {
       allowUnfree = true;
-      pkgAliases = {};
+      pkgAliases = {
+        "caelestia" = "caelestia-shell";
+        "dank-material" = "dms-shell";
+        "niri" = "niri-unstable";
+
+        # FIX: We shouldn't need to do this
+        # "noctalia-shell" = "noctalia";
+        # "dms" = "dms-shell";
+      };
     };
     flake = {inherit defaults registry;};
     src = import ./. {inherit flake;};

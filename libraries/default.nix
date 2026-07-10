@@ -153,16 +153,16 @@
   in
     mkLibrary {inherit args base seed;};
 
-  assembly = let
+  config = let
     args = api.charged // {staged = api;};
-    base = ./assembly;
+    base = ./config;
     seed = args;
   in
     mkLibrary {inherit args base seed;};
 
-  merged = assembly.charged;
+  merged = config.charged;
 in {
-  inherit api assembly custom shared merged global;
+  inherit api config custom shared merged global;
   inherit (merged) lib;
   ${names.lib or "lix"} = merged;
 }

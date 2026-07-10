@@ -1,118 +1,128 @@
-{lix, ...} @ base: let
-  inherit (lix.options) mkOption mkEnableOption;
-  inherit (lix.types) asFloat nullOr int str submodule;
-in
-  lix.importModules (
-    base
-    // {
-      base = ./.;
-      extraArgs =
-        (base.extraArgs or {})
-        // {
-          entry = submodule {
-            options = {
-              enable =
-                mkEnableOption "display output"
-                // {default = true;};
+{
+  lix,
+  host,
+  ...
+} @ args: let
+  inherit (lix.ingestion) mkModules;
+  inherit (lix.options) mkEnableOption mkOption;
+  inherit (lix.types) asFloat int nullOr str submodule;
 
-              brand = mkOption {
-                type = nullOr str;
-                default = null;
-                description = "Display/panel manufacturer.";
-              };
+  registry = host.devices.display or {};
+  selection = spec: (spec.devices or {}).display or {};
+  entry = submodule {
+    options = {
+      enable =
+        mkEnableOption "display output"
+        // {default = true;};
 
-              resolution = mkOption {
-                type = nullOr str;
-                default = null;
-                description = "Native resolution, format \"WxH\".";
-              };
+      brand = mkOption {
+        type = nullOr str;
+        default = null;
+        description = "Display/panel manufacturer.";
+      };
 
-              refreshRate = mkOption {
-                type = nullOr asFloat;
-                default = null;
-                description = "Refresh rate in Hz.";
-              };
+      resolution = mkOption {
+        type = nullOr str;
+        default = null;
+        description = "Native resolution, format \"WxH\".";
+      };
 
-              scale = mkOption {
-                type = asFloat;
-                default = 1.0;
-                description = "Display scale factor.";
-              };
+      refreshRate = mkOption {
+        type = nullOr asFloat;
+        default = null;
+        description = "Refresh rate in Hz.";
+      };
 
-              position = mkOption {
-                type = nullOr str;
-                default = null;
-                description = ''
-                  Display position input. May be semantic ("left", "right",
-                  "top", "bottom", "center") or exact coordinates in "XxY" form.
-                '';
-              };
+      scale = mkOption {
+        type = asFloat;
+        default = 1.0;
+        description = "Display scale factor.";
+      };
 
-              layout = mkOption {
-                type = submodule {
-                  options = {
-                    size = mkOption {
-                      type = submodule {
-                        options = {
-                          width = mkOption {
-                            type = int;
-                            default = 0;
-                            description = "Resolved display width in pixels.";
-                          };
+      position = mkOption {
+        type = nullOr str;
+        default = null;
+        description = ''
+          Display position input. May be semantic ("left", "right",
+          "top", "bottom", "center") or exact coordinates in "XxY" form.
+        '';
+      };
 
-                          height = mkOption {
-                            type = int;
-                            default = 0;
-                            description = "Resolved display height in pixels.";
-                          };
-                        };
-                      };
-                      default = {};
-                      description = "Resolved display pixel size.";
-                    };
+      layout = mkOption {
+        type = submodule {
+          options = {
+            size = mkOption {
+              type = submodule {
+                options = {
+                  width = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved display width in pixels.";
+                  };
 
-                    position = mkOption {
-                      type = submodule {
-                        options = {
-                          x = mkOption {
-                            type = int;
-                            default = 0;
-                            description = "Resolved x coordinate in the compositor layout.";
-                          };
-
-                          y = mkOption {
-                            type = int;
-                            default = 0;
-                            description = "Resolved y coordinate in the compositor layout.";
-                          };
-                        };
-                      };
-                      default = {};
-                      description = "Resolved display position in the compositor layout.";
-                    };
+                  height = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved display height in pixels.";
                   };
                 };
-                default = {};
-                description = "Resolved compositor layout for this display.";
               };
+              default = {};
+              description = "Resolved display pixel size.";
+            };
 
-              size = mkOption {
-                type = nullOr asFloat;
-                default = null;
-                description = "Physical panel size, diagonal inches.";
+            position = mkOption {
+              type = submodule {
+                options = {
+                  x = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved x coordinate in the compositor layout.";
+                  };
+
+                  y = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved y coordinate in the compositor layout.";
+                  };
+                };
               };
-
-              priority = mkOption {
-                type = int;
-                default = 0;
-                description = "Display ordering priority; derived from API list order.";
-              };
-
-              primary =
-                mkEnableOption "Whether this display is the primary output. Derived from API list order."
-                // {default = false;};
+              default = {};
+              description = "Resolved display position in the compositor layout.";
             };
           };
         };
+        default = {};
+        description = "Resolved compositor layout for this display.";
+      };
+
+      size = mkOption {
+        type = nullOr asFloat;
+        default = null;
+        description = "Physical panel size, diagonal inches.";
+      };
+
+      priority = mkOption {
+        type = int;
+        default = 0;
+        description = "Display ordering priority; derived from API list order.";
+      };
+
+      primary =
+        mkEnableOption "Whether this display is the primary output. Derived from API list order."
+        // {default = false;};
+    };
+  };
+in
+  mkModules (
+    args
+    // {
+      base = ./.;
+      path = args.path or ["displays"];
+      recurse = true;
+      declareRegistry = true;
+      extraArgs = {
+        inherit entry registry selection;
+      };
     }
   )

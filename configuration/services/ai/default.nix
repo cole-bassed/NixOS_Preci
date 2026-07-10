@@ -1,52 +1,3 @@
-# {
-#   lix,
-#   shared,
-#   ...
-# } @ args: let
-#   inherit (lix.ingestion) importModules;
-#   registry = {
-#     claude = {
-#       provider = "anthropic";
-#       requiresContainer = false;
-#       homeCapable = true;
-#     };
-#     codex = {
-#       provider = "openai";
-#       requiresContainer = false;
-#       homeCapable = true;
-#     };
-#     ollama = {
-#       provider = "local";
-#       requiresContainer = false;
-#       homeCapable = false;
-#     };
-#     openclaw = {
-#       provider = "openclaw";
-#       requiresContainer = false;
-#       homeCapable = true;
-#     };
-#     hermes = {
-#       provider = "openai-codex";
-#       requiresContainer = true;
-#       homeCapable = false;
-#     };
-#   };
-#   inner = importModules (args
-#     // {
-#       base = ./.;
-#       declareRegistry = true;
-#       extraArgs = {inherit shared registry;};
-#       excludes = [
-#         "claude"
-#         # "codex"
-#         "ollama"
-#         "openclaw"
-#       ];
-#     });
-# in {
-#   core.imports = inner.imports or [];
-#   home.imports = inner.home-manager.sharedModules or [];
-# }
 {
   lix,
   top,
@@ -100,6 +51,7 @@
       provider = staged.provider or (entry.provider or null);
     };
 
+    #~@ Testb b
     mk = scope: {
       config,
       options ? {},
