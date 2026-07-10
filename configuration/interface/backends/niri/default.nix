@@ -5,7 +5,6 @@
   ...
 }: let
   inherit (lix.attrsets) genAttrs recursiveUpdate;
-  inherit (lix.lists) optional;
   inherit (lix.options) mkOption;
   inherit (lix.types) str;
 
@@ -52,7 +51,9 @@ in {
           niriActions = let
             actions = cfgOr "actions";
           in
-            if actions == null then {} else actions;
+            if actions == null
+            then {}
+            else actions;
         }
         // args);
   in {
