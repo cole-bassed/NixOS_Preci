@@ -60,43 +60,106 @@
     };
   };
 
-  #? Schema S8: devices.display entries.
+  #? Schema S8: devices.display entries. Mirrors the resolved shape
+  #  produced by libraries/api/displays.nix (resolveDisplays), which
+  #  is what `host.devices.display` actually contains by the time any
+  #  module sees it -- api/hosts.nix overwrites the raw per-host list
+  #  with this resolved, connector-keyed attrset before specialArgs
+  #  ever reach configuration/.
   displayEntrySubmodule = submodule {
     options = {
+      enable =
+        mkEnableOption "Whether this display output is active."
+        // {default = true;};
+
       brand = mkOption {
-        type = nullOr str;
-        default = null;
         description = "Display/panel manufacturer.";
-      };
-      resolution = mkOption {
         type = nullOr str;
         default = null;
-        description = "Native resolution, format \"WxH\".";
       };
+
+      resolution = mkOption {
+        description = "Native resolution, format \"WxH\".";
+        type = nullOr str;
+        default = null;
+      };
+
       refreshRate = mkOption {
+        description = "Refresh rate in Hz.";
         type = nullOr float;
         default = null;
-        description = "Refresh rate in Hz.";
       };
+
       scale = mkOption {
+        description = "Display scale factor.";
         type = float;
         default = 1.0;
-        description = "Display scale factor.";
       };
+
       position = mkOption {
+        description = "Position in the virtual layout, format \"XxY\".";
         type = nullOr str;
         default = null;
-        description = "Position in the virtual layout, format \"XxY\".";
       };
+
       size = mkOption {
+        description = "Physical panel size, diagonal inches.";
         type = nullOr float;
         default = null;
-        description = "Physical panel size, diagonal inches.";
       };
+
       priority = mkOption {
+        description = "Display ordering priority; 0 is primary.";
         type = int;
         default = 0;
-        description = "Display ordering priority; 0 is primary.";
+      };
+
+      primary =
+        mkEnableOption "Whether this display is the primary output.";
+
+      layout = mkOption {
+        type = submodule {
+          options = {
+            size = mkOption {
+              type = submodule {
+                options = {
+                  width = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved display width in pixels.";
+                  };
+                  height = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved display height in pixels.";
+                  };
+                };
+              };
+              default = {};
+              description = "Resolved display pixel size.";
+            };
+            position = mkOption {
+              type = submodule {
+                options = {
+                  x = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved x coordinate in the compositor layout.";
+                  };
+                  y = mkOption {
+                    type = int;
+                    default = 0;
+                    description = "Resolved y coordinate in the compositor layout.";
+                  };
+                };
+              };
+              default = {};
+              description = "Resolved display position in the compositor layout.";
+            };
+          };
+        };
+        default = {};
+        description = "Resolved compositor layout for this display.";
       };
     };
   };

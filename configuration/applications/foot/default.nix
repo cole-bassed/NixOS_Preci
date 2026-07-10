@@ -23,11 +23,7 @@
     config = mkIf enable (
       if scope == "core"
       then {environment.systemPackages = [package];}
-      else {
-        programs.${mod} = {
-          inherit enable package;
-        };
-      }
+      else {programs.${mod} = {inherit enable package;};}
     );
   };
 in {

@@ -51,7 +51,6 @@
       provider = staged.provider or (entry.provider or null);
     };
 
-    #~@ Testb b
     mk = scope: {
       config,
       options ? {},

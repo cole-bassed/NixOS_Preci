@@ -4,7 +4,6 @@
   mod,
   packages,
   mkArgs,
-  userHome,
   ...
 }: let
   name = "profiles";
@@ -15,11 +14,15 @@
   inherit (lib.strings) concatStringsSep;
   inherit (lib.types) attrsOf literalExpression str;
 in {
-  home = {config, ...}: let
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "home";
+    inherit (config.home) homeDirectory;
     inherit (mkArgs {inherit config scope;}) cfg opt;
-
-    home = userHome;
+    inherit (pkgs) writeShellApplication;
 
     mkUser = profile: {
       name = profile;
@@ -34,7 +37,7 @@ in {
     mkGithubHost = profile: {
       HostName = "github.com";
       User = "git";
-      IdentityFile = "${home}/.ssh/github/${profile}";
+      IdentityFile = "${homeDirectory}/.ssh/github/${profile}";
       IdentitiesOnly = true;
     };
 
@@ -50,7 +53,7 @@ in {
 
     hasProfiles = cfg.${name} != {};
 
-    ghClone = pkgs.writeShellApplication {
+    ghClone = writeShellApplication {
       name = "gh-clone";
       runtimeInputs = [packages.${mod} pkgs.coreutils];
       text = ''
@@ -136,7 +139,7 @@ in {
 
       projectRoot = mkOption {
         type = str;
-        default = "${home}/Projects";
+        default = "${homeDirectory}/Projects";
         description = "Base directory for project repositories.";
       };
 

@@ -6,7 +6,7 @@ lix.importModules (base
     excludes = [
       "libraries"
       "api"
-      "applications"
+      # "applications"
       "test"
     ];
   })

@@ -27,7 +27,11 @@ in {
     };
   };
 
-  home = {config, ...}: let
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "home";
     inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
   in {
@@ -35,7 +39,8 @@ in {
       enable = mkEnableMod.false;
       package = mkOption {
         type = package;
-        default = packages.${name};
+        default = pkgs.gitFull;
+        # default = packages.${name};
         description = "Package of '${name}' to enable for the user.";
       };
     };

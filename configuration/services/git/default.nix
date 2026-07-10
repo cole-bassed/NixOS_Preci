@@ -1,7 +1,6 @@
 {
-  top,
   lix,
-  pkgs ? null,
+  top,
   dom,
   mod,
   ...
@@ -9,11 +8,11 @@
   inherit (lix.ingestion) mkModules;
   inherit (lix.options) mkEnable mkModuleArgs;
 
-  packages =
-    if pkgs == null
-    then {}
-    else {
-      inherit (pkgs) firefoxpwa;
+  getPackages = pkgs:
+    with pkgs; {
+      inherit delta gitui gh jujutsu;
+      lfs = git-lfs;
+      git = gitFull;
     };
 
   mkArgs = {
@@ -26,9 +25,7 @@
         name = mod;
         inherit scope;
       })
-      // {
-        __functor = self: overrides: mkEnable ({inherit scope;} // overrides);
-      };
+      // {__functor = self: overrides: mkEnable ({inherit scope;} // overrides);};
   in
     module
     // {
@@ -41,9 +38,9 @@
     // {
       base = ./.;
       declareRegistry = false;
-      extraArgs = {inherit packages mkArgs;};
+      extraArgs = {inherit getPackages mkArgs;};
     });
 in {
-  core = [];
-  home = inner.home-manager.sharedModules or [];
+  core.imports = inner.imports or [];
+  home.imports = inner.home-manager.sharedModules or [];
 }
