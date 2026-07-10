@@ -219,19 +219,25 @@
   #   lib = charged.lib or charged;
   # };
 
-  config = let
-    args = api.charged // {staged = api;};
-    base = ./config;
-    seed = args;
+  api = let
+    base = ./api;
+    seed =
+      custom.charged
+      // {
+        custom = custom.domains // custom.aliases;
+        api = import base (seed // {args = seed;});
+      };
   in
-    mkLibrary {inherit args base seed;};
+    mkLibrary {
+      inherit base seed;
+      # args = {collections = import base (seed // {args = seed;});};
+    };
 
   config = let
-    args = api.charged // {staged = api;};
     base = ./config;
-    seed = args;
+    seed = api.charged // {api = api.domains // api.aliases;};
   in
-    mkLibrary {inherit args base seed;};
+    mkLibrary {inherit base seed;};
 
   merged = config.charged;
 in {

@@ -6,63 +6,35 @@
   paths,
   ...
 }: let
-  inherit (attrsets) recursiveUpdate;
+  inherit (attrsets) mapAttrs recursiveUpdate;
   inherit (filesystem) mkPaths';
   inherit (ingestion) collectNamedSpecs;
 
-  exports = {
-    scoped = {
-      paths = paths';
-      inherit hosts users displays interface;
-    };
-    global = {
-      inherit hosts users displays interface;
-      paths = paths';
-    };
+  domains = {
+    hosts.includeFiles = false;
+    users.includeFiles = false;
+    displays.includeFiles = true;
+    interface.includeFiles = true;
   };
 
-  paths' = let
-    src = paths.store.api.src or ../../configuration/api;
-    hosts = paths.store.api.hosts or (src + "/hosts");
-    users = paths.store.api.users or (src + "/users");
-    displays = paths.store.api.displays or (src + "/displays");
-    interface = paths.store.api.interface or (src + "/interface");
-    expanded = recursiveUpdate paths {
-      store.api = {
-        inherit src hosts users displays interface;
-      };
-    };
-    resolved = mkPaths' {inherit (expanded) store local;};
+  api = let
+    base = paths.store.api or {};
+    src = base.src or ../../configuration/api;
+    derived =
+      mapAttrs
+      (name: _: base.${name} or (src + "/${name}"))
+      domains;
+    resolved =
+      recursiveUpdate paths
+      {store.api = derived // {inherit src;};};
   in
-    resolved;
-
-  collect = {
-    base,
-    includeFiles ? true,
-  }:
-    collectNamedSpecs {
-      inherit base includeFiles args;
-      rekey = true;
-    };
-
-  hosts = collect {
-    base = paths'.store.api.hosts;
-    includeFiles = false;
-  };
-
-  users = collect {
-    base = paths'.store.api.users;
-    includeFiles = false;
-  };
-
-  displays = collect {
-    base = paths'.store.api.displays;
-    includeFiles = true;
-  };
-
-  interface = collect {
-    base = paths'.store.api.interface;
-    includeFiles = true;
-  };
+    (mkPaths' {inherit (resolved) store local;}).store.api;
 in
-  exports
+  mapAttrs (name: domain:
+    collectNamedSpecs {
+      inherit args;
+      inherit (domain) includeFiles;
+      base = api.${name};
+      rekey = true;
+    })
+  domains

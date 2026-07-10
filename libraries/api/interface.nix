@@ -1,9 +1,9 @@
-{collections, ...}: let
+{api, ...}: let
   exports = {
     scoped = {inherit registry;};
     global = {interfaceAPI = registry;};
   };
 
-  registry = collections.interface;
+  registry = api.interface;
 in
   exports

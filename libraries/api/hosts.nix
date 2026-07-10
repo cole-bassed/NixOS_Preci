@@ -4,7 +4,7 @@
   lists,
   users,
   displays,
-  collections,
+  api,
   ...
 }: let
   exports = {
@@ -41,7 +41,7 @@
             devices = (host.devices or {}) // {display = displays.resolveDisplays host;};
           }
         ))
-      collections.hosts;
+      api.hosts;
 
     known = specs;
     fallback = known.${defaults.host} or known.${head (attrNames known)};

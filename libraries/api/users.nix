@@ -1,7 +1,7 @@
 {
   attrsets,
   lists,
-  collections,
+  api,
   ...
 }: let
   exports = {
@@ -37,7 +37,7 @@
   inherit (attrsets) attrNames filterAttrs genAttrs listToAttrs mapAttrs;
   inherit (lists) elemAt filter imap0 isList length;
 
-  registry = collections.users;
+  registry = api.users;
 
   getUsers = spec: let
     mkGroup = attrs: let
@@ -52,9 +52,7 @@
           })
         attrs;
       count = length names;
-    in {
-      inherit names values count;
-    };
+    in {inherit names values count;};
 
     filterByStatus = status: attrs:
       filterAttrs
@@ -101,9 +99,9 @@
     };
 
   usersOf = host:
-    if host.users ? values
+    if host ? users.values
     then host.users
-    else getUsers host.users;
+    else getUsers (host.users or {}); # TODO: This should not be fauling as every host much define users
 
   getEnabledUsers = host:
     (usersOf host).byStatus.enabled.values;

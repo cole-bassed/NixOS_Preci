@@ -2,7 +2,7 @@
   attrsets,
   lists,
   strings,
-  collections,
+  api,
   ...
 }: let
   exports = {
@@ -17,7 +17,7 @@
   inherit (lists) elemAt foldl' length imap0 isList sort;
   inherit (strings) isString splitString toInt;
 
-  registry = collections.displays;
+  registry = api.displays;
 
   resolve = host: let
     hostPath = "api/hosts/${host.name}";

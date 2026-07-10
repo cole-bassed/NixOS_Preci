@@ -7,7 +7,7 @@
   selection,
   ...
 } @ args: let
-  inherit (lix.api) getInteractiveUsers;
+  inherit (lix.api.users) getInteractiveUsers;
   inherit (lix.attrsets) attrByPath attrValues foldMerge hasAttr hasAttrByPath isAttrs mapAttrs optionalAttrs setAttrByPath;
   inherit (lix.lists) findFirst init;
   inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
