@@ -210,10 +210,6 @@ in {
         enable = true;
         package = ["llm-agents" "hermes-hud"];
       };
-      hermes = {
-        enable = true;
-        package = ["llm-agents" "hermes-agent"];
-      };
     };
     connectivity = {
       tailscale = {
