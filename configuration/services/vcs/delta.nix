@@ -1,11 +1,11 @@
 {
   lib,
-  packages,
+  registry,
   mkArgs,
   ...
 }: let
   name = "delta";
-  pkgName = name;
+  pkgName = registry.${name}.package;
   inherit (lib.modules) mkDefault mkIf;
 in {
   core = {

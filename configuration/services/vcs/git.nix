@@ -1,25 +1,31 @@
 {
-  lib,
-  mod,
-  packages,
+  lix,
+  path,
   mkArgs,
   ...
 }: let
-  name = mod;
-  inherit (lib.modules) mkDefault mkIf;
-  inherit (lib.options) mkOption;
-  inherit (lib.types) package;
+  inherit (lix.modules) mkDefault mkIf;
+  inherit (lix.options) mkOption;
+  inherit (lix.types) package;
+
+  mk = args: mkArgs ({inherit path;} // args);
 in {
-  core = {config, ...}: let
-    scope = "core";
-    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  core = {
+    config,
+    pkgs,
+    ...
+  }: let
+    node = mk {inherit config pkgs;};
+    inherit (node) get set pkgName;
+    cfg = get.config.module;
+    opt = set.options.module;
   in {
     options = opt {
-      enable = mkEnableMod.false;
+      enable = set.enable {default = false;};
       package = mkOption {
         type = package;
-        default = packages.${name};
-        description = "Package of '${name}' to install system-wide.";
+        default = pkgs.${pkgName};
+        description = "Package of '${get.name}' to install system-wide.";
       };
     };
     config = mkIf cfg.enable {
@@ -27,23 +33,29 @@ in {
     };
   };
 
-  home = {config, ...}: let
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "home";
-    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+    node = mk {inherit config pkgs scope;};
+    inherit (node) get set pkgName;
+    cfg = get.config.module;
+    opt = set.options.module;
   in {
     options = opt {
-      enable = mkEnableMod.false;
+      enable = set.enable {default = false;};
       package = mkOption {
         type = package;
-        # default = pkgs.gitFull;
-        default = packages.${name};
-        description = "Package of '${name}' to enable for the user.";
+        default = pkgs.${pkgName};
+        description = "Package of '${get.name}' to enable for the user.";
       };
     };
     config = mkIf cfg.enable {
-      programs.${name} = {
+      programs.git = {
         enable = mkDefault true;
-        package = mkDefault packages.${name};
+        package = cfg.package;
         settings = {
           init.defaultBranch = mkDefault "main";
           pull.rebase = mkDefault true;

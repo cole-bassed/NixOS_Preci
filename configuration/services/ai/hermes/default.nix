@@ -2,7 +2,7 @@
   lix,
   top,
   shared,
-  path ? ["services" "ai" "hermes"],
+  path,
   ...
 }: let
   inherit (lix.attrsets) optionalAttrs recursiveUpdate;

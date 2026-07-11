@@ -1,8 +1,6 @@
 {
   lib,
-  pkgs ? null,
   mod,
-  packages,
   mkArgs,
   ...
 }: let
@@ -55,7 +53,7 @@ in {
 
     ghClone = writeShellApplication {
       name = "gh-clone";
-      runtimeInputs = [packages.${mod} pkgs.coreutils];
+      runtimeInputs = with pkgs; [git coreutils];
       text = ''
         usage() {
           cat <<'EOF'

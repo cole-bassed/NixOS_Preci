@@ -198,10 +198,6 @@
     includeFiles ? false,
     recurse ? false,
     rawTag ? "core",
-    # Seed path for this traversal. Callers that are themselves nested
-    # (e.g. a directory's default.nix re-entering importModules for its own
-    # subtree) should pass their own already-resolved path here so option
-    # nesting mirrors directory nesting instead of restarting at this base.
     path ? [],
   }: let
     stem = name:
@@ -221,15 +217,12 @@
         name: let
           type = entries.${name};
           name' = stem name;
-
           path' = ctxPath ++ [name'];
-          legacy = legacyDomMod path';
 
           module = importModule {
             inherit base name;
             args =
               (removeAttrs args ["excludes" "includes"])
-              // legacy
               // {
                 path = path';
                 leaf = name';
@@ -276,13 +269,11 @@
             else name;
 
           path' = path ++ [mod];
-          legacy = legacyDomMod path';
 
           importedModule = importModule {
             inherit base name;
             args =
               args
-              // legacy
               // {
                 inherit tags;
                 path = path';

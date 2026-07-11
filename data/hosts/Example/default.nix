@@ -527,17 +527,17 @@ let
   arch = "x86_64";
   os = "linux";
 in {
-  # ---------------------------------------------------------
-  # MACHINE IMPORTS
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ IMPORTS                                        ╣
+  # ╚════════════════════════════════════════════════╝
   imports = [
     # ./hardware-configuration.nix
   ];
   disabledModules = [];
 
-  # ---------------------------------------------------------
-  # SYSTEM IDENTITY
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ IDENTITY                                       ╣
+  # ╚════════════════════════════════════════════════╝
   name = "TheExample";
   id = "cfd69003";
   description = "Dell Precision M2800";
@@ -548,9 +548,9 @@ in {
   stateVersion = "25.11";
   paths.src = "/home/${admin}/Projects/Cole-Bassed_Solutions/NixOS_Preci";
 
-  # ---------------------------------------------------------
-  # LOCALIZATION
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ LOCALIZATION                                   ╣
+  # ╚════════════════════════════════════════════════╝
   localization = {
     latitude = 18.015;
     longitude = -77.49;
@@ -560,9 +560,9 @@ in {
     defaultLocale = "en_US.UTF-8";
   };
 
-  # ---------------------------------------------------------
-  # USER ACCOUNTS
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ USERS                                          ╣
+  # ╚════════════════════════════════════════════════╝
   users = [
     {
       name = admin;
@@ -577,25 +577,10 @@ in {
       role = "administrator";
     }
   ];
-  # ---------------------------------------------------------
-  # PACKAGES & CACHES
-  # ---------------------------------------------------------
-  packages = {
-    unstable = true;
-    allowUnfree = true;
-    kernel = "linuxPackages_cachyos-lto";
-    caches = {
-      nyx = {
-        sub = "https://geo-mirror.chaotic.cx/";
-        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
-      };
-    };
-    aliases = {};
-  };
 
-  # ---------------------------------------------------------
-  # HARDWARE PROFILE
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ HARDWARE SPECS                                 ╣
+  # ╚════════════════════════════════════════════════╝
   specs = {
     machine = "laptop";
     cpu = {
@@ -612,9 +597,6 @@ in {
     };
   };
 
-  # ---------------------------------------------------------
-  # KERNEL MODULES
-  # ---------------------------------------------------------
   modules = [
     "xhci_pci"
     "ehci_pci"
@@ -626,9 +608,6 @@ in {
     "sdhci_pci"
   ];
 
-  # ---------------------------------------------------------
-  # DEVICES
-  # ---------------------------------------------------------
   devices = {
     boot = {};
 
@@ -666,9 +645,33 @@ in {
     ];
   };
 
-  # ---------------------------------------------------------
-  # BOOT & INTERFACE
-  # ---------------------------------------------------------
+  functionalities = [
+    "audio"
+    "battery"
+    "bluetooth"
+    "efi"
+    "gpu"
+    "keyboard"
+    "network"
+    "secureboot"
+    "storage"
+    "video"
+    "virtualization"
+    "wired"
+    "wireless"
+    #TODO: Extend schema enum to cover these:
+    # "dualboot-windows"
+    # "nvme"
+    # "remote"
+    # "touchpad"
+    # "tpm"
+    # "vpn"
+    # "webcam"
+  ];
+
+  # ╔════════════════════════════════════════════════╗
+  # ╠ INTERFACE                                      ╣
+  # ╚════════════════════════════════════════════════╝
   interface = {
     boot = {
       loader = "systemd-boot";
@@ -695,40 +698,120 @@ in {
     };
   };
 
-  # ---------------------------------------------------------
-  # SYSTEM FUNCTIONALITIES & SERVICES
-  # ---------------------------------------------------------
-  functionalities = [
-    "audio"
-    "battery"
-    "bluetooth"
-    "efi"
-    "gpu"
-    "keyboard"
-    "network"
-    "secureboot"
-    "storage"
-    "video"
-    "virtualization"
-    "wired"
-    "wireless"
-    #TODO: Extend schema enum to cover these:
-    # "dualboot-windows"
-    # "nvme"
-    # "remote"
-    # "touchpad"
-    # "tpm"
-    # "vpn"
-    # "webcam"
-  ];
+  # ╔════════════════════════════════════════════════╗
+  # ╠ PACKAGES                                       ╣
+  # ╚════════════════════════════════════════════════╝
+  packages = {
+    unstable = true;
+    allowUnfree = true;
+    kernel = "linuxPackages_cachyos-lto";
+    caches = {
+      nyx = {
+        sub = "https://geo-mirror.chaotic.cx/";
+        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
+      };
+    };
+    aliases = {};
+  };
 
   services = {
-    ai.hermes.enable = true;
-    tailscale = {
-      enable = true;
-      openFirewall = true;
-      authKeySecret.enable = true;
-    };
+    ai.enable = true;
+    connectivity.enable = true;
+    vcs.enable = true;
     streaming.enable = true;
+  };
+
+  applications = {
+    ai = {
+      claude = {
+        enable = true;
+        package = ["llm-agents" "claude-code"];
+      };
+      codex = {
+        enable = true;
+        package = ["llm-agents" "codex"];
+      };
+      hermes-agent = {
+        enable = true;
+        package = ["llm-agents" "hermes-agent"];
+      };
+      hermes-desktop = {
+        enable = true;
+        package = ["llm-agents" "hermes-desktop"];
+      };
+      hermes-hud = {
+        enable = true;
+        package = ["llm-agents" "hermes-hud"];
+      };
+      hermes = {
+        enable = true;
+        package = ["llm-agents" "hermes-agent"];
+      };
+    };
+    connectivity = {
+      tailscale = {
+        enable = true;
+        openFirewall = true;
+        authKeySecret.enable = true;
+      };
+    };
+    editors = {
+      helix = {
+        enable = true;
+        package = "helix";
+      };
+      vscode = {
+        enable = true;
+        package = "vscode-fhs";
+      };
+      zed = {
+        enable = true;
+        package = "zed-editor-fhs";
+      };
+    };
+    terminals = {
+      alacritty = {
+        enable = true;
+        package = "alacritty";
+      };
+      foot = {
+        enable = true;
+        package = "foot";
+      };
+      kitty = {
+        enable = true;
+        package = "kitty";
+      };
+      tmux = {
+        enable = true;
+        package = "tmux";
+      };
+    };
+    vcs = {
+      git = {
+        enable = true;
+        package = "gitFull";
+      };
+      lfs = {
+        enable = true;
+        package = "git-lfs";
+      };
+      gh = {
+        enable = true;
+        package = "gh";
+      };
+      jj = {
+        enable = true;
+        package = "jujutsu";
+      };
+      gitui = {
+        enable = true;
+        package = "gitui";
+      };
+      delta = {
+        enable = true;
+        package = "delta";
+      };
+    };
   };
 }

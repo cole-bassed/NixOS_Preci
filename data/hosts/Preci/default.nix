@@ -3,15 +3,15 @@ let
   arch = "x86_64";
   os = "linux";
 in {
-  # ---------------------------------------------------------
-  # MACHINE IMPORTS
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ IMPORTS                                        ╣
+  # ╚════════════════════════════════════════════════╝
   imports = [./hardware-configuration.nix];
   disabledModules = [];
 
-  # ---------------------------------------------------------
-  # SYSTEM IDENTITY
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ IDENTITY                                       ╣
+  # ╚════════════════════════════════════════════════╝
   name = "Preci";
   id = "cfd69003";
   description = "Dell Precision M2800";
@@ -22,9 +22,9 @@ in {
   stateVersion = "25.11";
   paths.src = "/home/${admin}/.dots";
 
-  # ---------------------------------------------------------
-  # LOCALIZATION
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ LOCALIZATION                                   ╣
+  # ╚════════════════════════════════════════════════╝
   localization = {
     latitude = 18.015;
     longitude = -77.49;
@@ -34,9 +34,9 @@ in {
     defaultLocale = "en_US.UTF-8";
   };
 
-  # ---------------------------------------------------------
-  # USER ACCOUNTS
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ USERS                                          ╣
+  # ╚════════════════════════════════════════════════╝
   users = [
     {
       name = admin;
@@ -46,29 +46,15 @@ in {
     }
     {
       name = "cc";
-      enable = true;
+      enable = false;
       autoLogin = false;
       role = "administrator";
     }
   ];
-  # ---------------------------------------------------------
-  # PACKAGES & CACHES
-  # ---------------------------------------------------------
-  packages = {
-    unstable = true;
-    allowUnfree = true;
-    kernel = "linuxPackages_cachyos-lto";
-    caches = {
-      nyx = {
-        sub = "https://geo-mirror.chaotic.cx/";
-        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
-      };
-    };
-  };
 
-  # ---------------------------------------------------------
-  # HARDWARE PROFILE
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ HARDWARE SPECS                                 ╣
+  # ╚════════════════════════════════════════════════╝
   specs = {
     machine = "laptop";
     cpu = {
@@ -85,9 +71,6 @@ in {
     };
   };
 
-  # ---------------------------------------------------------
-  # KERNEL MODULES
-  # ---------------------------------------------------------
   modules = [
     "xhci_pci"
     "ehci_pci"
@@ -99,9 +82,6 @@ in {
     "sdhci_pci"
   ];
 
-  # ---------------------------------------------------------
-  # DEVICES
-  # ---------------------------------------------------------
   devices = {
     boot = {};
 
@@ -126,54 +106,39 @@ in {
 
     display = [
       {
-        enable = true;
-        output = "eDP-1";
-        monitor = "dell-m2800";
-        position = "center";
-      }
-      {
-        enable = false;
-        output = "HDMI-A-3";
         monitor = "ktc-27";
         position = "right";
       }
+
       {
-        enable = false;
-        output = "DP-3";
         monitor = "dell-19";
         position = "left";
-      }
-      {
-        enable = false;
-        output = "HDMI-A-3";
-        monitor = "acer-24";
-        position = "right";
       }
     ];
   };
 
-  # ---------------------------------------------------------
-  # ACCESS & REMOTE OPERATIONS
-  # ---------------------------------------------------------
-  access = {
-    age = "age17h32g2j05scxwdfmw79tahlu0f38ajr2mcsv6cwkmdhd04e9wfxqjsms3m";
-  };
-
-  # ---------------------------------------------------------
-  # BOOT & INTERFACE
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ INTERFACE                                      ╣
+  # ╚════════════════════════════════════════════════╝
   interface = {
     boot = {
       loader = "systemd-boot";
       timeout = 1;
     };
-    bootLoader = "systemd-boot";
-    bootLoaderTimeout = 1;
-    displayManager = "dms";
-    windowManager = "niri";
-    backend = {
-      managers = ["niri"];
-      desktops = [];
+    greeter = "dank-material-shell";
+    backends = {
+      hyprland = {
+        preferred = true;
+        enable = true;
+        frontend = "dank-material-shell";
+      };
+      niri = {
+        enable = true;
+        preferred = false;
+        frontend = "caelestia-shell";
+        # needsXwaylandSatellite = true;
+        # fallbackConfig = "config/niri/config.kdl";
+      };
     };
     keyboard = {
       modifier = "SUPER";
@@ -181,40 +146,139 @@ in {
     };
   };
 
-  # ---------------------------------------------------------
-  # SYSTEM FUNCTIONALITIES & SERVICES
-  # ---------------------------------------------------------
+  # ╔════════════════════════════════════════════════╗
+  # ╠ PACKAGES & SERVICES                            ╣
+  # ╚════════════════════════════════════════════════╝
+  packages = {
+    unstable = true;
+    allowUnfree = true;
+    kernel = "linuxPackages_cachyos-lto";
+    caches = {
+      nyx = {
+        sub = "https://geo-mirror.chaotic.cx/";
+        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
+      };
+    };
+    aliases = {};
+  };
+
   functionalities = [
+    "ai"
     "audio"
     "battery"
     "bluetooth"
+    "dualboot-windows"
     "efi"
     "gpu"
     "keyboard"
     "network"
+    "nvme"
+    "remote"
     "secureboot"
     "storage"
+    "streaming"
+    "touchpad"
+    "tpm"
+    "vcs"
     "video"
     "virtualization"
+    "vpn"
+    "webcam"
     "wired"
     "wireless"
-    #TODO: Extend schema enum to cover these:
-    # "dualboot-windows"
-    # "nvme"
-    # "remote"
-    # "touchpad"
-    # "tpm"
-    # "vpn"
-    # "webcam"
   ];
 
-  services = {
-    ai.hermes.enable = true;
-    tailscale = {
-      enable = true;
-      openFirewall = true;
-      authKeySecret.enable = true;
+  applications = {
+    ai = {
+      claude = {
+        enable = true;
+        package = ["llm-agents" "claude-code"];
+      };
+      codex = {
+        enable = true;
+        package = ["llm-agents" "codex"];
+      };
+      hermes-agent = {
+        enable = true;
+        package = ["llm-agents" "hermes-agent"];
+      };
+      hermes-desktop = {
+        enable = true;
+        package = ["llm-agents" "hermes-desktop"];
+      };
+      hermes-hud = {
+        enable = true;
+        package = ["llm-agents" "hermes-hud"];
+      };
+      hermes = {
+        enable = true;
+        package = ["llm-agents" "hermes-agent"];
+      };
     };
-    streaming.enable = true;
+    connectivity = {
+      tailscale = {
+        enable = true;
+        openFirewall = true;
+        authKeySecret.enable = true;
+      };
+    };
+    editors = {
+      helix = {
+        enable = true;
+        package = "helix";
+      };
+      vscode = {
+        enable = true;
+        package = "vscode-fhs";
+      };
+      zed = {
+        enable = true;
+        package = "zed-editor-fhs";
+      };
+    };
+    terminals = {
+      alacritty = {
+        enable = true;
+        package = "alacritty";
+      };
+      foot = {
+        enable = true;
+        package = "foot";
+      };
+      kitty = {
+        enable = true;
+        package = "kitty";
+      };
+      tmux = {
+        enable = true;
+        package = "tmux";
+      };
+    };
+    vcs = {
+      git = {
+        enable = true;
+        package = "gitFull";
+      };
+      lfs = {
+        enable = true;
+        package = "git-lfs";
+      };
+      gh = {
+        enable = true;
+        package = "gh";
+      };
+      jj = {
+        enable = true;
+        package = "jujutsu";
+      };
+      gitui = {
+        enable = true;
+        package = "gitui";
+      };
+      delta = {
+        enable = true;
+        package = "delta";
+      };
+    };
   };
 }

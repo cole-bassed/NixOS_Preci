@@ -11,15 +11,19 @@ in {
     pkgs,
     ...
   }:
-    (mk {inherit config options pkgs;}).evaluated;
+    (mk {
+      inherit config options pkgs;
+      scope = "core";
+    }).evaluated;
 
   home = {
     config,
     options,
     pkgs,
     ...
-  }: let
-    scope = "home";
-  in
-    (mk {inherit config options pkgs scope;}).evaluated;
+  }:
+    (mk {
+      inherit config options pkgs;
+      scope = "home";
+    }).evaluated;
 }

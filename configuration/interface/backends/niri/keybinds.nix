@@ -1,12 +1,12 @@
 {
-  lib,
+  lix,
   niriActions ? {},
   niriEnable ? false,
   niriSemanticKeybinds ? false,
   options,
   ...
 }: let
-  inherit (lib.attrsets) filterAttrs optionalAttrs;
+  inherit (lix.attrsets) filterAttrs optionalAttrs;
 
   enable = niriEnable == true;
   semanticKeybinds = niriSemanticKeybinds == true;

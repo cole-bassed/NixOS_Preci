@@ -28,18 +28,16 @@ in {
     pkgs,
     ...
   }: let
-    inherit (mk {inherit config options pkgs defaults;}) apiOr get set evaluated;
-    cfg = get.config.module;
-    inherit (get) name;
+    inherit (mk {inherit config options pkgs defaults;}) get set;
+    # inherit (args) apiOr set evaluated cfg mod;
   in {
-    options = recursiveUpdate evaluated.options (set.options.module (mkOptions (genAttrs ["configType"] apiOr)));
+    options =
+      recursiveUpdate
+      evaluated.options
+      (set.options.module (mkOptions (genAttrs ["configType"] apiOr)));
     config = mkMerge [
       evaluated.config
-      {
-        programs.${name} = {
-          withUWSM = cfg.uwsm.enable;
-        };
-      }
+      {programs.${mod} = {withUWSM = cfg.uwsm.enable;};}
     ];
   };
 

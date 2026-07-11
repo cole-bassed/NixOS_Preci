@@ -56,75 +56,54 @@
     config,
     options ? {},
     top,
-    path ? null,
-    dom ? null,
-    mod ? null,
+    path,
     pkgs ? {},
     host ? {},
     users ? {},
     scope ? "core",
   }: let
-    targets = [
-      "main"
-      "custom"
-      "domain"
-      "parent"
-      "module"
-    ];
+    targets = ["main" "custom" "domain" "parent" "module"];
 
-    paths = let
-      segments =
-        if path != null
-        then path
-        else
-          (
-            if dom != null
-            then [dom mod]
-            else [mod]
-          );
-    in {
-      validate = path: target:
-        if path != null
-        then path
-        else if elem target targets
+    paths = {
+      validate = target:
+        if elem target targets
         then paths.${target}
-        else throw "Invalid target: '${target}'. Valid targets are: ${concatStringsSep ", " targets}";
+        else
+          throw "Invalid target: '${target}'. Valid targets are: ${
+            concatStringsSep ", " targets
+          }";
 
       main = [];
       custom = [top];
-      module = paths.custom ++ segments;
+      module = paths.custom ++ path;
       parent = init paths.module;
-      domain = paths.custom ++ [(head segments)];
+      domain = paths.custom ++ [(head path)];
     };
 
     get = {
       inherit host scope paths;
 
-      config = genAttrs targets (
-        target: set.config {inherit target;}
-      );
+      config =
+        genAttrs targets
+        (target: set.config {inherit target;});
+      cfg = get.config.module;
 
-      options = genAttrs targets (
-        target: attrByPath (asList (paths.validate null target)) {} options
-      );
+      options =
+        genAttrs targets
+        (target: attrByPath (paths.validate target) {} options);
 
       top =
         if top != null
         then top
         else get.names.custom;
 
-      dom =
-        if dom != null
-        then dom
-        else get.names.domain;
-
       names =
         genAttrs targets (
           target: let
-            path = paths.validate null target;
+            p = paths.validate target;
           in
-            if path != []
-            then last path
+            if p != []
+            then last p
             else "main"
         )
         // {
@@ -139,7 +118,8 @@
       user = let
         name = get.names.user;
       in
-        optionalAttrs (name != null)
+        optionalAttrs
+        (name != null)
         ((users.${name} or {}) // {inherit name;});
 
       package = pkgs.${get.name} or null;
@@ -148,24 +128,19 @@
     set = {
       config = {
         target ? "module",
-        path ? null,
         extra ? {},
-      }:
-        attrByPath
-        (asList (paths.validate path target))
-        {}
-        (recursiveUpdate config extra);
+      }: let
+        targetPath = paths.validate target;
+      in
+        attrByPath targetPath {} (
+          recursiveUpdate config
+          (setAttrByPath targetPath extra)
+        );
+
       options = genAttrs targets (
-        target: args: let
-          hasPath = args ? path || args ? extra;
-          extra =
-            if hasPath
-            then (args.extra or {})
-            else args;
-          path = args.path or null;
-        in
-          setAttrByPath (asList (paths.validate path target)) extra
+        target: extra: setAttrByPath (paths.validate target) extra
       );
+      opt = set.options.module;
 
       enable = {default ? false}:
         mkEnable {

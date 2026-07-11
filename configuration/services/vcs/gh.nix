@@ -1,10 +1,12 @@
 {
   lib,
   mkArgs,
+  registry,
   ...
 }: let
   name = "gh";
-  pkgName = "gh";
+  pkgName = registry.${name}.package;
+
   inherit (lib.modules) mkDefault mkIf;
 in {
   core = {
