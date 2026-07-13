@@ -1,30 +1,41 @@
 {
-  lix,
-  top,
-  pkgs ? null,
   lib,
-  dom,
-  mod,
+  mkArgs,
+  registry,
   ...
 }: let
-  inherit (lib.modules) mkIf;
-  inherit (lix.options) mkModuleArgs;
+  name = "gh";
+  pkgName = registry.${name}.package;
 
-  mk = scope: {config, ...}: let
-    module = mkModuleArgs {inherit config top dom mod scope pkgs;};
-    cfg = module.get.config.module;
-    opt = module.set.options.module;
-    package = module.get.package;
-    enable = cfg.enable or false;
-  in {
-    options = opt {enable = module.set.enable {default = false;};};
-    config = mkIf enable (
-      if scope == "core"
-      then {environment.systemPackages = [package];}
-      else {programs.${mod} = {inherit enable package;};}
-    );
-  };
+  inherit (lib.modules) mkDefault mkIf;
 in {
-  core = mk "core";
-  home = mk "home";
+  core = {
+    config,
+    pkgs,
+    ...
+  }: let
+    scope = "core";
+    inherit (mkArgs {inherit config scope;}) cfg;
+  in {
+    config = mkIf cfg.enable {
+      environment.systemPackages = [pkgs.${pkgName}];
+    };
+  };
+
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
+    scope = "home";
+    inherit (mkArgs {inherit config scope;}) cfg opt mkEnableMod;
+  in {
+    options = opt {${name}.enable = (mkEnableMod {inherit name;}).true;};
+    config = mkIf cfg.enable {
+      programs.${name} = {
+        enable = mkDefault true;
+        package = mkDefault pkgs.${pkgName};
+      };
+    };
+  };
 }

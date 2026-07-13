@@ -14,8 +14,6 @@
 
   users = getInteractiveUsers host;
 
-  # group mirrors the nesting in host/user `<domain>.<group>.<app>`,
-  # even though the module tree itself is flat under configuration/applications/<app>.
   registry = {
     git = {
       group = "vcs";
@@ -41,7 +39,6 @@
       group = "vcs";
       package = "delta";
     };
-
     claude = {
       group = "ai";
       package = "claude-code";
@@ -50,7 +47,6 @@
       group = "ai";
       package = "codex";
     };
-
     helix = {
       group = "editors";
       package = "helix";
@@ -63,7 +59,6 @@
       group = "editors";
       package = "zed-editor-fhs";
     };
-
     alacritty = {
       group = "terminals";
       package = "alacritty";

@@ -131,7 +131,7 @@ in {
 
       defaultProfile = mkOption {
         type = str;
-        default = "";
+        default = ""; # TODO: host.applications.vcs.git.defaultProfile or user.applications.vcs.git.defaultProfile
         description = "Default profile name for git user configuration.";
       };
 
