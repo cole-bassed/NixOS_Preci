@@ -4,9 +4,9 @@ lix.importModules (base
     base = ./.;
     recurse = false;
     excludes = [
-      "libraries"
-      "api"
-      # "applications"
+      "applications"
+      "services"
+      "displays"
       "test"
     ];
   })

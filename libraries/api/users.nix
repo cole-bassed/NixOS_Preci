@@ -21,7 +21,7 @@
     global =
       scoped
       // {
-        userAPI = scoped.registry;
+        userRegistry = scoped.registry;
         admins = scoped.getAdminUsers;
         enabledUsers = scoped.getEnabledUsers;
         loginUsers = scoped.getInteractiveUsers;

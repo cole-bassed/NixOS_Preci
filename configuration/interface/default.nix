@@ -6,8 +6,9 @@
 } @ args: let
   inherit (lix.ingestion) mkModules;
   inherit (lix.registry) selectionOf;
-  registry = api.interface.registry or(api.interface or {});
-  selection = spec: selectionOf {inherit top registry spec;};
+
+  registry = api.interface.registry or (api.interface or {});
+  selection = spec: selectionOf {inherit top spec registry;};
 in
   mkModules (
     args

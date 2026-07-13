@@ -12,9 +12,9 @@
 
   args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
 
-  backendAttrs = config: config.${top}.interface.backends or {};
+  values = config: config.${top}.interface.backends or {};
 
-  backendNames = config: let
+  names = config: let
     raw = backendAttrs config;
   in
     if isList raw
@@ -32,14 +32,10 @@
   opts = names: backends: {
     x11 =
       mkEnableOption "X11 protocol/session support"
-      // {
-        default = per "x11" names backends;
-      };
+      // {default = per "x11" names backends;};
     wayland =
       mkEnableOption "Wayland protocol/session support"
-      // {
-        default = per "wayland" names backends;
-      };
+      // {default = per "wayland" names backends;};
   };
 
   mk = scope: {

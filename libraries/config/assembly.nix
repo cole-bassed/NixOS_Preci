@@ -231,7 +231,8 @@
 
     specialArgs =
       {
-        inherit args host top api;
+        inherit args host top;
+        api = api // {};
         inherit (src) paths;
         mkPkgs = pkgs: pkgs // (packages.${systemOf pkgs} or {});
       }

@@ -5,14 +5,14 @@
   ...
 } @ args: let
   inherit (lix.ingestion) importModules;
-  inherit (lix.api.users) getInteractiveUsers;
+  # inherit (lix.api.users) getInteractiveUsers;
   inherit (lix.attrsets) attrByPath;
   inherit (lix.lists) elem head toList;
   inherit (lix.strings) concatStringsSep;
   inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) package;
 
-  users = getInteractiveUsers host;
+  # users = getInteractiveUsers host;
 
   registry = {
     git = {
@@ -88,21 +88,22 @@
     pkgs ? {},
     scope ? "core",
   }: let
-    module = mkModuleArgs {inherit config top scope path pkgs users;};
+    module = mkModuleArgs {
+      inherit config top scope path pkgs host;
+      lib = lix;
+    };
     inherit (module) get set;
-    inherit (get) name user;
+    inherit (get) name user hostEntry userEntry;
 
     entry = registry.${name} or {};
     group = entry.group or name;
     domain = head path;
-
-    hostEntry = attrByPath [domain group name] {} host;
-    userEntry = attrByPath [domain group name] {} user;
-
+    # hostEntry = attrByPath [domain group name] {} host;
+    # userEntry = attrByPath [domain group name] {} user;
     # pkgName may be a flat string ("gitFull") or a nested path
     # (["llm-agents" "claude-code"]) — normalize to a list either way.
-    pkgSpec = hostEntry.package or (userEntry.package or (entry.package or name));
-    pkgPath = toList pkgSpec;
+    # pkgSpec = hostEntry.package or (userEntry.package or (entry.package or name));
+    # pkgPath = toList pkgSpec;
   in
     module
     // {

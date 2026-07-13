@@ -14,7 +14,7 @@
     };
 
     global = {
-      hostAPI = registry;
+      hostRegistry = registry;
       getHostScopes = getScopes;
       normalizeHost = normalize;
     };

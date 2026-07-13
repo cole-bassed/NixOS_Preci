@@ -4,11 +4,13 @@
   filesystem,
   ingestion,
   paths,
+  types,
   ...
 }: let
-  inherit (attrsets) mapAttrs recursiveUpdate;
+  inherit (attrsets) listToAttrs mapAttrs recursiveUpdate;
   inherit (filesystem) mkPaths';
   inherit (ingestion) collectNamedSpecs;
+  inherit (types) isList;
 
   domains = {
     hosts.includeFiles = false;
@@ -18,7 +20,7 @@
     applications.includeFiles = true;
   };
 
-  api = let
+  specs = let
     base = paths.store.api or paths.store.data or {};
     src = base.src or ../../data;
     derived =
@@ -30,12 +32,24 @@
       {store.api = derived // {inherit src;};};
   in
     (mkPaths' {inherit (resolved) store local;}).store.api;
+
+  extra = {
+    normalize = raw:
+      if isList raw
+      then
+        listToAttrs (map (name: {
+            inherit name;
+            value = {};
+          })
+          raw)
+      else raw;
+  };
 in
   mapAttrs (name: domain:
     collectNamedSpecs {
-      inherit args;
       inherit (domain) includeFiles;
-      base = api.${name};
+      args = args // extra;
+      base = specs.${name};
       rekey = true;
     })
   domains

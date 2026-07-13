@@ -8,7 +8,7 @@
   exports = {
     scoped = {inherit registry resolve;};
     global = {
-      displayAPI = registry;
+      displayRegistry = registry;
       resolveDisplays = resolve;
     };
   };

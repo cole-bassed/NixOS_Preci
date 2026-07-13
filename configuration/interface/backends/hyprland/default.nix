@@ -9,10 +9,10 @@
   inherit (lix.options) mkOption;
   inherit (lix.types) enum;
 
-  mk = args: mkArgs ({inherit path;} // args);
   defaults = {
     configType = "lua";
   };
+  mk = args: mkArgs ({inherit path defaults;} // args);
 
   mkOptions = overrides: {
     configType = mkOption {
@@ -28,16 +28,16 @@ in {
     pkgs,
     ...
   }: let
-    inherit (mk {inherit config options pkgs defaults;}) get set;
-    # inherit (args) apiOr set evaluated cfg mod;
+    args = mk {inherit config options pkgs;};
+    inherit (args) resolvedOr opt cfg evaluated name;
   in {
     options =
       recursiveUpdate
       evaluated.options
-      (set.options.module (mkOptions (genAttrs ["configType"] apiOr)));
+      (opt (mkOptions (genAttrs ["configType"] resolvedOr)));
     config = mkMerge [
       evaluated.config
-      {programs.${mod} = {withUWSM = cfg.uwsm.enable;};}
+      {programs.${name} = {withUWSM = cfg.uwsm.enable;};}
     ];
   };
 
@@ -50,14 +50,14 @@ in {
   }: let
     scope = "home";
     mod = mk {inherit config osConfig options pkgs scope defaults;};
-    inherit (mod) apiOr get set evaluated;
+    inherit (mod) resolvedOr get set evaluated;
     cfg = get.config.module;
     inherit (get) name;
   in {
     options =
       recursiveUpdate
       evaluated.options
-      (set.options.module (mkOptions (genAttrs ["configType"] apiOr)));
+      (set.options.module (mkOptions (genAttrs ["configType"] resolvedOr)));
     config = mkMerge [
       evaluated.config
       {wayland.windowManager.${name}.configType = cfg.configType;}

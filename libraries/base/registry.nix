@@ -15,7 +15,7 @@
   };
 
   inherit (attrsets) attrNames attrValues listToAttrs mapAttrs;
-  inherit (lists) unique;
+  inherit (lists) filter unique;
   inherit (types) isList;
 
   normalize = raw:
@@ -34,7 +34,7 @@
     interface.backends
     or (
       unique (
-        builtins.filter (x: x != null && x != "") (
+        filter (x: x != null && x != "") (
           (interface.backend.managers or [])
           ++ (interface.backend.desktops or [])
           ++ [
@@ -45,10 +45,7 @@
       )
     );
 
-  select = {spec, ...}: let
-    normalized = normalize (rawOf spec);
-  in
-    normalized;
+  select = {spec, ...}: normalize (rawOf spec);
 
   resolve = {
     spec,

@@ -24,13 +24,23 @@
         mkLocaleOption
         ;
     };
-    global = {
-      inherit mkModuleArgs;
-    };
+    global = {inherit mkModuleArgs;};
   };
 
-  inherit (attrsets) attrByPath genAttrs mkNamespaced optionalAttrs recursiveUpdate setAttrByPath;
-  inherit (lists) asList elem hasAny head init last;
+  inherit
+    (attrsets)
+    attrByPath
+    attrValues
+    foldMerge
+    genAttrs
+    hasAttr
+    mapAttrs
+    mkNamespaced
+    optionalAttrs
+    recursiveUpdate
+    setAttrByPath
+    ;
+  inherit (lists) asList elem hasAny head init last optionals;
   inherit (options) mkOption mkEnableOption;
   inherit (types) nullOr addCheck float str;
   inherit (strings) toSentenceCase concatStringsSep;
@@ -54,75 +64,128 @@
   */
   mkModuleArgs = {
     config,
+    osConfig ? config,
     options ? {},
-    top,
+    top ? null,
     path,
+    hostPath ? path,
+    userPath ? path,
     pkgs ? {},
     host ? {},
-    users ? {},
+    defaults ? {},
+    lib,
+    users ? lib.api.users.getInteractiveUsers host,
     scope ? "core",
+    registry ? {},
   }: let
     targets = ["main" "custom" "domain" "parent" "module"];
+    # selection = spec: selectionOf {inherit top spec registry;};
 
-    paths = {
-      validate = target:
+    validate = {
+      path = target:
         if elem target targets
         then paths.${target}
         else
           throw "Invalid target: '${target}'. Valid targets are: ${
             concatStringsSep ", " targets
           }";
+    };
 
+    names =
+      genAttrs targets (
+        target: let
+          check = validate.path target;
+        in
+          if check != []
+          then last check
+          else "main"
+      )
+      // {
+        user =
+          get.config.main.home.username or (
+            get.config.custom.users.primary.name or null
+          );
+      };
+
+    base =
+      if top != null
+      then top
+      else names.custom;
+
+    paths = {
+      validate = validate.path;
       main = [];
-      custom = [top];
+      custom = [base];
       module = paths.custom ++ path;
       parent = init paths.module;
       domain = paths.custom ++ [(head path)];
     };
 
     get = {
-      inherit host scope paths;
-
-      config =
-        genAttrs targets
-        (target: set.config {inherit target;});
-      cfg = get.config.module;
-
-      options =
-        genAttrs targets
-        (target: attrByPath (paths.validate target) {} options);
-
-      top =
-        if top != null
-        then top
-        else get.names.custom;
-
-      names =
-        genAttrs targets (
-          target: let
-            p = paths.validate target;
-          in
-            if p != []
-            then last p
-            else "main"
-        )
-        // {
-          user =
-            get.config.main.home.username or (
-              get.config.custom.users.primary.name or null
-            );
-        };
-      name = get.names.module;
+      inherit host scope names paths users;
+      name = names.module;
       prettyName = set.name {pretty = true;};
 
       user = let
-        name = get.names.user;
+        name = names.user;
       in
         optionalAttrs
         (name != null)
         ((users.${name} or {}) // {inherit name;});
 
+      top =
+        if top != null
+        then top
+        else names.custom;
+
+      config =
+        genAttrs targets
+        (target: set.config {inherit target;});
+      cfg = get.config.module;
+      cfgOr = key: let
+        fromConfig = attrByPath (paths.module ++ [key]) null config;
+      in
+        if fromConfig != null
+        then fromConfig
+        else attrByPath (paths.module ++ [key]) (defaults.${key} or null) osConfig;
+
+      options =
+        genAttrs targets
+        (target: attrByPath (paths.validate target) {} options);
+
+      enabled = {
+        criteria ? elem (host.type or "laptop") ["desktop" "laptop"],
+        selection,
+      }: let
+        materialize = selected:
+          mapAttrs
+          (_: extra: {enable = true;} // extra)
+          (foldMerge selected);
+
+        required = let
+          byHost = [(selection host)];
+          byUser =
+            optionals
+            criteria
+            (map selection (attrValues users));
+        in {
+          core = materialize (byHost ++ byUser);
+          home =
+            materialize
+            (byHost ++ (optionals criteria [(selection get.user)]));
+        };
+      in
+        hasAttr get.name required.${scope};
       package = pkgs.${get.name} or null;
+
+      inherit registry;
+      hostEntry = attrByPath hostPath {} host;
+      userEntry = attrByPath userPath {} get.user;
+      dataEntry = registry.${get.name} or {};
+      apiOr = key:
+        get.hostEntry.${key} or
+          (get.userEntry.${key} or
+            (get.dataEntry.${key}));
     };
 
     set = {
@@ -137,27 +200,31 @@
           (setAttrByPath targetPath extra)
         );
 
-      options = genAttrs targets (
-        target: extra: setAttrByPath (paths.validate target) extra
-      );
+      options =
+        genAttrs
+        targets (target: extra: setAttrByPath (paths.validate target) extra);
       opt = set.options.module;
 
-      enable = {default ? false}:
-        mkEnable {
-          inherit (get) scope name;
-          inherit default;
-        };
-
       name = {
-        name ? get.names.module,
+        name ? names.module,
         pretty ? true,
       }:
         if pretty
         then toSentenceCase name
         else name;
+      enable = {default ? false}:
+        mkEnable {
+          inherit (get) scope name;
+          inherit default;
+        };
+      package = mkOption {
+        type = with types; nullOr package;
+        default = get.package;
+        description = "Package backing the ${get.prettyName} compositor component.";
+      };
 
       bin = {
-        module ? get.names.module,
+        module ? names.module,
         package ? get.package,
       }: let
         name =

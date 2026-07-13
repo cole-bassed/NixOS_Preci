@@ -6,7 +6,8 @@
   exports = {
     scoped = {
       inherit
-        # as
+        as
+        asEnabled
         asIf
         firstOf
         gets
@@ -21,6 +22,8 @@
         preferDefaultValues
         preferDefault
         select
+        valuesOf
+        namesOf
         ;
       optionalAttrs = asIf;
       defaultOrAll = preferDefault;
@@ -34,9 +37,7 @@
       intersect = intersectAttrs;
       is = isAttrs;
       maps = mapAttrs;
-      namesOf = attrNames;
       orEmptyNamed = orEmpty';
-      valuesOf = attrValues;
     };
 
     global = {
@@ -55,6 +56,7 @@
       defaultOrAllAttrs = preferDefault;
       defaultOrAllValues = preferDefaultValues;
       asAttrs = as;
+      asAttrsEnabled = asEnabled;
       asAttrsIf = asIf;
       filterAttrs = select;
       findFirstAttr = firstOf;
@@ -207,18 +209,17 @@
     then with args; exec set paths
     else exec args;
 
-  #TODO: Move to custom.types
   /**
   Coerce a value into an attrset.
 
   - Attrsets are returned unchanged
-  - Strings become `{ ${value} = true; }`
-  - Lists become an attrset of boolean flags keyed by list entries
+  - Strings become `{ ${value} = {}; }`
+  - Lists become an attrset of empty sets keyed by list entries
+  - Null becomes an empty attrset `{}`
 
   # Type
   ```nix
-  attrsets.as :: { ... } | String | [ String ] -> { ... }
-  ```
+  attrsets.as :: { ... } | String | [ String ] | Null -> { ... }
 
   # Dependencies
   None
@@ -232,33 +233,62 @@
   => { a = 1; }
 
   > attrsets.as "debug"
-  => { debug = true; }
+  => { debug = {}; }
 
   > attrsets.as [ "debug" "types" ]
-  => { debug = true; types = true; }
+  => { debug = {}; types = {}; }
+
+  > attrsets.as null
+  => {}
   */
   as = value: let
     _name = "attrsets.as";
-    _args = {
-      inherit value;
-      type = typeOf value;
-    };
   in
     if isAttrs value
     then value
     else if isString value
-    then {${value} = true;}
+    then {${value} = {};}
     else if isList value
     then
-      listToAttrs (
-        map
-        (name: {
+      listToAttrs (map (name: {
           inherit name;
-          value = true;
+          value = {};
         })
-        value
-      )
-    else throw "${_name}: Unsupported type: ${_args.type}";
+        value)
+    else if value == null
+    then {}
+    else throw "${_name}: Unsupported type: ${typeOf value}";
+
+  /**
+  Coerce a value into an attrset.
+
+  - Attrsets are returned unchanged
+  - Strings become `{ ${value} = true; }`
+  - Lists become an attrset of boolean flags keyed by list entries
+
+  # Type
+  ```nix
+  attrsets.asEnabled :: { ... } | String | [ String ] -> { ... }
+  ```
+
+  # Dependencies
+  None
+
+  # Arguments
+  value
+  : The value to coerce.
+
+  # Examples
+  > attrsets.asEnabled { a = 1; }
+  => { a = 1; }
+
+  > attrsets.asEnabled "debug"
+  => { debug = true; }
+
+  > attrsets.asEnabled [ "debug" "types" ]
+  => { debug = true; types = true; }
+  */
+  asEnabled = value: mapAttrs (name: v: true) (as value);
 
   /**
   Conditionally coerce a value into an attrset.
@@ -668,6 +698,20 @@
       if set ? default
       then [set.default]
       else attrValues set
+    else [];
+
+  valuesOf = value:
+    if isList value
+    then value
+    else if isAttrs value
+    then attrValues value
+    else if isString value
+    then [value]
+    else [];
+
+  namesOf = value:
+    if isAttrs value
+    then attrNames value
     else [];
 in
   exports
