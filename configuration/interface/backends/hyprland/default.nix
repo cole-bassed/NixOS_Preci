@@ -46,9 +46,19 @@
       (mkIf (cfg.enable or false) (
         if scope == "core"
         then {programs.${name} = {withUWSM = cfg.uwsm.enable;};}
-        else {wayland.windowManager.${name}.configType = cfg.configType;}
+        else {
+          wayland.windowManager.${name} = {
+            imports = [./settings ./submaps];
+            configType = cfg.configType;
+          };
+        }
       ))
     ];
+
+    imports =
+      if scope == "home"
+      then [./addons]
+      else [];
   };
 in {
   core = mk "core";
