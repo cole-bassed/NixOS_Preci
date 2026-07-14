@@ -1,18 +1,15 @@
 {
+  cfg,
   lix,
-  apps,
-  lib,
-  host,
-  keyboard,
   ...
 }: let
-  inherit (lib.modules) mkIf;
-  inherit (lix.hardware.display) mkHyprlandMonitors;
-  inherit (lix.schema.io) mkHyprKeybindings;
+  inherit (lix.modules) mkIf;
+  # inherit (lix.hardware.display) mkHyprlandMonitors;
+  # inherit (lix.schema.io) mkHyprKeybindings;
 
-  mod = keyboard.modifier;
+  mod = cfg.bindings.modifier;
 in {
-  monitor = mkHyprlandMonitors {inherit host;};
+  # monitor = mkHyprlandMonitors {inherit host;};
 
   input = {
     touchpad = {
@@ -22,7 +19,7 @@ in {
     };
     follow_mouse = false;
     accel_profile = "flat";
-    kb_options = mkIf keyboard.swapCapsEscape "caps:swapescape";
+    kb_options = mkIf cfg.bindings.swapCapsEscape "caps:swapescape";
   };
 
   bind = mkHyprKeybindings keyboard;

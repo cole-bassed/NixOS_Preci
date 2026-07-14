@@ -60,7 +60,7 @@
 
   inherit
     (attrsets)
-    attrNames
+    namesOf
     concatMapAttrs
     filterAttrs
     genAttrs
@@ -72,7 +72,7 @@
     optionalAttrs
     recursiveUpdate
     ;
-  inherit (lists) concatMap filter findFirstList foldl' genList isList length map nthOr;
+  inherit (lists) all concatMap filter findFirstList foldl' genList isList length map nthOr;
   inherit (strings) concatStringsSep toJSON toUpper substring;
   inherit (debug) withContext;
   inherit (types) isAttrs typeOf isString isFunction' isPath;
@@ -187,7 +187,7 @@
     (
       acc: name: let
         incoming = attrs name;
-        collisions = filter (k: hasAttr k acc) (attrNames incoming);
+        collisions = filter (key: hasAttr key acc) (namesOf incoming);
       in
         if collisions == []
         then acc // incoming
@@ -199,7 +199,7 @@
           ''
     )
     {}
-    (attrNames items);
+    (namesOf items);
 
   getOrderedOr = {
     key,
@@ -273,18 +273,52 @@
     // {inherit primary secondary tertiary preferred fallback default;};
 
   mapParsedOrdered = set: mapAttrs (_: parseOrdered) set;
+  mkNamespaced = args: let
+    hasPayload =
+      (args ? sets)
+      && all
+      (key: key == "sets" || key == "transformation")
+      (namesOf args);
 
-  foldMerge = foldl' recursiveUpdate {};
+    sets =
+      if hasPayload
+      then args.sets
+      else args;
 
-  mkNamespaced = namespaces:
+    # The default is now explicitly "camelCase" to prevent breakages.
+    transformation =
+      if hasPayload && (args ? transformation)
+      then args.transformation
+      else "camelCase";
+
+    # Define the style map: functions taking (prefix, name) and returning a string.
+    styleMap = {
+      camelCase = prefix: name:
+        if name == ""
+        then prefix
+        else "${prefix}${toUpper (substring 0 1 name)}${substring 1 (-1) name}";
+
+      shell = prefix: name:
+        if name == ""
+        then toUpper prefix
+        else "${toUpper prefix}_${toUpper name}";
+
+      none = prefix: name: "${prefix}${name}";
+    };
+
+    # Safely select the formatter, falling back to camelCase if an invalid string is passed.
+    formatName = styleMap.${transformation} or styleMap.camelCase;
+  in
     concatMapAttrs (
       prefix: attrset:
         listToAttrs (map (name: {
-          name = "${prefix}${toUpper (substring 0 1 name)}${substring 1 (-1) name}";
+          name = formatName prefix name;
           value = attrset.${name};
-        }) (attrNames attrset))
+        }) (namesOf attrset))
     )
-    namespaces;
+    sets;
+
+  foldMerge = foldl' recursiveUpdate {};
 
   normalize = args: let
     isDescriptor =

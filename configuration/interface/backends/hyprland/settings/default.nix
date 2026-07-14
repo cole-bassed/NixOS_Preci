@@ -1,20 +1,13 @@
 {
   lix,
   cfg,
-  # host,
-  # apps,
-  # host,
-  # lib,
-  # lix,
-  # keyboard,
-  # keys,
   ...
 }: let
-  inherit (lix.modules) mkIf mkMerge;
+  inherit (lix.modules) mkMerge;
 in {
   settings = mkMerge [
-    (import ./core.nix {inherit cfg;})
-    # (import ./io.nix {inherit apps host lix lib keyboard;})
+    (import ./core.nix {inherit cfg lix;})
+    # (import ./bindings.nix {inherit cfg lix;})
     # (mkIf cfg.enableRules (import ./rules {inherit apps keyboard lib;}))
   ];
 }

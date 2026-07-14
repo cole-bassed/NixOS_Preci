@@ -13,6 +13,8 @@
         # mkEnable'
         mkCfg
         mkOpt
+        mkAppOptions
+        mkAppOption
         # mkEnableMod
         mkModuleArgs
         mkFloatOption
@@ -45,7 +47,7 @@
     ;
   inherit (lists) asList elem hasAny head init last optionals;
   inherit (options) mkOption mkEnableOption;
-  inherit (types) nullOr addCheck float str;
+  inherit (types) nullOr addCheck float isNotEmpty listOf str submodule;
   inherit (strings) toSentenceCase concatStringsSep;
 
   /**
@@ -454,5 +456,74 @@
       '';
       default = host.localization.locale or default;
     };
+
+  mkAppOption = {
+    name,
+    type ? null,
+    label ? null,
+    labels ? {},
+    applications,
+  }: let
+    resolved = {
+      labels =
+        recursiveUpdate {
+          browser = "Web browsers";
+          editor = "Terminal-based editors";
+          visual = "Graphical-based editors";
+          launcher = "Application launchers";
+          terminal = "Terminal emulators";
+        }
+        labels;
+      type =
+        if isNotEmpty type
+        then type
+        else
+          nullOr (listOf (
+            submodule {
+              options = {
+                name = mkOption {
+                  type = str;
+                  description = "Package name or lookup identifier.";
+                };
+                description = mkOption {
+                  type = str;
+                  description = "Human-readable descriptive label.";
+                };
+                command = mkOption {
+                  type = str;
+                  description = "The executable/binary command used to trigger it.";
+                };
+              };
+            }
+          ));
+    };
+  in
+    mkOption {
+      type = resolved.type;
+      default = applications.${name} or null;
+      description = "Ordered list of ${(
+        if label != null
+        then label
+        else (resolved.labels.${name} or "${name} applications")
+      )} from the registry.";
+    };
+
+  mkAppOptions = {
+    applications,
+    labels ? {},
+    type ? null,
+    name ? "applications",
+  }: {
+    ${name} = mkOption {
+      description = "Priority-ordered tier applications resolved by the registry.";
+      type = submodule {
+        options =
+          mapAttrs
+          (name: _: mkAppOption {inherit applications name labels type;})
+          applications;
+      };
+      default = {};
+    };
+  };
 in
   exports

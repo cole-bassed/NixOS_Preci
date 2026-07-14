@@ -30,15 +30,6 @@
     };
 in {
   options = setAttrByPath cfgPath {
-    modifier = mkOption {
-      type = str;
-      default = "SUPER";
-      description = ''
-        Primary compositor modifier key. Niri binds use its compositor-agnostic
-        `Mod` alias, but this keeps the chosen host intent visible in the live API.
-      '';
-    };
-
     semanticKeybinds =
       mkEnableOption "modular semantic keybind layer for Niri"
       // {default = true;};
