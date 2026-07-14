@@ -55,7 +55,7 @@ in {
     config = mkIf cfg.enable {
       programs.git = {
         enable = mkDefault true;
-        package = cfg.package;
+        inherit (cfg) package;
         settings = {
           init.defaultBranch = mkDefault "main";
           pull.rebase = mkDefault true;

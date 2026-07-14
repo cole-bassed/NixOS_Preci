@@ -288,7 +288,7 @@
   > attrsets.asEnabled [ "debug" "types" ]
   => { debug = true; types = true; }
   */
-  asEnabled = value: mapAttrs (name: v: true) (as value);
+  asEnabled = value: mapAttrs (_name: _v: true) (as value);
 
   /**
   Conditionally coerce a value into an attrset.

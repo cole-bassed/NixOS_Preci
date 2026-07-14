@@ -27,7 +27,7 @@
         inherit scope;
       })
       // {
-        __functor = self: overrides: mkEnable ({inherit scope;} // overrides);
+        __functor = _self: overrides: mkEnable ({inherit scope;} // overrides);
       };
   in
     module

@@ -1,8 +1,4 @@
-{
-  lix,
-  mkArgs,
-  ...
-}: let
+{lix, ...}: let
   inherit (lix.attrsets) attrByPath optionalAttrs;
   inherit (lix.lists) any optionals;
   inherit (lix.modules) mkIf;
@@ -14,12 +10,7 @@
   wantsXwaylandSatellite = names: backends:
     any (name: attrByPath [name "needsXwaylandSatellite"] false backends) names;
 
-  mk = scope: {
-    config,
-    pkgs,
-    ...
-  }: let
-  in {
+  mk = scope: {pkgs, ...}: {
     options = opt {
       x11 = mkEnableOption "X11 support" // {default = per "x11" data.names data.values;};
       wayland = mkEnableOption "Wayland support" // {default = per "wayland" data.names data.values;};

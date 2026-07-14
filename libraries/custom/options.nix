@@ -225,7 +225,7 @@
           inherit registry;
           names = namesOf registry;
           values = valuesOf registry;
-          select = spec: asAttrs spec; # TODO: This is not working at all
+          select = asAttrs; # TODO: This is not working at all
         }
       );
       apiOr = key:

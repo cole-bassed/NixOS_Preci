@@ -71,7 +71,7 @@
             needsXwaylandSatellite = false;
             frontend = null;
             greeter = null;
-            package = get.package;
+            inherit (get) package;
           }
           defaults
         );
@@ -160,7 +160,7 @@
         if scope == "home"
         then
           optionalAttrs (target != null) (setAttrByPath target (
-            optionalAttrs (hasSub "enable") {enable = cfg.enable;}
+            optionalAttrs (hasSub "enable") {inherit (cfg) enable;}
             // optionalAttrs (hasSub "package") {inherit (cfg) package;}
           ))
         else

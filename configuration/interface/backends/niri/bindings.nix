@@ -157,7 +157,8 @@
     "Mod+Escape" = {action.toggle-keyboard-shortcuts-inhibit = [];};
   };
 in {
-  config = mkIf (hasNiriProgram && enable && semanticKeybinds) {
+  # config = mkIf (hasNiriProgram && enable && semanticKeybinds) {
+  config = optionalAttrs hasNiriProgram (mkIf (enable && semanticKeybinds) {
     programs.niri.settings.binds =
       defaults
       // optionalAttrs (enabled ? secondaryLauncher)
@@ -212,5 +213,5 @@ in {
           hotkey-overlay.title = "Region screenshot → clipboard";
         };
       };
-  };
+  });
 }

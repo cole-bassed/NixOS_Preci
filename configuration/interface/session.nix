@@ -1,13 +1,4 @@
-{
-  lix,
-  top,
-  host,
-  dom,
-  mod,
-  backendRegistry,
-  selection,
-  ...
-}: let
+{lix, ...}: let
   inherit (lix.api) getAdminUsers;
   inherit (lix.attrsets) attrNames attrValues isAttrs;
   inherit (lix.lists) elem elemAt filter length;

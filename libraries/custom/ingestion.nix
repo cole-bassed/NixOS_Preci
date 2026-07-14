@@ -47,7 +47,7 @@
     setAttrByPath
     ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asModuleList any concatMap elem elemAt findFirst last length optionals;
+  inherit (lists) asModuleList any concatMap elem findFirst last optionals;
   inherit (strings) hasSuffix removeSuffix;
   inherit (options) mkOption;
   inherit (types) isFunction attrs;
@@ -170,23 +170,6 @@
   #   path = ["a"]         -> { dom = null; mod = "a"; }
   #   path = ["a" "b"]     -> { dom = "a";  mod = "b"; }
   #   path = ["a" "b" "c"] -> { dom = "b";  mod = "c"; }  (only last 2 matter)
-  legacyDomMod = path: let
-    len = length path;
-  in
-    if len == 0
-    then {
-      dom = null;
-      mod = null;
-    }
-    else if len == 1
-    then {
-      dom = null;
-      mod = elemAt path 0;
-    }
-    else {
-      dom = elemAt path (len - 2);
-      mod = elemAt path (len - 1);
-    };
 
   collectSpecs = {
     args,

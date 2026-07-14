@@ -3,8 +3,6 @@
   top,
   host,
   path,
-  registry,
-  selection,
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;

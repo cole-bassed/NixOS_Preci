@@ -1,6 +1,5 @@
 {
   lib,
-  mod,
   registry,
   mkArgs,
   ...
