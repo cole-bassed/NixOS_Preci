@@ -1,4 +1,4 @@
-{
+_: {
   focus.settings = {
     bind = [
       ", h, movefocus, l"

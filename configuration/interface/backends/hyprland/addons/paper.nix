@@ -1,4 +1,4 @@
-{
+_: {
   hyprpaper = {
     enable = true;
     settings = {

@@ -1,4 +1,4 @@
-{
+_: {
   resize.settings = {
     bind = [", escape, submap, reset"];
     binde = [

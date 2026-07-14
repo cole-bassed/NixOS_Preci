@@ -1,115 +1,170 @@
-{
-  apps,
-  keyboard,
-  ...
-}: let
-  inherit
-    (apps)
-    browser
-    editor
-    launcher
-    terminal
-    ;
+{cfg, ...}: let
+  getCmd = list: index: default:
+    if list != null && (length list) > index
+    then (elemAt list index).command
+    else default;
+
+  # Parse out our 3 priority tiers safely
+  browser = {
+    primary = getCmd cfg.browser 0 "firefox";
+    secondary = getCmd cfg.browser 1 "chromium";
+    tertiary = getCmd cfg.browser 2 "epiphany";
+  };
+
+  editor = {
+    tty = {
+      primary = getCmd cfg.editor.tty 0 "nvim";
+      secondary = getCmd cfg.editor.tty 1 "hx";
+      tertiary = getCmd cfg.editor.tty 2 "nano";
+    };
+    gui = {
+      primary = getCmd cfg.editor.gui 0 "code";
+      secondary = getCmd cfg.editor.gui 1 "zeditor";
+      tertiary = getCmd cfg.editor.gui 2 "emacs";
+    };
+  };
+
+  launcher = {
+    primary = getCmd cfg.launcher 0 "wofi --show drun";
+    secondary = getCmd cfg.launcher 1 "fuzzel";
+    tertiary = getCmd cfg.launcher 2 "rofi -show drun";
+  };
+
+  terminal = {
+    primary = getCmd cfg.terminal 0 "kitty";
+    secondary = getCmd cfg.terminal 1 "foot";
+    tertiary = getCmd cfg.terminal 2 "alacritty";
+  };
 in {
-  "$MOD" = keyboard.mod;
-  "$browser" = browser.primary.command;
-  "$browserAlt" = browser.secondary.command;
-  "$editor" = editor.primary.command;
-  "$editorAlt" = editor.secondary.command;
-  "$launcher" = launcher.primary.command;
-  "$launcherAlt" = launcher.secondary.command;
-  "$terminal" = terminal.primary.command;
-  "$terminalAlt" = terminal.secondary.command;
-
+  # ╔════════════════════════════════════════════════╗
+  # ╠ ENVIRONMENT & APPLICATIONS                     ╣
+  # ╚════════════════════════════════════════════════╝
   env = ["XDG_CURRENT_DESKTOP,Hyprland"];
-  general = {
-    # sensitivity = 0.2;
+  "$MOD" = cfg.keyboard.modifier or "SUPER";
 
-    # gaps_in = 4;
-    # gaps_out = 4;
-    # border_size = 1;
-    # allow_tearing = true;
-    # resize_on_border = true;
+  "$browser" = browser.primary;
+  "$browserAlt" = browser.secondary;
+  "$browserTertiary" = browser.tertiary;
 
-    # layout = "dwindle";
+  "$editor" = editor.tty.primary;
+  "$editorAlt" = editor.tty.secondary;
+  "$editorTertiary" = editor.tty.tertiary;
 
-    # "col.active_border" = "rgba(88888888)";
-    # "col.inactive_border" = "rgba(00000088)";
-  };
+  "$visual" = editor.gui.primary;
+  "$visualAlt" = editor.gui.secondary;
+  "$visualTertiary" = editor.gui.tertiary;
 
-  debug = {
-    # disable_logs = false;
-  };
+  "$launcher" = launcher.primary;
+  "$launcherAlt" = launcher.secondary;
+  "$launcherTertiary" = launcher.tertiary;
 
+  "$terminal" = terminal.primary;
+  "$terminalAlt" = terminal.secondary;
+  "$terminalTertiary" = terminal.tertiary;
+
+  # ╔════════════════════════════════════════════════╗
+  # ╠ WINDOW                                         ╣
+  # ╚════════════════════════════════════════════════╝
+  # --------------------------------------------------
+  # --> Decorations
+  # --------------------------------------------------
   decoration = {
-    # rounding = 4;
-    # blur = {
-    #   enabled = true;
-    #   brightness = 1.0;
-    #   contrast = 1.0;
-    #   noise = 2.0e-2;
+    rounding = 8;
 
-    #   passes = 3;
-    #   size = 10;
-    # };
+    blur = {
+      enabled = true;
+      brightness = 1.0;
+      contrast = 1.0;
+      noise = 0.02;
+      passes = 3;
+      size = 8;
+    };
 
-    # drop_shadow = true;
-    # shadow_ignore_window = true;
-    # shadow_offset = "0 2";
-    # shadow_range = 20;
-    # shadow_render_power = 3;
-    # "col.shadow" = "rgba(00000055)";
+    shadow = {
+      enabled = true;
+      range = 15;
+      render_power = 3;
+      color = "rgba(00000055)";
+    };
   };
 
+  # --------------------------------------------------
+  # --> Animations
+  # --------------------------------------------------
   animations = {
-    # enabled = true;
-    # animation = [
-    #   "border, 1, 2, default"
-    #   "fade, 1, 4, default"
-    #   "windows, 1, 3, default, popin 80%"
-    #   "workspaces, 1, 2, default, slide"
-    # ];
+    enabled = true;
+    animation = [
+      "border, 1, 2, default"
+      "fade, 1, 4, default"
+      "windows, 1, 3, default, popin 80%"
+      "workspaces, 1, 2, default, slide"
+    ];
   };
 
+  # --------------------------------------------------
+  # --> Groups
+  # --------------------------------------------------
   group = {
-    # groupbar = {
-    #   font_size = 16;
-    #   gradients = false;
-    # };
-
-    # "col.border_active" = "rgba(${c.color_accent_primary}88);";
-    # "col.border_inactive" = "rgba(${c.color_accent_primary_variant}88)";
+    groupbar = {
+      font_size = 12;
+      gradients = false;
+    };
+    "col.border_active" = "rgba(b4befeff)";
+    "col.border_inactive" = "rgba(313244ff)";
   };
 
+  # ╔════════════════════════════════════════════════╗
+  # ╠ LAYOUT & BORDERS                               ╣
+  # ╚════════════════════════════════════════════════╝
+  general.layout = "dwindle";
+
+  # --------------------------------------------------
+  # --> Borders & Gaps
+  # --------------------------------------------------
+  general = {
+    gaps_in = 4;
+    gaps_out = 8;
+    border_size = 2;
+    resize_on_border = true;
+    "col.active_border" = "rgba(b4befeaf) rgba(6c7086af) 45deg";
+    "col.inactive_border" = "rgba(313244ff)";
+  };
+
+  # --------------------------------------------------
+  # --> Dwindle
+  # --------------------------------------------------
   dwindle = {
-    # pseudotile = 0;
-    # force_split = 2;
-    # preserve_split = 1;
-    # default_split_ratio = 1.3;
+    pseudotile = false;
+    force_split = 2;
+    preserve_split = true;
+    default_split_ratio = 1.0;
   };
 
+  # --------------------------------------------------
+  # --> Master
+  # --------------------------------------------------
   master = {
-    # new_is_master = false;
-    # new_on_top = false;
-    # no_gaps_when_only = false;
-    # orientation = "top";
-    # mfact = 0.6;
-    # always_center_master = false;
+    new_status = "master";
+    new_on_top = false;
+    orientation = "left";
+    mfact = 0.55;
+    always_center_master = false;
   };
 
+  # ╔════════════════════════════════════════════════╗
+  # ╠ MISCELLANEOUS SETTINGS                         ╣
+  # ╚════════════════════════════════════════════════╝
+  general = {
+    sensitivity = 1.0;
+    allow_tearing = false;
+  };
+  debug = {
+    disable_logs = false;
+  };
   misc = {
-    #~@ Disable auto polling for config file changes
-    # disable_autoreload = true;
-
-    # force_default_wallpaper = 0;
-
-    #~@ Disable dragging animation
-    # animate_mouse_windowdragging = false;
-
-    #~@ Enable variable refresh rate (effective depending on hardware)
-    # vrr = 1;
-
-    #~@ We do, in fact, want direct scanout
-    # no_direct_scanout = false;
+    disable_autoreload = false;
+    force_default_wallpaper = 0;
+    animate_mouse_windowdragging = false;
+    vrr = 1;
   };
 }

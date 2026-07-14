@@ -1,21 +1,22 @@
 {
   lib,
-  mkMerge,
   paths,
   ...
-}: {
+}: let
+  inherit (lib.modules) mkMerge;
+in {
   programs = mkMerge [
     (import ./lock.nix {inherit lib;})
-    # (import ./panel.nix)
-    (import ./shot.nix)
+    # (import ./panel.nix {})
+    (import ./shot.nix {})
   ];
 
   services = mkMerge [
-    (import ./idle.nix)
+    (import ./idle.nix {})
     (import ./paper.nix {inherit paths;})
-    (import ./polkit.nix)
-    # // (import ./shell.nix)
-    (import ./sunset.nix)
+    (import ./polkit.nix {})
+    # // (import ./shell.nix {})
+    (import ./sunset.nix {})
     # {
     #   mako.enable = true;
     # }

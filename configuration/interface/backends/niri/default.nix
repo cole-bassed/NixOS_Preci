@@ -55,7 +55,7 @@ in {
     inherit (mod) apiOr set evaluated;
   in {
     imports = [
-      ./bindinds.nix
+      ./bindings.nix
       ./options.nix
       ./packages.nix
     ];

@@ -1,1 +1,1 @@
-{ashell.enable = true;}
+_: {ashell.enable = true;}

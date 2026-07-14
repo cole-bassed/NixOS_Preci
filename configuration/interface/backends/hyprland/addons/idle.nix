@@ -1,4 +1,4 @@
-{
+_: {
   hypridle = {
     enable = true;
     settings = {
