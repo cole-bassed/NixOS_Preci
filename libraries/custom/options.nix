@@ -178,7 +178,7 @@
 
       enabled = {
         criteria ? elem (host.type or "laptop") ["desktop" "laptop"],
-        selectFrom ? get.select,
+        selectFrom ? set.selection,
       }: let
         materialize = selected:
           mapAttrs
@@ -206,11 +206,9 @@
 
       hostEntry = attrByPath hostPath {} host;
       userEntry = attrByPath userPath {} get.user;
-      # 1. Update dataEntry to map targets to API slices
-      # Current domain based on path (e.g., "interface")
-
       dataEntry = genAttrs targets (
         target: let
+          #TODO This is not making use of our target and genAttrs style setup
           domain = head path;
           name = last path;
           registry =
@@ -227,7 +225,7 @@
           inherit registry;
           names = namesOf registry;
           values = valuesOf registry;
-          select = spec: asAttrs spec;
+          select = spec: asAttrs spec; # TODO: This is not working at all
         }
       );
       apiOr = key:

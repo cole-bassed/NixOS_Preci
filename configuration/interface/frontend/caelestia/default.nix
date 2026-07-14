@@ -2,21 +2,18 @@
   mkChild,
   path,
   ...
-}: {
+}: let
+  targets = [
+    ["programs" "caelestia-shell"]
+    ["programs" "caelestia"]
+  ];
+in {
   core = mkChild {
-    inherit path;
-    targets = [
-      ["programs" "caelestia-shell"]
-      ["programs" "caelestia"]
-    ];
+    inherit path targets;
   };
 
   home = mkChild {
-    inherit path;
+    inherit path targets;
     scope = "home";
-    targets = [
-      ["programs" "caelestia-shell"]
-      ["programs" "caelestia"]
-    ];
   };
 }

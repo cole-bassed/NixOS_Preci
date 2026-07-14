@@ -3,11 +3,9 @@
   top,
   host,
   path,
-  # registry,
-  # selection,
   ...
 } @ args: let
-  inherit (lix.attrsets) hasAttrByPath optionalAttrs setAttrByPath;
+  inherit (lix.attrsets) hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
   inherit (lix.lists) findFirst;
   inherit (lix.modules) mkIf mkMerge mkModules;
   inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
@@ -34,7 +32,6 @@
         osConfig
         path
         pkgs
-        # registry
         scope
         top
         ;
@@ -43,69 +40,94 @@
     inherit (get) prettyName name cfg cfgOr apiOr;
     inherit (set) opt bin;
 
-    protocol = apiOr "protocol";
-    isWayland = protocol == "wayland";
-    # enabled = get.enabled {inherit selection;};
-    enabled = get.enabled {};
+    default = let
+      derived = {
+        enable = apiOr "enable";
+        protocol = apiOr "protocol";
+        uwsm = apiOr "uwsm";
+        session = apiOr "session";
+        needsXwaylandSatellite = apiOr "needsXwaylandSatellite";
+        frontend = apiOr "frontend";
+        greeter = apiOr "greeter";
+        package = apiOr "package";
+      };
+
+      updated =
+        mapAttrs
+        (
+          key: value: let
+            derivedValue = derived.${key} or null;
+          in
+            if derivedValue != null
+            then derivedValue
+            else value
+        )
+        (
+          recursiveUpdate {
+            enable = false;
+            protocol = null;
+            uwsm = null;
+            session = name;
+            needsXwaylandSatellite = false;
+            frontend = null;
+            greeter = null;
+            package = get.package;
+          }
+          defaults
+        );
+    in
+      updated
+      // {
+        uwsm =
+          if derived.uwsm != null
+          then derived.uwsm
+          else updated.protocol == "wayland" && updated.enable;
+      };
+
     fields =
       {
-        enable = set.enable {default = enabled;};
+        enable = set.enable {default = default.enable;};
+
         package = mkOption {
           type = nullOr package;
-          default = get.package;
+          default = default.package;
           description = "Package backing the ${prettyName} compositor component.";
         };
+
         protocol = mkOption {
           type = nullOr (enum ["x11" "wayland"]);
-          default = protocol;
+          default = default.protocol;
           description = "Display protocol for ${prettyName}. Defaults to the backend registry or host/user override.";
         };
+
         session = mkOption {
           type = nullOr str;
-          default = let
-            value = apiOr "session";
-          in
-            if value != null
-            then value
-            else name;
+          default = default.session;
           description = "Session name exported by ${prettyName}. Defaults to the backend registry or host/user override.";
         };
+
         greeter = mkOption {
           type = nullOr str;
-          default = apiOr "greeter";
+          default = default.greeter;
           description = "Greeter or display manager preferred for ${prettyName}. Defaults to the backend registry or host/user override.";
         };
+
         frontend = mkOption {
           type = nullOr str;
-          default = apiOr "frontend";
+          default = default.frontend;
           description = "Frontend layer paired with ${prettyName}. Defaults to the backend registry or host/user override.";
         };
+
         needsXwaylandSatellite =
           mkEnableOption "xwayland-satellite support for ${prettyName}"
-          // {
-            default = let
-              value = apiOr "needsXwaylandSatellite";
-            in
-              if value != null
-              then value
-              else false;
-          };
+          // {default = default.needsXwaylandSatellite;};
       }
       // optionalAttrs (scope == "core") {
         uwsm = mkOption {
           description = "UWSM configuration for ${prettyName}. Set to `null` to disable UWSM integration.";
           type = submodule {
             options = {
-              enable =
-                mkEnableOption "${prettyName} UWSM support."
-                // {
-                  default = let
-                    choice = apiOr "uwsm";
-                  in
-                    if choice != null
-                    then choice
-                    else isWayland && enabled;
-                };
+              enable = mkEnableOption "${prettyName} UWSM support." // {default = default.uwsm;};
               name = mkOption {
                 type = str;
                 description = "Human-readable name shown by UWSM.";
@@ -158,10 +180,10 @@
               && (cfg.uwsm.enable or false)) {
               programs.uwsm = {
                 enable = true;
-                waylandCompositors.${name} = with cfg.uwsm; {
-                  prettyName = name;
-                  comment = description;
-                  binPath = binary;
+                waylandCompositors.${name} = {
+                  prettyName = cfg.uwsm.name;
+                  comment = cfg.uwsm.description;
+                  binPath = cfg.uwsm.binary;
                 };
               };
             })
@@ -173,7 +195,7 @@
   inner = mkModules (args
     // {
       base = ./.;
-      declareRegistry = false;
+      declareRegistry = true;
       childPath = path;
       extraArgs = {
         mkArgs = {

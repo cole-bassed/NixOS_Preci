@@ -9,17 +9,14 @@
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) attrByPath namesOf valuesOf foldMerge hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
-  inherit (lix.lists) elemAt filter findFirst length;
+  inherit (lix.lists) elem elemAt filter findFirst length;
   inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) attrs enum nullOr package submodule;
-
   here = path;
-
   aliases = {
     dms = "dank-material";
   };
-
   frontendValues = [
     "dms"
     "dank-material"
@@ -29,12 +26,10 @@
     "plasma"
     "cosmic"
   ];
-
   normalize = frontend:
     if frontend == null
     then null
     else aliases.${frontend} or frontend;
-
   registryFrontendOf = spec: let
     names = namesOf (selection spec);
     value =
@@ -44,19 +39,16 @@
     env = optionalAttrs (value != null) (registry.${value} or {});
   in
     normalize (env.frontend or null);
-
   selectedFrontend = spec: normalize ((spec.interface or {}).frontend or (registryFrontendOf spec));
-
   materialize = selected:
     mapAttrs
     (_: extra: {enable = true;} // extra)
     (foldMerge (map (name: setAttrByPath [name] {}) (filter (name: name != null) selected)));
-
   required = let
     main = [
       (selectedFrontend host)
     ];
-    isDesktopHost = builtins.elem (host.type or "desktop") ["desktop" "laptop"];
+    isDesktopHost = elem (host.type or "desktop") ["desktop" "laptop"];
     userSelections =
       if isDesktopHost
       then map selectedFrontend (valuesOf (getInteractiveUsers host))
@@ -73,7 +65,6 @@
         )
       );
   };
-
   activeBackendNames = namesOf (selection host);
   primaryBackend =
     if length activeBackendNames > 0
@@ -85,7 +76,6 @@
     else {};
   registryFrontend = registryFrontendOf host;
   isWayland = primaryEnv.protocol or null == "wayland";
-
   mkMod = {
     config,
     options ? {},
@@ -97,7 +87,6 @@
     module = mkModuleArgs {inherit top config path scope pkgs options users;};
     inherit (module.get) name prettyName;
     opt = module.set.options.module;
-
     fields = {
       enable = mkEnable {
         inherit name scope;
@@ -121,7 +110,6 @@
       (mkIf (fields.package.default != null) (opt {package = mkDefault fields.package.default;}))
     ];
   };
-
   inner = mkModules (args
     // {
       base = ./.;
@@ -164,7 +152,6 @@
             inherit cfgOr enableTarget;
             inherit (mod) options config;
           };
-
         mkChild = {
           path,
           scope ? "core",
@@ -198,7 +185,6 @@
         mkArgs = buildChild;
       };
     });
-
   mk = scope: {config, ...}: let
     mod = mkModuleArgs {
       inherit config top scope;
@@ -222,7 +208,6 @@
         description = "Graphical frontend configuration.";
       };
     };
-
     config.assertions = [
       {
         assertion = cfg.frontend.selected == null || primaryBackend != null;

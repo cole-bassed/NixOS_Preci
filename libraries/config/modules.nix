@@ -1,4 +1,5 @@
 {
+  api,
   ingestion,
   modules,
   options,
@@ -6,16 +7,15 @@
   ...
 }: let
   exports = {
-    scoped = {
-      mkModules = importModules;
-      inherit importModules mkModuleArgs mkCfgIf mkIf';
-    };
+    scoped = {inherit mkModules mkModuleArgs mkCfgIf mkIf';};
     global = {inherit mkCfgIf mkIf';};
   };
-  inherit (ingestion) importModules;
+
   inherit (modules) mkIf mkMerge;
-  inherit (options) mkModuleArgs;
   inherit (types) isList;
+
+  mkModules = args: ingestion.importModules (args // {inherit api;});
+  mkModuleArgs = args: options.mkModuleArgs (args // {inherit api;});
 
   mkCfgIf = {
     cfg,

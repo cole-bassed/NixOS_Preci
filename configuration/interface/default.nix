@@ -1,18 +1,16 @@
-{
-  api,
-  lix,
-  top,
-  ...
-} @ args: let
-  inherit (args) path;
+{lix, ...} @ args: let
   inherit (lix.modules) mkModules mkModuleArgs;
 in
   mkModules (
     args
     // {
-      inherit path;
       base = ./.;
-      excludes = ["session" "frontend" "protocol"];
+      excludes = [
+        # "backend"
+        "frontend"
+        "protocol"
+        "session"
+      ];
       recurse = true;
       extraArgs = {
         mkArgs = {
@@ -25,14 +23,12 @@ in
         }:
           mkModuleArgs {
             inherit
-              api
               config
               options
               osConfig
               path
               pkgs
               scope
-              top
               ;
           };
       };
