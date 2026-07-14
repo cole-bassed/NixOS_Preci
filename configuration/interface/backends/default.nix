@@ -3,8 +3,8 @@
   top,
   host,
   path,
-  registry,
-  selection,
+  # registry,
+  # selection,
   ...
 } @ args: let
   inherit (lix.attrsets) hasAttrByPath optionalAttrs setAttrByPath;
@@ -34,18 +34,19 @@
         osConfig
         path
         pkgs
-        registry
+        # registry
         scope
         top
         ;
     };
     inherit (args) get set;
-    inherit (get) prettyName enabled name cfg cfgOr apiOr;
+    inherit (get) prettyName name cfg cfgOr apiOr;
     inherit (set) opt bin;
 
     protocol = apiOr "protocol";
     isWayland = protocol == "wayland";
-
+    # enabled = get.enabled {inherit selection;};
+    enabled = get.enabled {};
     fields =
       {
         enable = set.enable {default = enabled;};
@@ -172,7 +173,6 @@
   inner = mkModules (args
     // {
       base = ./.;
-      excludes = [];
       declareRegistry = false;
       childPath = path;
       extraArgs = {

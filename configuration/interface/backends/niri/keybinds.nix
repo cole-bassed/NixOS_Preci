@@ -1,17 +1,21 @@
 {
+  config,
   lix,
-  niriActions ? {},
-  niriEnable ? false,
-  niriSemanticKeybinds ? false,
   options,
+  top,
   ...
 }: let
   inherit (lix.attrsets) filterAttrs optionalAttrs;
+  inherit (lix.modules) mkIf;
 
-  enable = niriEnable == true;
-  semanticKeybinds = niriSemanticKeybinds == true;
-  actions = niriActions;
+  cfg = config.${top}.interface.backends.niri;
   hasNiriProgram = options.programs ? niri;
+
+  # Check standard options directly instead of taking them as arguments
+  enable = cfg.enable or false;
+  semanticKeybinds = cfg.semanticKeybinds or false;
+  actions = cfg.actions or {};
+
   enabled = filterAttrs (_: action: action.command != null) actions;
 
   spawn = command: {action.spawn = ["sh" "-lc" command];};
@@ -153,18 +157,26 @@
     "Mod+Escape" = {action.toggle-keyboard-shortcuts-inhibit = [];};
   };
 in {
-  config = optionalAttrs (hasNiriProgram && enable && semanticKeybinds) {
+  config = mkIf (hasNiriProgram && enable && semanticKeybinds) {
     programs.niri.settings.binds =
       defaults
-      // (optionalAttrs (enabled ? secondaryLauncher) (withTitle "Mod+Space" "Open Fuzzel" enabled.secondaryLauncher))
-      // (optionalAttrs (enabled ? terminal) (withTitle "Mod+Return" "Open terminal" enabled.terminal))
-      // (optionalAttrs (enabled ? scratchpadTerminal) (withTitle "Mod+Grave" "Open scratchpad terminal" enabled.scratchpadTerminal))
-      // (optionalAttrs (enabled ? primaryBrowser) (withTitle "Mod+B" "Open primary browser" enabled.primaryBrowser))
-      // (optionalAttrs (enabled ? secondaryBrowser) (withTitle "Mod+Alt+B" "Open secondary browser" enabled.secondaryBrowser))
-      // (optionalAttrs (enabled ? visualTools) (withTitle "Mod+V" "Open visual tools" enabled.visualTools))
-      // (optionalAttrs (enabled ? fileManager) (withTitle "Mod+F" "Open file manager" enabled.fileManager))
-      // (optionalAttrs (enabled ? editor) (withTitle "Mod+E" "Open editor" enabled.editor))
-      // (optionalAttrs (actions.fullscreen.description != null) {
+      // optionalAttrs (enabled ? secondaryLauncher)
+      (withTitle "Mod+Space" "Open Fuzzel" enabled.secondaryLauncher)
+      // optionalAttrs (enabled ? terminal)
+      (withTitle "Mod+Return" "Open terminal" enabled.terminal)
+      // optionalAttrs (enabled ? scratchpadTerminal)
+      (withTitle "Mod+Grave" "Open scratchpad terminal" enabled.scratchpadTerminal)
+      // optionalAttrs (enabled ? primaryBrowser)
+      (withTitle "Mod+B" "Open primary browser" enabled.primaryBrowser)
+      // optionalAttrs (enabled ? secondaryBrowser)
+      (withTitle "Mod+Alt+B" "Open secondary browser" enabled.secondaryBrowser)
+      // optionalAttrs (enabled ? visualTools)
+      (withTitle "Mod+V" "Open visual tools" enabled.visualTools)
+      // optionalAttrs (enabled ? fileManager)
+      (withTitle "Mod+F" "Open file manager" enabled.fileManager)
+      // optionalAttrs (enabled ? editor)
+      (withTitle "Mod+E" "Open editor" enabled.editor)
+      // optionalAttrs (actions.fullscreen.description != null) {
         "Alt+Return" = {
           action.fullscreen-window = [];
           hotkey-overlay.title = "Toggle fullscreen";
@@ -173,31 +185,32 @@ in {
           action.fullscreen-window = [];
           hotkey-overlay.title = "Toggle fullscreen";
         };
-      })
-      // (optionalAttrs (actions.logout.description != null) {
+      }
+      // optionalAttrs (actions.logout.description != null) {
         "Mod+Ctrl+Q" = {
           action.quit.skip-confirmation = true;
           hotkey-overlay.title = "Exit niri";
         };
-      })
-      // (optionalAttrs (actions.closeWindow.description != null) {
+      }
+      // optionalAttrs (actions.closeWindow.description != null) {
         "Mod+Q" = {
           action.close-window = [];
           hotkey-overlay.title = "Close focused window";
         };
-      })
-      // (optionalAttrs (enabled ? lock) (withTitle "Mod+Ctrl+L" "Lock session" enabled.lock))
-      // (optionalAttrs (actions.showKeybinds.description != null) {
+      }
+      // optionalAttrs (enabled ? lock)
+      (withTitle "Mod+Ctrl+L" "Lock session" enabled.lock)
+      // optionalAttrs (actions.showKeybinds.description != null) {
         "Mod+Ctrl+Slash" = {
           action.show-hotkey-overlay = [];
           hotkey-overlay.title = "Show common keybinds";
         };
-      })
-      // (optionalAttrs (enabled ? screenshot) {
+      }
+      // optionalAttrs (enabled ? screenshot) {
         "Mod+Print" = {
           action.spawn = ["sh" "-lc" enabled.screenshot.command];
           hotkey-overlay.title = "Region screenshot → clipboard";
         };
-      });
+      };
   };
 }

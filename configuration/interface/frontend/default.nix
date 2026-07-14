@@ -3,18 +3,18 @@
   top,
   host,
   path,
-  backendRegistry,
+  registry,
   selection,
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
-  inherit (lix.attrsets) attrByPath attrNames attrValues foldMerge hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
+  inherit (lix.attrsets) attrByPath namesOf valuesOf foldMerge hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
   inherit (lix.lists) elemAt filter findFirst length;
   inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) attrs enum nullOr package submodule;
 
-  path' = path;
+  here = path;
 
   aliases = {
     dms = "dank-material";
@@ -36,15 +36,12 @@
     else aliases.${frontend} or frontend;
 
   registryFrontendOf = spec: let
-    backendNames = attrNames (selection spec);
-    backend =
-      if length backendNames > 0
-      then elemAt backendNames 0
+    names = namesOf (selection spec);
+    value =
+      if length names > 0
+      then elemAt names 0
       else null;
-    env =
-      if backend != null
-      then backendRegistry.${backend} or {}
-      else {};
+    env = optionalAttrs (value != null) (registry.${value} or {});
   in
     normalize (env.frontend or null);
 
@@ -62,7 +59,7 @@
     isDesktopHost = builtins.elem (host.type or "desktop") ["desktop" "laptop"];
     userSelections =
       if isDesktopHost
-      then map selectedFrontend (attrValues (getInteractiveUsers host))
+      then map selectedFrontend (valuesOf (getInteractiveUsers host))
       else [];
   in {
     core = materialize (main ++ userSelections);
@@ -77,26 +74,27 @@
       );
   };
 
-  activeBackendNames = attrNames (selection host);
+  activeBackendNames = namesOf (selection host);
   primaryBackend =
     if length activeBackendNames > 0
     then elemAt activeBackendNames 0
     else null;
   primaryEnv =
     if primaryBackend != null
-    then backendRegistry.${primaryBackend} or {}
+    then registry.${primaryBackend} or {}
     else {};
   registryFrontend = registryFrontendOf host;
   isWayland = primaryEnv.protocol or null == "wayland";
 
   mkMod = {
     config,
+    options ? {},
     scope ? "core",
     pkgs,
-    path ? path',
+    path ? here,
   }: let
     users = getInteractiveUsers host;
-    module = mkModuleArgs {inherit top config path scope pkgs users;};
+    module = mkModuleArgs {inherit top config path scope pkgs options users;};
     inherit (module.get) name prettyName;
     opt = module.set.options.module;
 
@@ -140,7 +138,7 @@
           osConfig ? config,
           defaults ? {},
         }: let
-          mod = mkMod {inherit config path pkgs scope;};
+          mod = mkMod {inherit config path pkgs scope options;};
           module = mod.args.module;
           cfgOr = key:
             attrByPath

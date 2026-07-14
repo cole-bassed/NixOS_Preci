@@ -1,18 +1,20 @@
 {
   ingestion,
   modules,
+  options,
   types,
   ...
 }: let
   exports = {
     scoped = {
       mkModules = importModules;
-      inherit importModules mkCfgIf mkIf';
+      inherit importModules mkModuleArgs mkCfgIf mkIf';
     };
     global = {inherit mkCfgIf mkIf';};
   };
   inherit (ingestion) importModules;
   inherit (modules) mkIf mkMerge;
+  inherit (options) mkModuleArgs;
   inherit (types) isList;
 
   mkCfgIf = {

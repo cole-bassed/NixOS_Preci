@@ -6,6 +6,7 @@ lix.importModules (base
     excludes = [
       "applications"
       "services"
+      "secrets"
       "displays"
       "test"
     ];

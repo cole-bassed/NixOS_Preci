@@ -98,6 +98,10 @@ configure() {
 		monitor_sec_rate="144"
 		monitor_sec_pos="mirror"
 		monitor_sec_disable=1 #? damaged/overheating panel — force off every run
+		# sudo cat /sys/kernel/debug/dri/0000:06:00.0/eDP-1/status
+		# echo 1 | sudo tee /sys/kernel/debug/dri/0000:06:00.0/eDP-1/trigger_hotplug
+		# sleep 2
+		# cat /sys/class/drm/card2-eDP-1/status
 
 		monitor_ter_name=""
 		monitor_ter_width="1920"

@@ -1,4 +1,20 @@
 <code_files>
+  <file name="default.nix" path="configuration/default.nix"><![CDATA[
+{lix, ...} @ base:
+lix.importModules (base
+  // {
+    base = ./.;
+    recurse = false;
+    excludes = [
+      "applications"
+      "services"
+      "secrets"
+      "displays"
+      "test"
+    ];
+  })
+
+]]></file>
   <file name="default.nix" path="configuration/interface/backends/default.nix"><![CDATA[
 {
   lix,
@@ -174,7 +190,7 @@
   inner = mkModules (args
     // {
       base = ./.;
-      excludes = [];
+      excludes = ["niri"];
       declareRegistry = false;
       childPath = path;
       extraArgs = {
@@ -196,7 +212,7 @@ in {
 }
 
 ]]></file>
-  <file name="default.nix" path="configuration/interface/backends/hyprland/default.nix"><![CDATA[
+  <file name="default.nix" path="configuration/interface/backends/niri/default.nix"><![CDATA[
 {
   lix,
   path,
@@ -204,20 +220,19 @@ in {
   ...
 }: let
   inherit (lix.attrsets) genAttrs recursiveUpdate;
-  inherit (lix.modules) mkMerge;
   inherit (lix.options) mkOption;
-  inherit (lix.types) enum;
+  inherit (lix.types) str;
 
+  mk = args: mkArgs ({inherit path;} // args);
   defaults = {
-    configType = "lua";
+    fallbackConfig = "config/niri/config.kdl";
   };
-  mk = args: mkArgs ({inherit path defaults;} // args);
 
   mkOptions = overrides: {
-    configType = mkOption {
-      type = enum ["hyprlang" "lua"];
-      default = overrides.configType or defaults.configType;
-      description = "Home Manager Hyprland configuration format.";
+    fallbackConfig = mkOption {
+      type = str;
+      default = overrides.fallbackConfig or defaults.fallbackConfig;
+      description = "Path to Niri fallback KDL configuration.";
     };
   };
 in {
@@ -227,1682 +242,456 @@ in {
     pkgs,
     ...
   }: let
-    args = mk {inherit config options pkgs;};
-    inherit (args) resolvedOr opt cfg evaluated name;
+    inherit (mk {inherit config options pkgs defaults;}) apiOr set evaluated;
   in {
-    options =
-      recursiveUpdate
-      evaluated.options
-      (opt (mkOptions (genAttrs ["configType"] resolvedOr)));
-    config = mkMerge [
-      evaluated.config
-      {programs.${name} = {withUWSM = cfg.uwsm.enable;};}
-    ];
+    imports = [./options.nix];
+    options = recursiveUpdate evaluated.options (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
+    inherit (evaluated) config;
   };
 
   home = {
     config,
     options,
     pkgs,
-    osConfig ? {},
+    osConfig,
     ...
   }: let
     scope = "home";
-    mod = mk {inherit config osConfig options pkgs scope defaults;};
-    inherit (mod) resolvedOr get set evaluated;
-    cfg = get.config.module;
-    inherit (get) name;
+    mod = mk {inherit config options osConfig pkgs scope defaults;};
+    inherit (mod) apiOr set evaluated;
+    # keybindsModule = args:
+    #   import ./keybinds.nix ({
+    #       niriEnable = (cfgOr "enable") == true;
+    #       niriSemanticKeybinds = (cfgOr "semanticKeybinds") == true;
+    #       niriActions = let
+    #         actions = cfgOr "actions";
+    #       in
+    #         if actions == null
+    #         then {}
+    #         else actions;
+    #     }
+    #     // args);
+    keybindsModule = {
+      config,
+      options,
+      pkgs,
+      osConfig ? {},
+      ...
+    } @ args: let
+      localMod = mk {inherit config options osConfig pkgs scope defaults;};
+    in
+      import ./keybinds.nix (
+        {
+          niriEnable = localMod.cfgOr "enable";
+          niriSemanticKeybinds = localMod.cfgOr "semanticKeybinds";
+          niriActions = let
+            actions = localMod.cfgOr "actions";
+          in
+            if actions == null
+            then {}
+            else actions;
+        }
+        // args
+      );
   in {
+    imports = [
+      ./options.nix
+      ./packages.nix
+      keybindsModule
+    ];
     options =
       recursiveUpdate
       evaluated.options
-      (set.options.module (mkOptions (genAttrs ["configType"] resolvedOr)));
-    config = mkMerge [
-      evaluated.config
-      {wayland.windowManager.${name}.configType = cfg.configType;}
-    ];
+      (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
+    inherit (evaluated) config;
   };
 }
 
 ]]></file>
-  <file name="aliases.nix" path="data/applications/aliases.nix"><![CDATA[
+  <file name="keybinds.nix" path="configuration/interface/backends/niri/keybinds.nix"><![CDATA[
 {
-  zen-twilight = "zen-browser";
-}
+  lix,
+  niriActions ? {},
+  niriEnable ? false,
+  niriSemanticKeybinds ? false,
+  options,
+  ...
+}: let
+  inherit (lix.attrsets) filterAttrs optionalAttrs;
+  inherit (lix.modules) mkIf;
 
-]]></file>
-  <file name="categories.nix" path="data/applications/categories.nix"><![CDATA[
-{
-  browsers = ["zen-browser" "chromium"];
-  editors = ["helix" "neovim"];
-  visuals = ["vscode" "zeditor"];
-  terminals = ["foot" "kitty" "alacritty" "warp-terminal" "ghostty"];
-  launchers = ["vicinae" "fuzzel"];
-  shells = ["bash" "nushell" "powershell"];
-  bar = ["noctalia" "quickshell"];
-  prompt = ["starship"];
-}
+  enable = niriEnable == true;
+  semanticKeybinds = niriSemanticKeybinds == true;
+  actions = niriActions;
+  hasNiriProgram = options.programs ? niri;
+  enabled = filterAttrs (_: action: action.command != null) actions;
 
-]]></file>
-  <file name="default.nix" path="data/applications/default.nix"><![CDATA[
-{}
+  spawn = command: {action.spawn = ["sh" "-lc" command];};
 
-]]></file>
-  <file name="modules.nix" path="data/applications/modules.nix"><![CDATA[
-{
-  alacritty = {
-    groups = ["terminals"];
-    scopes = ["core" "home"];
+  withTitle = key: title: action: {
+    ${key} =
+      (spawn action.command)
+      // {hotkey-overlay.title = title;};
   };
-  foot = {
-    groups = ["terminals"];
-    scopes = ["core" "home"];
-    protocol = "wayland";
-  };
-  git = {
-    groups = ["development"];
-    scopes = ["core" "home"];
-  };
-  kitty = {
-    groups = ["terminals"];
-    scopes = ["core" "home"];
-  };
-  noctalia = {
-    groups = ["bar" "frontend"];
-    scopes = ["home"];
-    protocol = "wayland";
-  };
-  starship = {
-    groups = ["prompt"];
-    scopes = ["core" "home"];
-  };
-  vicinae = {
-    groups = ["launchers"];
-    scopes = ["home"];
-    protocol = "wayland";
-  };
-  zen-browser = {
-    groups = ["browsers"];
-    scopes = ["home"];
-  };
-}
 
-]]></file>
-  <file name="default.nix" path="data/hosts/Preci/default.nix"><![CDATA[
-let
-  admin = "craole";
-  arch = "x86_64";
-  os = "linux";
+  defaults = {
+    "Mod+Shift+Slash" = {action.show-hotkey-overlay = [];};
+
+    "Mod+Left" = {action.focus-column-left = [];};
+    "Mod+Right" = {action.focus-column-right = [];};
+    "Mod+Up" = {action.focus-window-up = [];};
+    "Mod+Down" = {action.focus-window-down = [];};
+    "Mod+H" = {action.focus-column-left = [];};
+    "Mod+L" = {action.focus-column-right = [];};
+    "Mod+K" = {action.focus-window-up = [];};
+    "Mod+J" = {action.focus-window-down = [];};
+
+    "Mod+Ctrl+Left" = {action.focus-monitor-left = [];};
+    "Mod+Ctrl+Right" = {action.focus-monitor-right = [];};
+    "Mod+Ctrl+Up" = {action.focus-monitor-up = [];};
+    "Mod+Ctrl+Down" = {action.focus-monitor-down = [];};
+    "Mod+Ctrl+H" = {action.focus-monitor-left = [];};
+    "Mod+Ctrl+L" = {action.focus-monitor-right = [];};
+    "Mod+Ctrl+K" = {action.focus-monitor-up = [];};
+    "Mod+Ctrl+J" = {action.focus-monitor-down = [];};
+
+    "Mod+Shift+Left" = {action.move-column-left = [];};
+    "Mod+Shift+Right" = {action.move-column-right = [];};
+    "Mod+Shift+Up" = {action.move-window-up = [];};
+    "Mod+Shift+Down" = {action.move-window-down = [];};
+    "Mod+Shift+H" = {action.move-column-left = [];};
+    "Mod+Shift+L" = {action.move-column-right = [];};
+    "Mod+Shift+K" = {action.move-window-up = [];};
+    "Mod+Shift+J" = {action.move-window-down = [];};
+
+    "Mod+Ctrl+Shift+Left" = {action.move-column-to-monitor-left = [];};
+    "Mod+Ctrl+Shift+Right" = {action.move-column-to-monitor-right = [];};
+    "Mod+Ctrl+Shift+Up" = {action.move-column-to-monitor-up = [];};
+    "Mod+Ctrl+Shift+Down" = {action.move-column-to-monitor-down = [];};
+    "Mod+Ctrl+Shift+H" = {action.move-column-to-monitor-left = [];};
+    "Mod+Ctrl+Shift+L" = {action.move-column-to-monitor-right = [];};
+    "Mod+Ctrl+Shift+K" = {action.move-column-to-monitor-up = [];};
+    "Mod+Ctrl+Shift+J" = {action.move-column-to-monitor-down = [];};
+
+    "Mod+R" = {action.switch-preset-column-width = [];};
+    "Mod+Shift+R" = {action.switch-preset-window-height = [];};
+    "Mod+Ctrl+R" = {action.reset-window-height = [];};
+    "Mod+Minus" = {action.set-column-width = "-10%";};
+    "Mod+Equal" = {action.set-column-width = "+10%";};
+    "Mod+Shift+Minus" = {action.set-window-height = "-10%";};
+    "Mod+Shift+Equal" = {action.set-window-height = "+10%";};
+    "Mod+I" = {action.expand-column-to-available-width = [];};
+
+    "Mod+Shift+F" = {action.fullscreen-window = [];};
+    "Mod+Shift+C" = {action.center-column = [];};
+
+    "Mod+Comma" = {action.consume-window-into-column = [];};
+    "Mod+Period" = {action.expel-window-from-column = [];};
+    "Mod+BracketLeft" = {action.consume-or-expel-window-left = [];};
+    "Mod+BracketRight" = {action.consume-or-expel-window-right = [];};
+
+    "Mod+Tab" = {action.toggle-overview = [];};
+
+    "Mod+Page_Down" = {action.focus-workspace-down = [];};
+    "Mod+Page_Up" = {action.focus-workspace-up = [];};
+    "Mod+U" = {action.focus-workspace-down = [];};
+    "Mod+Shift+Page_Down" = {action.move-column-to-workspace-down = [];};
+    "Mod+Shift+Page_Up" = {action.move-column-to-workspace-up = [];};
+    "Mod+Shift+U" = {action.move-column-to-workspace-down = [];};
+    "Mod+Shift+I" = {action.move-column-to-workspace-up = [];};
+
+    "Mod+1" = {action.focus-workspace = 1;};
+    "Mod+2" = {action.focus-workspace = 2;};
+    "Mod+3" = {action.focus-workspace = 3;};
+    "Mod+4" = {action.focus-workspace = 4;};
+    "Mod+5" = {action.focus-workspace = 5;};
+    "Mod+6" = {action.focus-workspace = 6;};
+    "Mod+7" = {action.focus-workspace = 7;};
+    "Mod+8" = {action.focus-workspace = 8;};
+    "Mod+9" = {action.focus-workspace = 9;};
+
+    "Mod+Shift+1" = {action.move-column-to-workspace = 1;};
+    "Mod+Shift+2" = {action.move-column-to-workspace = 2;};
+    "Mod+Shift+3" = {action.move-column-to-workspace = 3;};
+    "Mod+Shift+4" = {action.move-column-to-workspace = 4;};
+    "Mod+Shift+5" = {action.move-column-to-workspace = 5;};
+    "Mod+Shift+6" = {action.move-column-to-workspace = 6;};
+    "Mod+Shift+7" = {action.move-column-to-workspace = 7;};
+    "Mod+Shift+8" = {action.move-column-to-workspace = 8;};
+    "Mod+Shift+9" = {action.move-column-to-workspace = 9;};
+
+    "Mod+WheelScrollDown" = {
+      action.focus-workspace-down = [];
+      cooldown-ms = 150;
+    };
+    "Mod+WheelScrollUp" = {
+      action.focus-workspace-up = [];
+      cooldown-ms = 150;
+    };
+    "Mod+WheelScrollRight" = {action.focus-column-right = [];};
+    "Mod+WheelScrollLeft" = {action.focus-column-left = [];};
+    "Mod+Shift+WheelScrollDown" = {
+      action.focus-column-right = [];
+      cooldown-ms = 150;
+    };
+    "Mod+Shift+WheelScrollUp" = {
+      action.focus-column-left = [];
+      cooldown-ms = 150;
+    };
+
+    "Print" = {action.screenshot = [];};
+    "Ctrl+Print" = {action.screenshot-screen = [];};
+    "Alt+Print" = {action.screenshot-window = [];};
+
+    "XF86AudioRaiseVolume" = {
+      action.spawn = ["wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1+"];
+      allow-when-locked = true;
+    };
+    "XF86AudioLowerVolume" = {
+      action.spawn = ["wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1-"];
+      allow-when-locked = true;
+    };
+    "XF86AudioMute" = {
+      action.spawn = ["wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"];
+      allow-when-locked = true;
+    };
+    "XF86AudioMicMute" = {
+      action.spawn = ["wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"];
+      allow-when-locked = true;
+    };
+    "XF86MonBrightnessUp" = {action.spawn = ["brightnessctl" "set" "10%+"];};
+    "XF86MonBrightnessDown" = {action.spawn = ["brightnessctl" "set" "10%-"];};
+
+    "Mod+Escape" = {action.toggle-keyboard-shortcuts-inhibit = [];};
+  };
 in {
-  # ╔════════════════════════════════════════════════╗
-  # ╠ IMPORTS                                        ╣
-  # ╚════════════════════════════════════════════════╝
-  imports = [./hardware-configuration.nix];
-  disabledModules = [];
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ IDENTITY                                       ╣
-  # ╚════════════════════════════════════════════════╝
-  name = "Preci";
-  id = "cfd69003";
-  description = "Dell Precision M2800";
-  type = "laptop";
-  class = "nixos";
-  inherit arch os;
-  system = "${arch}-${os}";
-  stateVersion = "25.11";
-  paths.src = "/home/${admin}/.dots";
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ LOCALIZATION                                   ╣
-  # ╚════════════════════════════════════════════════╝
-  localization = {
-    latitude = 18.015;
-    longitude = -77.49;
-    city = "Mandeville, Jamaica";
-    locator = "geoclue2";
-    timeZone = "America/Jamaica";
-    defaultLocale = "en_US.UTF-8";
-  };
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ USERS                                          ╣
-  # ╚════════════════════════════════════════════════╝
-  users = [
-    {
-      name = admin;
-      enable = true;
-      autoLogin = true;
-      role = "administrator";
-    }
-    {
-      name = "cc";
-      enable = false;
-      autoLogin = false;
-      role = "administrator";
-    }
-  ];
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ HARDWARE SPECS                                 ╣
-  # ╚════════════════════════════════════════════════╝
-  specs = {
-    machine = "laptop";
-    cpu = {
-      inherit arch;
-      brand = "intel";
-      cores = 4; # i7-4810MQ
-    };
-    gpu = {
-      primary = {
-        brand = "intel";
-        model = "HD Graphics 4600";
-      };
-      mode = "integrated";
-    };
-  };
-
-  modules = [
-    "xhci_pci"
-    "ehci_pci"
-    "ahci"
-    "usb_storage"
-    "usbhid"
-    "sd_mod"
-    "sr_mod"
-    "sdhci_pci"
-  ];
-
-  devices = {
-    boot = {};
-
-    file = {
-      "/" = {
-        device = "/dev/disk/by-uuid/05382bd2-cc99-4717-8343-0c6076d81441";
-        fsType = "ext4";
-      };
-      "/boot" = {
-        device = "/dev/disk/by-uuid/1FC3-D0C5";
-        fsType = "vfat";
-        options = [
-          "fmask=0077"
-          "dmask=0077"
-        ];
-      };
-    };
-
-    swap = [
-      {device = "/dev/disk/by-uuid/7cd5b10d-efe9-4279-833c-6482cb6c1474";}
-    ];
-
-    display = [
-      {
-        monitor = "ktc-27";
-        position = "right";
-      }
-
-      {
-        monitor = "dell-19";
-        position = "left";
-      }
-    ];
-  };
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ INTERFACE                                      ╣
-  # ╚════════════════════════════════════════════════╝
-  interface = {
-    boot = {
-      loader = "systemd-boot";
-      timeout = 1;
-    };
-    greeter = "dank-material-shell";
-    backends = {
-      hyprland = {
-        preferred = true;
-        enable = true;
-        frontend = "dank-material-shell";
-      };
-      niri = {
-        enable = true;
-        preferred = false;
-        frontend = "caelestia-shell";
-        # needsXwaylandSatellite = true;
-        # fallbackConfig = "config/niri/config.kdl";
-      };
-    };
-    keyboard = {
-      modifier = "SUPER";
-      swapCapsEscape = false;
-    };
-  };
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ PACKAGES & SERVICES                            ╣
-  # ╚════════════════════════════════════════════════╝
-  packages = {
-    unstable = true;
-    allowUnfree = true;
-    kernel = "linuxPackages_cachyos-lto";
-    caches = {
-      nyx = {
-        sub = "https://geo-mirror.chaotic.cx/";
-        key = "nyx.chaotic.cx-1:CNZOSlPJO5F0utqsPzkZbHkkD7YzNDWHGG6PqS30wMc=";
-      };
-    };
-    aliases = {};
-  };
-
-  functionalities = [
-    "ai"
-    "audio"
-    "battery"
-    "bluetooth"
-    "dualboot-windows"
-    "efi"
-    "gpu"
-    "keyboard"
-    "network"
-    "nvme"
-    "remote"
-    "secureboot"
-    "storage"
-    "streaming"
-    "touchpad"
-    "tpm"
-    "vcs"
-    "video"
-    "virtualization"
-    "vpn"
-    "webcam"
-    "wired"
-    "wireless"
-  ];
-
-  applications = {
-    ai = {
-      claude = {
-        enable = true;
-        package = ["llm-agents" "claude-code"];
-      };
-      codex = {
-        enable = true;
-        package = ["llm-agents" "codex"];
-      };
-      hermes-agent = {
-        enable = true;
-        package = ["llm-agents" "hermes-agent"];
-      };
-      hermes-desktop = {
-        enable = true;
-        package = ["llm-agents" "hermes-desktop"];
-      };
-      hermes-hud = {
-        enable = true;
-        package = ["llm-agents" "hermes-hud"];
-      };
-    };
-    connectivity = {
-      tailscale = {
-        enable = true;
-        openFirewall = true;
-        authKeySecret.enable = true;
-      };
-    };
-    editors = {
-      helix = {
-        enable = true;
-        package = "helix";
-      };
-      vscode = {
-        enable = true;
-        package = "vscode-fhs";
-      };
-      zed = {
-        enable = true;
-        package = "zed-editor-fhs";
-      };
-    };
-    terminals = {
-      alacritty = {
-        enable = true;
-        package = "alacritty";
-      };
-      foot = {
-        enable = true;
-        package = "foot";
-      };
-      kitty = {
-        enable = true;
-        package = "kitty";
-      };
-      tmux = {
-        enable = true;
-        package = "tmux";
-      };
-    };
-    vcs = {
-      git = {
-        enable = true;
-        package = "gitFull";
-      };
-      lfs = {
-        enable = true;
-        package = "git-lfs";
-      };
-      gh = {
-        enable = true;
-        package = "gh";
-      };
-      jj = {
-        enable = true;
-        package = "jujutsu";
-      };
-      gitui = {
-        enable = true;
-        package = "gitui";
-      };
-      delta = {
-        enable = true;
-        package = "delta";
-      };
-    };
-  };
-}
-
-]]></file>
-  <file name="hyprland.nix" path="data/interface/hyprland.nix"><![CDATA[
-{
-  protocol = "wayland";
-  greeter = "dank-material-shell";
-  frontend = "dank-material";
-}
-
-]]></file>
-  <file name="niri.nix" path="data/interface/niri.nix"><![CDATA[
-{
-  protocol = "wayland";
-  greeter = "dank-material-shell";
-  frontend = "dank-material";
-  needsXwaylandSatellite = true;
-}
-
-]]></file>
-  <file name="applications.nix" path="libraries/api/applications.nix"><![CDATA[
-{
-  api,
-  attrsets,
-  lists,
-  ...
-}: let
-  exports = {
-    scoped = {
-      inherit
-        aliases
-        categories
-        inferredOf
-        namesOf
-        registry
-        selectedModules
-        selectionOf
-        ;
-    };
-
-    global = {
-      applicationAPI = registry;
-      applicationCategories = categories;
-      applicationAliases = aliases;
-      applicationSelection = selectionOf;
-      applicationInferred = inferredOf;
-      applicationNames = namesOf;
-      applicationModules = selectedModules;
-    };
-  };
-
-  inherit (attrsets) valuesOf filterAttrs;
-  inherit (lists) concatMap elem filter unique;
-
-  registry = removeAttrs (api.applications.modules or {}) ["name" "tags"];
-  categories = removeAttrs (api.applications.categories or {}) ["name" "tags"];
-  aliases = removeAttrs (api.applications.aliases or {}) ["name" "tags"];
-
-  rawOf = spec: let
-    interface = spec.interface or {};
-  in
-    interface.backends
-    or (
-      unique (
-        filter (x: x != null && x != "") (
-          (interface.backend.managers or [])
-          ++ (interface.backend.desktops or [])
-          ++ [
-            (interface.windowManager or null)
-            (interface.desktopEnvironment or null)
-          ]
-        )
-      )
-    );
-
-  selectionOf = spec: spec.applications or {};
-  inferredOf = spec: attrsets.as (rawOf spec);
-  normalizeName = name: aliases.${name} or name;
-
-  namesOf = spec:
-    unique (
-      map
-      normalizeName
-      (concatMap valuesOf (valuesOf (selectionOf spec)))
-    );
-
-  selectedModules = spec: let
-    names = namesOf spec;
-  in
-    filterAttrs (name: _: elem name names) registry;
-in
-  exports
-
-]]></file>
-  <file name="default.nix" path="libraries/api/default.nix"><![CDATA[
-{
-  args,
-  attrsets,
-  filesystem,
-  ingestion,
-  paths,
-  types,
-  ...
-}: let
-  inherit (attrsets) listToAttrs mapAttrs recursiveUpdate;
-  inherit (filesystem) mkPaths';
-  inherit (ingestion) collectNamedSpecs;
-  inherit (types) isList;
-
-  domains = {
-    hosts.includeFiles = false;
-    users.includeFiles = false;
-    displays.includeFiles = true;
-    interface.includeFiles = true;
-    applications.includeFiles = true;
-  };
-
-  specs = let
-    base = paths.store.api or paths.store.data or {};
-    src = base.src or ../../data;
-    derived =
-      mapAttrs
-      (name: _: base.${name} or (src + "/${name}"))
-      domains;
-    resolved =
-      recursiveUpdate paths
-      {store.api = derived // {inherit src;};};
-  in
-    (mkPaths' {inherit (resolved) store local;}).store.api;
-
-  extra = {
-    normalize = raw:
-      if isList raw
-      then
-        listToAttrs (map (name: {
-            inherit name;
-            value = {};
-          })
-          raw)
-      else raw;
-  };
-in
-  mapAttrs (name: domain:
-    collectNamedSpecs {
-      inherit (domain) includeFiles;
-      args = args // extra;
-      base = specs.${name};
-      rekey = true;
-    })
-  domains
-
-]]></file>
-  <file name="interface.nix" path="libraries/api/interface.nix"><![CDATA[
-{
-  api,
-  attrsets,
-  lists,
-  ...
-}: let
-  exports = {
-    scoped = {inherit registry inferredOf selectionOf selectedModules;};
-    global = {
-      interfaceAPI = registry;
-      interfaceSelection = selectionOf;
-      interfaceInferred = inferredOf;
-      interfaceNames = namesOf;
-      interfaceModules = selectedModules;
-    };
-  };
-
-  inherit (attrsets) as filterAttrs valuesOf;
-  inherit (lists) concatMap elem filter unique;
-
-  registry = api.interface;
-
-  rawOf = spec: let
-    interface = spec.interface or {};
-  in
-    interface.backends
-    or (
-      unique (
-        filter (x: x != null && x != "") (
-          (interface.backend.managers or [])
-          ++ (interface.backend.desktops or [])
-          ++ [
-            (interface.windowManager or null)
-            (interface.desktopEnvironment or null)
-          ]
-        )
-      )
-    );
-
-  selectionOf = spec: spec.applications or {};
-  inferredOf = spec: as (rawOf spec);
-  normalizeName = name: registry.${name} or name;
-
-  namesOf = spec:
-    unique (
-      map
-      normalizeName
-      (concatMap valuesOf (valuesOf (selectionOf spec)))
-    );
-
-  selectedModules = spec: let
-    names = namesOf spec;
-  in
-    filterAttrs (name: _: elem name names) registry;
-in
-  exports
-
-]]></file>
-  <file name="assembly.nix" path="libraries/config/assembly.nix"><![CDATA[
-{
-  api,
-  attrsets,
-  debug,
-  environment,
-  filesystem,
-  flake,
-  lists,
-  names,
-  paths,
-  strings,
-  systems,
-  types,
-  # hosts,
-  # getHostScopes,
-  ...
-}: let
-  exports = {
-    scoped = {inherit mkConfiguration mkConfiguration' mkFlake mkFlake' mkFlakeModules mkPaths mkSrc;};
-    global = {inherit mkFlake mkFlake' mkFlakeModules mkConfiguration mkConfiguration' mkSrc;};
-  };
-
-  # `api.hosts` may be the merged host API domain (registry + helper fns), not
-  # just the plain host registry. Use the concrete registry attr when present so
-  # config assembly only iterates real host specs.
-  hosts = api.hosts.registry or api.hosts;
-  getHostScopes = api.getHostScopes or api.hosts.getScopes;
-  inherit
-    (attrsets)
-    attrNames
-    filterAttrs
-    genAttrs
-    hasAttr
-    mapAttrs
-    mapAttrsToList
-    mergeAttrsList
-    mkNamespaced
-    optionalAttrs
-    recursiveUpdate
-    removeAttrs
-    ;
-  inherit (debug) withContext expect;
-  inherit (environment) mkSrc;
-  inherit (filesystem) mkPaths;
-  inherit (lists) elem foldl' groupBy toList;
-  inherit (types) isAttrs isBool isEnabled isString typeOf;
-  inherit (strings) concat;
-  inherit (systems) getClassification getBuilder systemOf;
-  inherit (flake.registry.aggregated) overlays packages;
-
-  mkFlakeModules = flake.modules.mkFlakeModules or (flake.modules.mkFlake or (_: []));
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ FLAKE ASSEMBLY                                 ╣
-  # ╚════════════════════════════════════════════════╝
-  mkFlake = {
-    base,
-    mods,
-  }: let
-    ctx = "mkFlake";
-    normalize = value:
-      assert withContext {
-        name = ctx;
-        assertion = isBool value || isAttrs value;
-        message = "expected a bool or attrset, got ${typeOf value}";
-        context = "normalising path spec in assemble";
-      };
-        optionalAttrs (isAttrs value) (removeAttrs value ["enable"]);
-
-    resolved = {
-      paths = mkPaths {
-        store = base.paths.store or (base.paths or (paths.store or null));
-        local = base.paths.local or (paths.local or null);
-      };
-    };
-    paths' = removeAttrs resolved.paths.store ["api"];
-
-    enabled =
-      filterAttrs (
-        name: value:
-          assert withContext {
-            inherit name;
-            assertion = paths' ? ${name};
-            message = "'${name}' is not a known path in paths.store. Known paths are [${concat {
-              delim = ", ";
-              parts = attrNames paths';
-            }}]";
-            context = "resolving path for '${name}' in assemble";
-          };
-            (name != "configuration") && (isEnabled value)
-      )
-      mods;
-
-    outputs = {
-      flake = let
-        imported =
-          mapAttrsToList
-          (name: args: import paths'.${name} (base // {args = normalize args;}))
-          enabled;
-      in
-        mergeAttrsList imported;
-
-      configuration =
-        optionalAttrs
-        (isEnabled (mods.configuration or false))
-        (
-          mkConfiguration' base {
-            modules = {
-              core = [resolved.paths.store.configuration];
-              home = [];
-            };
-          }
-        );
-    };
-  in
-    outputs.flake // outputs.configuration;
-
-  mkFlake' = base: mods: mkFlake {inherit base mods;};
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ Getters & Setters                              ╣
-  # ╚════════════════════════════════════════════════╝
-  inherit
-    (mkNamespaced {inherit get set;})
-    getClass
-    getNixpkgs
-    getPkgs
-    getScopes
-    getSystem
-    setPkgAliases
-    ;
-
-  set = {
-    pkgAliases = host: _final: prev: let
-      system = getSystem host;
-      updated =
-        recursiveUpdate
-        ((flake.defaults or {}).pkgAliases or {})
-        (host.packages.aliases or {});
-
-      fromPrev = path: let
-        segments = toList path;
-        step = acc: segment:
-          if acc == null || !(isAttrs acc) || !(hasAttr segment acc)
-          then null
-          else acc.${segment};
-      in
-        foldl' step prev segments;
-
-      fromRegistry = path:
-        if isString path && hasAttr path flake.registry
-        then (flake.registry.${path}.packages.${system} or {}).default or null
-        else null;
-
-      resolve = path: let
-        viaPrev = fromPrev path;
-      in
-        if viaPrev != null
-        then viaPrev
-        else fromRegistry path;
-    in
-      genAttrs (attrNames updated) (shortcut: resolve updated.${shortcut});
-  };
-
-  get = {
-    class = host: host.class or hosts.default.class;
-    scopes = getHostScopes;
-    nixpkgs = host: let
-      name =
-        if host.packages.stable or false
-        then "nixpkgs-stable"
-        else "nixpkgs";
-    in
-      if hasAttr name (flake.registry or {})
-      then flake.registry.${name}
-      else flake.registry.nixpkgs;
-
-    system = host: host.system or (host.platform or hosts.default.system);
-
-    pkgs = host: let
-      system = getSystem host;
-      nixpkgs = getNixpkgs host;
-      scopes = getScopes host;
-    in
-      import nixpkgs.source.outPath {
-        inherit system;
-        config = {
-          allowUnfree =
-            host.packages.allowUnfree or (
-              (flake.defaults or {}).allowUnfree or false
-            );
-          allowBroken =
-            host.packages.allowBroken or (
-              (flake.defaults or {}).allowBroken or false
-            );
+  config = mkIf (hasNiriProgram && enable && semanticKeybinds) {
+    programs.niri.settings.binds =
+      defaults
+      // (optionalAttrs (enabled ? secondaryLauncher) (withTitle "Mod+Space" "Open Fuzzel" enabled.secondaryLauncher))
+      // (optionalAttrs (enabled ? terminal) (withTitle "Mod+Return" "Open terminal" enabled.terminal))
+      // (optionalAttrs (enabled ? scratchpadTerminal) (withTitle "Mod+Grave" "Open scratchpad terminal" enabled.scratchpadTerminal))
+      // (optionalAttrs (enabled ? primaryBrowser) (withTitle "Mod+B" "Open primary browser" enabled.primaryBrowser))
+      // (optionalAttrs (enabled ? secondaryBrowser) (withTitle "Mod+Alt+B" "Open secondary browser" enabled.secondaryBrowser))
+      // (optionalAttrs (enabled ? visualTools) (withTitle "Mod+V" "Open visual tools" enabled.visualTools))
+      // (optionalAttrs (enabled ? fileManager) (withTitle "Mod+F" "Open file manager" enabled.fileManager))
+      // (optionalAttrs (enabled ? editor) (withTitle "Mod+E" "Open editor" enabled.editor))
+      // (optionalAttrs (actions.fullscreen.description != null) {
+        "Alt+Return" = {
+          action.fullscreen-window = [];
+          hotkey-overlay.title = "Toggle fullscreen";
         };
-        overlays = overlays.select scopes ++ [(setPkgAliases host)];
-      };
-  };
-
-  mkHost = {
-    base,
-    args,
-    host,
-  }: let
-    ctx = "mkHost";
-
-    class = getClass host;
-    scopes = getScopes host;
-    pkgs = getPkgs host;
-
-    src = mkSrc {
-      inherit host;
-      extraArgs =
-        recursiveUpdate (expect {
-          name = ctx;
-          type = "attrs";
-          value = base;
-          context = "validating base in systems";
-        }) (
-          optionalAttrs (args != null) (expect {
-            name = ctx;
-            type = "attrs";
-            value = args;
-            context = "validating args type in systems";
-          })
-        );
-      libraries = base.libraries or (args.libraries or null);
-    };
-    top = src.name or (src.names.top or (names.top or names.src));
-
-    specialArgs =
-      {
-        inherit args host top;
-        api = api // {};
-        inherit (src) paths;
-        mkPkgs = pkgs: pkgs // (packages.${systemOf pkgs} or {});
-      }
-      // (removeAttrs src ["lib" "name"]);
-
-    modules = let
-      modulesFor = class: let
-        aggregated = flake.registry.aggregated or {};
-        registry = (aggregated.modules or {}).${class} or null;
-      in
-        if registry != null
-        then registry.select scopes
-        else mkFlakeModules class;
-      core = (modulesFor class) ++ (args.modules.core or []);
-      home = {
-        environment = {
-          pathsToLink = ["/share/applications" "/share/xdg-desktop-portal"];
+        "Mod+Ctrl+F" = {
+          action.fullscreen-window = [];
+          hotkey-overlay.title = "Toggle fullscreen";
         };
-
-        home-manager = {
-          extraSpecialArgs = specialArgs;
-          backupFileExtension = concat {
-            delim = "-";
-            parts = [top "backup"];
-          };
-          sharedModules = (modulesFor "home") ++ (args.modules.home or []);
-          useGlobalPkgs = true;
-          useUserPackages = true;
+      })
+      // (optionalAttrs (actions.logout.description != null) {
+        "Mod+Ctrl+Q" = {
+          action.quit.skip-confirmation = true;
+          hotkey-overlay.title = "Exit niri";
         };
-      };
-    in
-      core ++ [home];
-  in {inherit class pkgs specialArgs modules;};
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ CONFIGURATION ASSEMBLY                         ╣
-  # ╚════════════════════════════════════════════════╝
-  mkConfiguration = {
-    base,
-    args ? {},
-  }: let
-    ctx = "mkConfiguration";
-
-    resolved = mapAttrs (_: host: mkHost {inherit base args host;}) hosts;
-
-    hostsByClass =
-      groupBy
-      (name: resolved.${name}.class)
-      (attrNames resolved);
-
-    build = class: names: let
-      classification = getClassification class;
-      builder = getBuilder class;
-      classes = ["nixos" "darwin"];
-    in
-      assert withContext {
-        name = ctx;
-        assertion = elem class classes;
-        message = "unknown class '${class}' in host specs, expected one of [${concat {
-          delim = ", ";
-          parts = classes;
-        }}]";
-        context = "grouping hosts by class";
-      }; {
-        ${classification} = genAttrs names (
-          name:
-            builder
-            {inherit (resolved.${name}) modules pkgs specialArgs;}
-        );
-      };
-  in
-    foldl' recursiveUpdate {} (mapAttrsToList build hostsByClass);
-
-  mkConfiguration' = base: args: mkConfiguration {inherit base args;};
-in
-  exports
-
-]]></file>
-  <file name="ingestion.nix" path="libraries/custom/ingestion.nix"><![CDATA[
-{
-  attrsets,
-  defaults,
-  excludes,
-  filesystem,
-  lists,
-  options,
-  paths,
-  strings,
-  types,
-  ...
-}: let
-  exports = {
-    scoped = {
-      modules = importModules;
-      module = importModule;
-      all = importAll;
-      collect = collectSpecs;
-      collectNamed = collectNamedSpecs;
-      importAttrs = readDirAttrs;
-      resolve = resolveEntrypoint;
-      mkModules = importModules;
-    };
-    global = {
-      inherit
-        collectNamedSpecs
-        collectSpecs
-        importAll
-        importModule
-        importModules
-        readDirAttrs
-        resolveEntrypoint
-        ;
-    };
-  };
-
-  inherit
-    (attrsets)
-    attrNames
-    filterAttrs
-    genAttrs
-    isNotEmptyAttr
-    mapAttrs
-    mapAttrs'
-    optionalAttrs
-    recursiveUpdate
-    setAttrByPath
-    ;
-  inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asModuleList any concatMap elem elemAt findFirst length optionals;
-  inherit (strings) hasSuffix removeSuffix;
-  inherit (options) mkOption;
-  inherit (types) isFunction attrs;
-
-  candidates = entrypoints.nix.candidates or ["default.nix"];
-
-  globalExcludes =
-    excludes.paths
-    or paths.excludes
-    or defaults.excludes.paths
-    or [
-      "_"
-      "archive"
-      "backup"
-      "bootstrap"
-      "review"
-      "temp"
-      "default"
-      "default.nix"
-      "flake.nix"
-    ];
-
-  resolveExcludes = local:
-    globalExcludes
-    ++ (
-      if local == null
-      then []
-      else if types.isAttrs local
-      then local.paths or []
-      else local
-    );
-
-  readDirAttrs = {
-    base,
-    excludes ? null,
-    includes ? [],
-    predicate ? null,
-    includeFiles ? false,
-  }: let
-    excluded = map normalize (resolveExcludes excludes);
-
-    normalize = name: removeSuffix ".nix" name;
-
-    included = map normalize includes;
-
-    isExcluded = name:
-      elem (normalize name) excluded;
-
-    isIncluded = name:
-      elem (normalize name) included;
-
-    isDefault = name:
-      normalize name == "default";
-
-    defaultPredicate = name: type:
-      (type == "directory")
-      || (
-        includeFiles
-        && type == "regular"
-        && hasSuffix ".nix" name
-        && !isDefault name
-      );
-
-    hasEntrypoint = name: type:
-      if type == "directory"
-      then any (f: pathExists (base + "/${name}/${f}")) candidates
-      else true;
-  in
-    filterAttrs
-    (
-      name: type:
-        (
-          if predicate != null
-          then predicate name type
-          else defaultPredicate name type
-        )
-        && (!isExcluded name || isIncluded name)
-        && hasEntrypoint name type
-    )
-    (readDir base);
-
-  resolveEntrypoint = {
-    base,
-    name,
-  }:
-    findFirst
-    (f: pathExists (base + "/${name}/${f}"))
-    entrypoint
-    candidates;
-
-  hasEntrypointDir = base: name:
-    any (f: pathExists (base + "/${name}/${f}")) candidates;
-
-  importModule = {
-    args ? {},
-    base,
-    name,
-    path ? null,
-  }: let
-    isDir = (readDir base).${name} == "directory";
-    resolved =
-      if isDir
-      then
-        base
-        + "/${name}/${
-          if path != null
-          then path
-          else resolveEntrypoint {inherit base name;}
-        }"
-      else base + "/${name}";
-    imported = import resolved;
-  in
-    if isFunction imported
-    then imported args
-    else imported;
-
-  # Last two segments of an accumulated path, for back-compat with module
-  # files that still destructure `dom`/`mod` directly instead of `path`.
-  #   path = []            -> { dom = null; mod = null; }
-  #   path = ["a"]         -> { dom = null; mod = "a"; }
-  #   path = ["a" "b"]     -> { dom = "a";  mod = "b"; }
-  #   path = ["a" "b" "c"] -> { dom = "b";  mod = "c"; }  (only last 2 matter)
-  legacyDomMod = path: let
-    len = length path;
-  in
-    if len == 0
-    then {
-      dom = null;
-      mod = null;
-    }
-    else if len == 1
-    then {
-      dom = null;
-      mod = elemAt path 0;
-    }
-    else {
-      dom = elemAt path (len - 2);
-      mod = elemAt path (len - 1);
-    };
-
-  collectSpecs = {
-    args,
-    extraArgs ? {},
-    base,
-    excludes ? null,
-    includes ? [],
-    tags ? defaults.tags,
-    includeFiles ? false,
-    recurse ? false,
-    rawTag ? "core",
-    path ? [],
-  }: let
-    stem = name:
-      if hasSuffix ".nix" name
-      then removeSuffix ".nix" name
-      else name;
-
-    wrap = module:
-      if module ? core || module ? home
-      then module
-      else {${rawTag} = module;};
-
-    collect = ctxPath: base: let
-      entries = readDirAttrs {inherit base excludes includes includeFiles;};
-    in
-      concatMap (
-        name: let
-          type = entries.${name};
-          name' = stem name;
-          path' = ctxPath ++ [name'];
-
-          module = importModule {
-            inherit base name;
-            args =
-              (removeAttrs args ["excludes" "includes"])
-              // {
-                path = path';
-                leaf = name';
-              }
-              // extraArgs;
-          };
-
-          children =
-            optionals
-            (type == "directory" && !(hasEntrypointDir base name) && recurse)
-            (collect path' (base + "/${name}"));
-        in
-          [(wrap module)] ++ children
-      ) (attrNames entries);
-
-    specs = collect path base;
-  in
-    genAttrs tags (
-      tag:
-        concatMap
-        (spec: asModuleList (spec.${tag} or null))
-        specs
-    );
-
-  collectNamedSpecs = {
-    args ? {},
-    extraArgs ? {},
-    base,
-    excludes ? null,
-    includes ? [],
-    tags ? defaults.tags,
-    includeFiles ? false,
-    rekey ? false,
-    path ? [],
-  }: let
-    entries = readDirAttrs {inherit base excludes includes includeFiles;};
-    raw =
-      mapAttrs
-      (
-        name: type: let
-          mod =
-            if type == "regular"
-            then removeSuffix ".nix" name
-            else name;
-
-          path' = path ++ [mod];
-
-          importedModule = importModule {
-            inherit base name;
-            args =
-              args
-              // {
-                inherit tags;
-                path = path';
-                leaf = mod;
-              }
-              // extraArgs;
-          };
-        in
-          importedModule
-          // {tags = (importedModule.tags or []) ++ asModuleList tags;}
-      )
-      entries;
-  in
-    if rekey
-    then
-      mapAttrs' (
-        name: spec: let
-          mod =
-            if hasSuffix ".nix" name
-            then removeSuffix ".nix" name
-            else name;
-        in {
-          name = spec.name or mod;
-          value = spec // {name = spec.name or mod;};
-        }
-      )
-      raw
-    else raw;
-
-  importAll = args @ {
-    base,
-    excludes ? null,
-    includes ? [],
-    tags ? defaults.tags,
-    extraArgs ? {},
-    recurse ? false,
-    includeFiles ? false,
-    path ? [],
-    ...
-  }: let
-    specs =
-      collectSpecs
-      {inherit args base excludes includes tags extraArgs includeFiles recurse path;};
-  in {
-    imports = specs.core or [];
-    home-manager.sharedModules = specs.home or [];
-  };
-
-  importModules = args @ {
-    base,
-    data ? extraArgs.registry or {},
-    excludes ? null,
-    extraArgs ? {},
-    includeFiles ? true,
-    includes ? [],
-    path ? [],
-    childPath ? path,
-    recurse ? true,
-    tags ? defaults.tags,
-    top,
-    declareRegistry ? false,
-    ...
-  }: let
-    hasData = isNotEmptyAttr data && declareRegistry;
-
-    specs = collectSpecs {
-      inherit args base excludes includes tags includeFiles recurse;
-      path = childPath;
-      extraArgs =
-        recursiveUpdate (args.extraArgs or {}) extraArgs
-        // optionalAttrs hasData {registry = data;};
-    };
-
-    registryModule = {
-      options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
-        type = attrs;
-        default = data;
-        readOnly = true;
+      })
+      // (optionalAttrs (actions.closeWindow.description != null) {
+        "Mod+Q" = {
+          action.close-window = [];
+          hotkey-overlay.title = "Close focused window";
+        };
+      })
+      // (optionalAttrs (enabled ? lock) (withTitle "Mod+Ctrl+L" "Lock session" enabled.lock))
+      // (optionalAttrs (actions.showKeybinds.description != null) {
+        "Mod+Ctrl+Slash" = {
+          action.show-hotkey-overlay = [];
+          hotkey-overlay.title = "Show common keybinds";
+        };
+      })
+      // (optionalAttrs (enabled ? screenshot) {
+        "Mod+Print" = {
+          action.spawn = ["sh" "-lc" enabled.screenshot.command];
+          hotkey-overlay.title = "Region screenshot → clipboard";
+        };
       });
-    };
-    registryModules = optionals hasData [registryModule];
-  in {
-    imports = (specs.core or []) ++ registryModules;
-    home-manager.sharedModules = (specs.home or []) ++ registryModules;
   };
-in
-  exports
+}
 
 ]]></file>
-  <file name="options.nix" path="libraries/custom/options.nix"><![CDATA[
+  <file name="options.nix" path="configuration/interface/backends/niri/options.nix"><![CDATA[
 {
-  attrsets,
-  lists,
-  options,
-  types,
-  strings,
+  lib,
+  top,
   ...
 }: let
-  exports = {
-    scoped = {
-      inherit
-        mkEnable
-        # mkEnable'
-        mkCfg
-        mkOpt
-        # mkEnableMod
-        mkModuleArgs
-        mkFloatOption
-        mkLatitudeOption
-        mkLongitudeOption
-        mkGeoProviderOption
-        mkTimezoneOption
-        mkLocalTimeOption
-        mkLocaleOption
-        ;
-    };
-    global = {inherit mkModuleArgs;};
-  };
+  cfgPath = [top "interface" "backends" "niri"];
 
-  inherit
-    (attrsets)
-    attrByPath
-    attrValues
-    foldMerge
-    genAttrs
-    hasAttr
-    mapAttrs
-    mkNamespaced
-    optionalAttrs
-    recursiveUpdate
-    setAttrByPath
-    ;
-  inherit (lists) asList elem hasAny head init last optionals;
-  inherit (options) mkOption mkEnableOption;
-  inherit (types) nullOr addCheck float str;
-  inherit (strings) toSentenceCase concatStringsSep;
+  inherit (lib.attrsets) setAttrByPath;
+  inherit (lib.options) mkEnableOption mkOption;
+  inherit (lib.types) nullOr str submodule;
 
-  /**
-  Build standard module args (cfg/opt/enable/etc.) for an option whose
-  nesting mirrors its directory nesting.
-
-  Preferred usage (arbitrary depth, mirrors folder structure):
-    mkModuleArgs { inherit config top path pkgs host scope; }
-    where `path` is a list of segments under `top`, e.g.
-    ["interface" "frontend" "dank-material"] for
-    dots.interface.frontend.dank-material.
-
-  Back-compat usage (exactly two segments under top):
-    mkModuleArgs { inherit config top dom mod pkgs host scope; }
-    is equivalent to path = [dom mod] (dom may be null/omitted for a
-    single-segment path).
-
-  If both `path` and `dom`/`mod` are supplied, `path` wins.
-  */
-  mkModuleArgs = {
-    config,
-    osConfig ? config,
-    options ? {},
-    top ? null,
-    path,
-    hostPath ? path,
-    userPath ? path,
-    pkgs ? {},
-    host ? {},
-    defaults ? {},
-    lib,
-    users ? lib.api.users.getInteractiveUsers host,
-    scope ? "core",
-    registry ? {},
-  }: let
-    targets = ["main" "custom" "domain" "parent" "module"];
-    # selection = spec: selectionOf {inherit top spec registry;};
-
-    validate = {
-      path = target:
-        if elem target targets
-        then paths.${target}
-        else
-          throw "Invalid target: '${target}'. Valid targets are: ${
-            concatStringsSep ", " targets
-          }";
-    };
-
-    names =
-      genAttrs targets (
-        target: let
-          check = validate.path target;
-        in
-          if check != []
-          then last check
-          else "main"
-      )
-      // {
-        user =
-          get.config.main.home.username or (
-            get.config.custom.users.primary.name or null
-          );
-      };
-
-    base =
-      if top != null
-      then top
-      else names.custom;
-
-    paths = {
-      validate = validate.path;
-      main = [];
-      custom = [base];
-      module = paths.custom ++ path;
-      parent = init paths.module;
-      domain = paths.custom ++ [(head path)];
-    };
-
-    get = {
-      inherit host scope names paths users;
-      name = names.module;
-      prettyName = set.name {pretty = true;};
-
-      user = let
-        name = names.user;
-      in
-        optionalAttrs
-        (name != null)
-        ((users.${name} or {}) // {inherit name;});
-
-      top =
-        if top != null
-        then top
-        else names.custom;
-
-      config =
-        genAttrs targets
-        (target: set.config {inherit target;});
-      cfg = get.config.module;
-      cfgOr = key: let
-        fromConfig = attrByPath (paths.module ++ [key]) null config;
-      in
-        if fromConfig != null
-        then fromConfig
-        else attrByPath (paths.module ++ [key]) (defaults.${key} or null) osConfig;
-
-      options =
-        genAttrs targets
-        (target: attrByPath (paths.validate target) {} options);
-
-      enabled = {
-        criteria ? elem (host.type or "laptop") ["desktop" "laptop"],
-        selection,
-      }: let
-        materialize = selected:
-          mapAttrs
-          (_: extra: {enable = true;} // extra)
-          (foldMerge selected);
-
-        required = let
-          byHost = [(selection host)];
-          byUser =
-            optionals
-            criteria
-            (map selection (attrValues users));
-        in {
-          core = materialize (byHost ++ byUser);
-          home =
-            materialize
-            (byHost ++ (optionals criteria [(selection get.user)]));
-        };
-      in
-        hasAttr get.name required.${scope};
-      package = pkgs.${get.name} or null;
-
-      inherit registry;
-      hostEntry = attrByPath hostPath {} host;
-      userEntry = attrByPath userPath {} get.user;
-      dataEntry = registry.${get.name} or {};
-      apiOr = key:
-        get.hostEntry.${key} or
-          (get.userEntry.${key} or
-            (get.dataEntry.${key}));
-    };
-
-    set = {
-      config = {
-        target ? "module",
-        extra ? {},
-      }: let
-        targetPath = paths.validate target;
-      in
-        attrByPath targetPath {} (
-          recursiveUpdate config
-          (setAttrByPath targetPath extra)
-        );
-
-      options =
-        genAttrs
-        targets (target: extra: setAttrByPath (paths.validate target) extra);
-      opt = set.options.module;
-
-      name = {
-        name ? names.module,
-        pretty ? true,
-      }:
-        if pretty
-        then toSentenceCase name
-        else name;
-      enable = {default ? false}:
-        mkEnable {
-          inherit (get) scope name;
-          inherit default;
-        };
-      package = mkOption {
-        type = with types; nullOr package;
-        default = get.package;
-        description = "Package backing the ${get.prettyName} compositor component.";
-      };
-
-      bin = {
-        module ? names.module,
-        package ? get.package,
-      }: let
-        name =
-          if package != null
-          then package.NIX_MAIN_PROGRAM or module
-          else null;
-        path =
-          if package != null
-          then "/run/current-system/sw/bin/${module}"
-          else null;
-      in {inherit package name path;};
-    };
-  in
-    (mkNamespaced {inherit get set;})
-    // get
-    // {inherit get set;};
-
-  mkEnable = {
-    name ? null,
-    mod ? null,
-    leaf ? null,
-    description ? null,
-    scope ? "core",
-    default ? null,
-  }: let
-    module =
-      if name != null && name != ""
-      then name
-      else if mod != null && mod != ""
-      then mod
-      else if leaf != null && leaf != ""
-      then leaf
-      else null;
-
-    description' =
-      if description != null
-      then description
-      else if module != null
-      then "Whether ${module} should be enabled ${
-        if scope == "core"
-        then "system-wide"
-        else if scope == "home"
-        then "for the user"
-        else throw "Expected scope to be one of [core home], got ${scope}"
-      }"
-      else "Whether to enable this module";
-    mk = condition: mkEnableOption description' // {default = condition;};
-  in
-    if default != null
-    then mk default
-    else {
-      false = mk false;
-      true = mk true;
-    };
-
-  mkCfg = {
-    config,
-    path,
-  }:
-    attrByPath (asList path) {} config;
-
-  mkOpt = {
-    options,
-    path,
-  }:
-    setAttrByPath (asList path) options;
-
-  mkFloatOption = {
-    description,
-    min ? null,
-    max ? null,
-    default ? null,
-  }: let
-    check = value:
-      (
-        if min != null
-        then value >= min
-        else true
-      )
-      && (
-        if max != null
-        then value <= max
-        else true
-      );
-  in
-    mkOption ({
-        type = nullOr (addCheck float check);
-        inherit description;
-      }
-      // optionalAttrs (default != null) {inherit default;});
-
-  mkLatitudeOption = {
-    host,
-    default ? null,
-  }:
-    mkFloatOption {
-      description = "Latitude coordinate, between -90.0 and 90.0";
-      min = -90.0;
-      max = 90.0;
-      default = host.localization.latitude or default;
-    };
-
-  mkLongitudeOption = {
-    host,
-    default ? null,
-  }:
-    mkFloatOption {
-      description = "Longitude coordinate, between -180.0 and 180.0";
-      min = -180.0;
-      max = 180.0;
-      default = host.localization.longitude or default;
-    };
-
-  mkGeoProviderOption = {
-    host,
-    default ? "manual",
-  }: let
-    loc = host.localization or {};
-    provider = loc.provider or null;
-    latitude = loc.latitude or null;
-    longitude = loc.longitude or null;
-  in
+  mkActionOption = description: defaults:
     mkOption {
-      type = types.enum ["manual" "geoclue2"];
-      description = "Location provider. If 'manual', valid latitude and longitude must be provided.";
-      default =
-        if provider != null
-        then provider
-        else if latitude != null && longitude != null
-        then default
-        else "geoclue2";
+      type = submodule {
+        options = {
+          command = mkOption {
+            type = nullOr str;
+            default = defaults.command or null;
+            description = "Shell command for the ${description} action.";
+          };
+          description = mkOption {
+            type = str;
+            default = defaults.description or description;
+            description = "Human-readable label for the ${description} action.";
+          };
+        };
+      };
+      default = {};
+      description = "Shared semantic Niri action for ${description}.";
     };
-
-  mkTimezoneOption = {
-    host,
-    default ? null,
-  }:
-    mkOption ({
-        type = nullOr str;
-        description = "The system or user timezone.";
-      }
-      // optionalAttrs (host.localization.timezone or default != null) {
-        default = host.localization.timezone or default;
-      });
-
-  mkLocalTimeOption = {host}: let
-    useLocalTime =
-      hasAny
-      ["dual-boot" "dualboot-windows"]
-      (host.functionalities or []);
-  in
-    mkEnableOption ''
-      Keeps the hardware clock in local time instead of UTC.
-      This is particularly important when the system dual-boots with Windows,
-      as Windows defaults to local time for the RTC.
-    ''
-    // {default = useLocalTime;};
-
-  mkLocaleOption = {
-    host,
-    default ? "en_US.UTF-8",
-  }:
-    mkOption {
+in {
+  options = setAttrByPath cfgPath {
+    modifier = mkOption {
       type = str;
+      default = "SUPER";
       description = ''
-        Configures the default locale settings. This determines:
-        - Language for program messages and UI text.
-        - Date, time, numeric, and monetary formatting conventions.
-        - Character sorting and collation order.
-
-        Applies to all applications that respect locale environment variables.
+        Primary compositor modifier key. Niri binds use its compositor-agnostic
+        `Mod` alias, but this keeps the chosen host intent visible in the live API.
       '';
-      default = host.localization.locale or default;
     };
+
+    semanticKeybinds =
+      mkEnableOption "modular semantic keybind layer for Niri"
+      // {default = true;};
+
+    actions = {
+      secondaryLauncher = mkActionOption "secondary launcher" {
+        command = "fuzzel";
+        description = "Open Fuzzel";
+      };
+      showKeybinds = mkActionOption "show keybinds/help" {
+        command = "dots-common-keybinds";
+        description = "Show common keybinds";
+      };
+      terminal = mkActionOption "terminal" {
+        command = "foot";
+        description = "Open terminal";
+      };
+      scratchpadTerminal = mkActionOption "scratchpad/quake terminal" {
+        command = "foot --app-id dots-scratchpad";
+        description = "Open scratchpad terminal";
+      };
+      primaryBrowser = mkActionOption "primary browser" {
+        command = "zen";
+        description = "Open primary browser";
+      };
+      secondaryBrowser = mkActionOption "secondary browser" {
+        command = "chromium";
+        description = "Open secondary browser";
+      };
+      visualTools = mkActionOption "visual tools" {
+        command = "vicinae open || fuzzel";
+        description = "Open visual tools";
+      };
+      fileManager = mkActionOption "file manager" {
+        command = "xdg-open $HOME";
+        description = "Open file manager";
+      };
+      editor = mkActionOption "editor" {
+        command = "code";
+        description = "Open editor";
+      };
+      fullscreen = mkActionOption "fullscreen" {
+        description = "Toggle fullscreen";
+      };
+      logout = mkActionOption "logout/exit session" {
+        description = "Exit compositor session";
+      };
+      closeWindow = mkActionOption "close window" {
+        description = "Close focused window";
+      };
+      lock = mkActionOption "lock" {
+        command = "loginctl lock-session";
+        description = "Lock session";
+      };
+      screenshot = mkActionOption "screenshot" {
+        command = ''grim -g "$(slurp)" - | wl-copy'';
+        description = "Take a screenshot";
+      };
+    };
+  };
+}
+
+]]></file>
+  <file name="packages.nix" path="configuration/interface/backends/niri/packages.nix"><![CDATA[
+{
+  config,
+  lib,
+  pkgs,
+  top,
+  ...
+}: let
+  cfg = config.${top}.interface.backends.niri;
+
+  inherit (lib.meta) getExe;
+  inherit (lib.modules) mkIf;
+in {
+  config = mkIf (cfg.enable && (cfg.semanticKeybinds or false)) {
+    home.packages = with pkgs; [
+      (
+        writeShellScriptBin "dots-common-keybinds" ''
+          ${getExe libnotify} "Common desktop keybinds" "$(cat <<'HELP'
+          Win+Space: secondary launcher
+          Win+Enter: terminal
+          Win+`: scratchpad terminal
+          Win+B: primary browser
+          Win+Alt+B: secondary browser
+          Win+V: visual tools launcher
+          Win+F: file manager
+          Win+E: editor
+          Alt+Enter / Win+Ctrl+F: fullscreen
+          Win+Q: close focused window
+          Win+Ctrl+L: lock session
+          Win+Ctrl+Q: exit Niri
+          Print: screenshot
+          Win+Print: region screenshot to clipboard
+          Win+Shift+/: Niri hotkey overlay
+          HELP
+          )"
+        ''
+      )
+      brightnessctl
+      grim
+      libnotify
+      slurp
+      wl-clipboard
+      wireplumber
+    ];
+  };
+}
+
+]]></file>
+  <file name="default.nix" path="configuration/interface/default.nix"><![CDATA[
+{
+  api,
+  lix,
+  top,
+  ...
+} @ args: let
+  inherit (lix.ingestion) mkModules;
+  inherit (lix.registry) selectionOf;
+
+  registry = api.interface.registry or (api.interface or {});
+  selection = spec: selectionOf {inherit top spec registry;};
 in
-  exports
+  mkModules (
+    args
+    // {
+      base = ./.;
+      path = args.path or ["interface"];
+      recurse = true;
+      excludes = ["protocol" "session"];
+      declareRegistry = true;
+      extraArgs = {inherit registry selection;};
+    }
+  )
 
 ]]></file>
 </code_files>

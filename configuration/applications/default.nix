@@ -7,7 +7,7 @@
   inherit (lix.ingestion) importModules;
   # inherit (lix.api.users) getInteractiveUsers;
   inherit (lix.attrsets) attrByPath;
-  inherit (lix.lists) elem head toList;
+  inherit (lix.lists) elem toList;
   inherit (lix.strings) concatStringsSep;
   inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) package;
@@ -97,17 +97,19 @@
 
     entry = registry.${name} or {};
     group = entry.group or name;
-    domain = head path;
+    # domain = head path;
     # hostEntry = attrByPath [domain group name] {} host;
     # userEntry = attrByPath [domain group name] {} user;
     # pkgName may be a flat string ("gitFull") or a nested path
     # (["llm-agents" "claude-code"]) — normalize to a list either way.
-    # pkgSpec = hostEntry.package or (userEntry.package or (entry.package or name));
-    # pkgPath = toList pkgSpec;
+    pkg = {
+      spec = get.package;
+      path = toList pkg.spec;
+      name = concatStringsSep "." pkg.path;
+    };
   in
     module
     // {
-      pkgName = concatStringsSep "." pkgPath;
       fields = {
         enable = set.enable {
           default =
@@ -120,8 +122,8 @@
         };
         package = mkOption {
           type = package;
-          default = attrByPath pkgPath null pkgs;
-          description = "Package of '${concatStringsSep "." pkgPath}' for ${scope}.";
+          default = attrByPath pkg.path null pkgs;
+          description = "Package of '${pkg.name}' for ${scope}.";
         };
       };
     };

@@ -47,7 +47,7 @@
     setAttrByPath
     ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asModuleList any concatMap elem elemAt findFirst length optionals;
+  inherit (lists) asModuleList any concatMap elem elemAt findFirst last length optionals;
   inherit (strings) hasSuffix removeSuffix;
   inherit (options) mkOption;
   inherit (types) isFunction attrs;
@@ -324,7 +324,21 @@
 
   importModules = args @ {
     base,
-    data ? extraArgs.registry or {},
+    lib ? {},
+    api ? args.api or (lib.api or {}),
+    data ? (
+      let
+        domain =
+          if path != []
+          then (last path)
+          else null;
+      in
+        args.extraArgs.registry or (
+          optionalAttrs
+          (domain != null && api ? ${domain}.registry)
+          api.${domain}.registry
+        )
+    ),
     excludes ? null,
     extraArgs ? {},
     includeFiles ? true,
@@ -334,7 +348,7 @@
     recurse ? true,
     tags ? defaults.tags,
     top,
-    declareRegistry ? false,
+    declareRegistry ? isNotEmptyAttr data,
     ...
   }: let
     hasData = isNotEmptyAttr data && declareRegistry;

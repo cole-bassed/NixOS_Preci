@@ -29,11 +29,14 @@
 
   inherit
     (attrsets)
+    asAttrs
     attrByPath
     attrValues
     foldMerge
     genAttrs
     hasAttr
+    valuesOf
+    namesOf
     mapAttrs
     mkNamespaced
     optionalAttrs
@@ -63,20 +66,22 @@
   If both `path` and `dom`/`mod` are supplied, `path` wins.
   */
   mkModuleArgs = {
-    config,
-    osConfig ? config,
-    options ? {},
-    top ? null,
-    path,
-    hostPath ? path,
-    userPath ? path,
-    pkgs ? {},
-    host ? {},
+    api ? lib.api or {},
+    config ? {},
     defaults ? {},
-    lib,
-    users ? lib.api.users.getInteractiveUsers host,
+    host ? {},
+    hostPath ? path,
+    lib ? {},
+    options ? {},
+    osConfig ? {},
+    path,
+    pkgs ? {},
+    # registry ? null,
     scope ? "core",
-    registry ? {},
+    selection ? null,
+    top ? null,
+    userPath ? path,
+    users ? api.users.getInteractiveUsers host,
   }: let
     targets = ["main" "custom" "domain" "parent" "module"];
     # selection = spec: selectionOf {inherit top spec registry;};
@@ -105,7 +110,22 @@
           get.config.main.home.username or (
             get.config.custom.users.primary.name or null
           );
+        package = pkg.name or null;
       };
+
+    # pkgName may be a flat string ("gitFull") or a nested path
+    # (["llm-agents" "claude-code"]) — normalize to a list either way.
+    pkg = let
+      name' = get.apiOr "package";
+      path' =
+        if name' != null
+        then asList name'
+        else [get.name];
+    in {
+      path = path';
+      name = last path';
+      spec = attrByPath path' null pkgs;
+    };
 
     base =
       if top != null
@@ -147,7 +167,10 @@
       in
         if fromConfig != null
         then fromConfig
-        else attrByPath (paths.module ++ [key]) (defaults.${key} or null) osConfig;
+        else
+          attrByPath
+          (paths.module ++ [key]) (defaults.${key} or null)
+          osConfig;
 
       options =
         genAttrs targets
@@ -155,7 +178,7 @@
 
       enabled = {
         criteria ? elem (host.type or "laptop") ["desktop" "laptop"],
-        selection,
+        selectFrom ? get.select,
       }: let
         materialize = selected:
           mapAttrs
@@ -163,29 +186,58 @@
           (foldMerge selected);
 
         required = let
-          byHost = [(selection host)];
+          byHost = [(selectFrom host)];
           byUser =
             optionals
             criteria
-            (map selection (attrValues users));
+            (map selectFrom (attrValues users));
         in {
           core = materialize (byHost ++ byUser);
           home =
             materialize
-            (byHost ++ (optionals criteria [(selection get.user)]));
+            (byHost ++ (optionals criteria [(selectFrom get.user)]));
         };
       in
         hasAttr get.name required.${scope};
-      package = pkgs.${get.name} or null;
 
-      inherit registry;
+      package = pkg.spec;
+      pkgName = pkg.name;
+      pkgPath = pkg.path;
+
       hostEntry = attrByPath hostPath {} host;
       userEntry = attrByPath userPath {} get.user;
-      dataEntry = registry.${get.name} or {};
+      # 1. Update dataEntry to map targets to API slices
+      # Current domain based on path (e.g., "interface")
+
+      dataEntry = genAttrs targets (
+        target: let
+          domain = head path;
+          name = last path;
+          registry =
+            if target == "module"
+            then api.${domain}.registry.${name} or {}
+            else if target == "domain"
+            then api.${domain}.registry or {}
+            else if target == "custom"
+            then api.custom.registry or {}
+            else if target == "main"
+            then api.main.registry or {}
+            else {};
+        in {
+          inherit registry;
+          names = namesOf registry;
+          values = valuesOf registry;
+          select = spec: asAttrs spec;
+        }
+      );
       apiOr = key:
         get.hostEntry.${key} or
-          (get.userEntry.${key} or
-            (get.dataEntry.${key}));
+            (get.userEntry.${key} or
+              (get.dataEntry.module.registry.${key} or
+                (get.dataEntry.parent.registry.${key} or
+                  (get.dataEntry.domain.registry.${key} or
+                    (get.dataEntry.custom.registry.${key} or
+                      (get.dataEntry.main.registry.${key} or null))))));
     };
 
     set = {
@@ -222,6 +274,11 @@
         default = get.package;
         description = "Package backing the ${get.prettyName} compositor component.";
       };
+
+      selection = spec:
+        if selection != null
+        then selection spec
+        else asAttrs spec;
 
       bin = {
         module ? names.module,

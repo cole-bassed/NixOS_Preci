@@ -16,7 +16,13 @@
   mkOptions = overrides: {
     fallbackConfig = mkOption {
       type = str;
-      default = overrides.fallbackConfig or defaults.fallbackConfig;
+      default = let
+        derived = overrides.fallbackConfig or null;
+        default = defaults.fallbackConfig or "";
+      in
+        if derived != null
+        then derived
+        else default;
       description = "Path to Niri fallback KDL configuration.";
     };
   };
@@ -30,7 +36,10 @@ in {
     inherit (mk {inherit config options pkgs defaults;}) apiOr set evaluated;
   in {
     imports = [./options.nix];
-    options = recursiveUpdate evaluated.options (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
+    options =
+      recursiveUpdate
+      evaluated.options
+      (set.options.module (mkOptions (genAttrs ["fallbackConfig"] apiOr)));
     inherit (evaluated) config;
   };
 
@@ -43,24 +52,12 @@ in {
   }: let
     scope = "home";
     mod = mk {inherit config options osConfig pkgs scope defaults;};
-    inherit (mod) apiOr cfgOr set evaluated;
-    keybindsModule = args:
-      import ./keybinds.nix ({
-          niriEnable = (cfgOr "enable") == true;
-          niriSemanticKeybinds = (cfgOr "semanticKeybinds") == true;
-          niriActions = let
-            actions = cfgOr "actions";
-          in
-            if actions == null
-            then {}
-            else actions;
-        }
-        // args);
+    inherit (mod) apiOr set evaluated;
   in {
     imports = [
+      ./keybinds.nix
       ./options.nix
       ./packages.nix
-      keybindsModule
     ];
     options =
       recursiveUpdate

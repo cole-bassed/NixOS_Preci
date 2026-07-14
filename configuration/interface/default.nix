@@ -4,19 +4,37 @@
   top,
   ...
 } @ args: let
-  inherit (lix.ingestion) mkModules;
-  inherit (lix.registry) selectionOf;
-
-  registry = api.interface.registry or (api.interface or {});
-  selection = spec: selectionOf {inherit top spec registry;};
+  inherit (args) path;
+  inherit (lix.modules) mkModules mkModuleArgs;
 in
   mkModules (
     args
     // {
+      inherit path;
       base = ./.;
-      path = args.path or ["interface"];
+      excludes = ["session" "frontend" "protocol"];
       recurse = true;
-      declareRegistry = true;
-      extraArgs = {inherit registry selection;};
+      extraArgs = {
+        mkArgs = {
+          config,
+          osConfig ? {},
+          options ? {},
+          path,
+          scope ? "core",
+          pkgs ? {},
+        }:
+          mkModuleArgs {
+            inherit
+              api
+              config
+              options
+              osConfig
+              path
+              pkgs
+              scope
+              top
+              ;
+          };
+      };
     }
   )
