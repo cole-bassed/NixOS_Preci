@@ -6,7 +6,7 @@
   ...
 } @ args: let
   inherit (lix.attrsets) attrByPath;
-  inherit (lix.ingestion) importModules;
+  inherit (lix.ingestion) ingest;
   inherit (lix.lists) elem;
   inherit (lix.options) mkModuleArgs mkOption;
   inherit (lix.types) package;
@@ -67,7 +67,7 @@
       };
     };
 
-  inner = importModules (args
+  inner = ingest (args
     // {
       base = ./.;
       declareRegistry = true;

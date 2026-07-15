@@ -19,7 +19,6 @@
         mkBindOptions
         mkBindOption
         # mkEnableMod
-        mkModuleArgs
         mkFloatOption
         mkRegistryOptions
         mkLatitudeOption

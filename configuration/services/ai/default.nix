@@ -4,7 +4,7 @@
   shared,
   ...
 } @ args: let
-  inherit (lix.ingestion) importModules;
+  inherit (lix.ingestion) ingest;
   inherit (lix.lists) last;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) anything;
@@ -81,7 +81,7 @@
     home = mk "home";
   };
 
-  inner = importModules (args
+  inner = ingest (args
     // {
       base = ./.;
       declareRegistry = true;

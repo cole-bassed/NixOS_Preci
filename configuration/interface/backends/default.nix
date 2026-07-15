@@ -7,10 +7,9 @@
   ...
 } @ args: let
   inherit (lix.attrsets) foldMerge mapAttrs optionalAttrs hasAttrByPath setAttrByPath;
-  # inherit (lix.applications) resolveApps;
   inherit (lix.lists) findFirst head;
-  inherit (lix.modules) mkIf mkMerge mkModules;
-  inherit (lix.options) mkRegistryOptions mkEnableOption mkModuleArgs mkOption;
+  inherit (lix.modules) mkIf mkMerge mkModules mkModuleArgs;
+  inherit (lix.options) mkRegistryOptions mkEnableOption mkOption;
   inherit (lix.types) enum nullOr package str submodule;
 
   here = path;
@@ -137,18 +136,7 @@
         needsXwaylandSatellite =
           mkEnableOption "xwayland-satellite support for ${prettyName}"
           // {default = registry.needsXwaylandSatellite;};
-
-        # variables = mkOption {
-        #   type = attrs;
-        #   description = "Pre-resolved application commands and keyboard shortcuts ready for hotkeys.";
-        #   default =
-        #     {MOD = registry.bindings.modifier;}
-        #     // mapAttrs (name: app: app.command) (mkAppVars cfg.applications);
-        # };
       }
-      # // (mkVarOptions {inherit (default) variables;})
-      # // (mkBindOptions {inherit (default) bindings;})
-      # // (mkAppOptions {inherit (default) applications;})
       // optionalAttrs (scope == "core") {
         uwsm = mkOption {
           description = "UWSM configuration for ${prettyName}. Set to `null` to disable UWSM integration.";

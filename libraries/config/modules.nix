@@ -12,8 +12,16 @@
   ...
 }: let
   exports = {
-    scoped = {inherit mkModules mkModuleArgs mkCfgIf mkIf';};
-    global = {inherit mkCfgIf mkIf';};
+    scoped = {
+      inherit mk mkArgs mkCfgIf mkIf';
+      ingest = mk;
+      config = mkArgs;
+    };
+    global = {
+      inherit mkCfgIf mkIf';
+      mkModules = mk;
+      mkModuleArgs = mkArgs;
+    };
   };
 
   inherit
@@ -54,7 +62,7 @@
   mkIf' = cfg: condition: args:
     mkCfgIf {inherit cfg condition;} args;
 
-  mkModules = args @ {
+  mk = args @ {
     base,
     data ? (
       let
@@ -141,7 +149,7 @@
 
   If both `path` and `dom`/`mod` are supplied, `path` wins.
   */
-  mkModuleArgs = {
+  mkArgs = {
     api ? lib.api or (lix.api or {}),
     config ? {},
     host ? {},

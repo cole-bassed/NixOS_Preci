@@ -5,7 +5,6 @@
   excludes ? {},
   paths ? {},
 }: let
-  # TODO: Create a version of mkSrc in base, so that it's available at all levels.
   shared = let
     base =
       paths.store.libraries.shared or

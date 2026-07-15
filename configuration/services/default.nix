@@ -3,10 +3,10 @@
   host,
   ...
 } @ args: let
-  inherit (lix.ingestion) importModules;
+  inherit (lix.modules) mkModules;
   inherit (lix.attrsets) normalize;
 
-  inner = importModules (args
+  inner = mkModules (args
     // {
       base = ./.;
       extraArgs.shared = normalize (host.services or {});

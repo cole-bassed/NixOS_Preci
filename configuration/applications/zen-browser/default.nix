@@ -6,7 +6,7 @@
   mod,
   ...
 } @ args: let
-  inherit (lix.ingestion) mkModules;
+  inherit (lix.ingestion) ingest;
   inherit (lix.options) mkEnable mkModuleArgs;
 
   packages =
@@ -37,7 +37,7 @@
       inherit mkEnableMod;
     };
 
-  inner = mkModules (args
+  inner = ingest (args
     // {
       base = ./.;
       declareRegistry = false;

@@ -4,12 +4,11 @@
   host,
   ...
 } @ args: let
-  inherit (lix.ingestion) importModules;
-  # inherit (lix.api.users) getInteractiveUsers;
+  inherit (lix.modules) mkModules mkModuleArgs;
   inherit (lix.attrsets) attrByPath;
   inherit (lix.lists) elem toList;
   inherit (lix.strings) concatStringsSep;
-  inherit (lix.options) mkModuleArgs mkOption;
+  inherit (lix.options) mkOption;
   inherit (lix.types) package;
 
   # users = getInteractiveUsers host;
@@ -128,7 +127,7 @@
       };
     };
 
-  inner = importModules (args
+  inner = mkModules (args
     // {
       base = ./.;
       declareRegistry = true;

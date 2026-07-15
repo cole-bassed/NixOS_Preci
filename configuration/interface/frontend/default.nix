@@ -8,7 +8,7 @@
   inherit (lix.api) getInteractiveUsers;
   inherit (lix.attrsets) attrByPath namesOf valuesOf foldMerge hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
   inherit (lix.lists) elem elemAt filter findFirst length;
-  inherit (lix.modules) mkDefault mkIf mkMerge mkModules;
+  inherit (lix.modules) mkDefault mkIf mkMerge ingest;
   inherit (lix.options) mkEnable mkModuleArgs mkOption;
   inherit (lix.types) attrs enum nullOr package submodule;
   here = path;
@@ -108,7 +108,7 @@
       (mkIf (fields.package.default != null) (opt {package = mkDefault fields.package.default;}))
     ];
   };
-  inner = mkModules (args
+  inner = ingest (args
     // {
       base = ./.;
       excludes = [];

@@ -1,5 +1,5 @@
 {lix, ...} @ base:
-lix.importModules (base
+lix.modules.ingest (base
   // {
     base = ./.;
     recurse = false;

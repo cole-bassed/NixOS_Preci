@@ -5,7 +5,7 @@ _flake: {
   top,
   ...
 }: let
-  inherit (builtins) attrNames concatLists filter listToAttrs map pathExists readDir;
+  inherit (builtins) attrNames concatLists filter listToAttrs pathExists readDir;
 
   hostName = host.name;
   enabledUsers = host.users.byStatus.enabled.values or {};

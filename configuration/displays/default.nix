@@ -4,7 +4,7 @@
   host,
   ...
 } @ args: let
-  inherit (lix.ingestion) mkModules;
+  inherit (lix.modules) mkModules;
   inherit (lix.options) mkEnableOption mkOption;
   inherit (lix.types) asFloat int nullOr str submodule;
 

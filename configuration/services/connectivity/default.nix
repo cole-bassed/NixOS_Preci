@@ -1,1 +1,1 @@
-{lix, ...} @ args: lix.importModules (args // {base = ./.;})
+{lix, ...} @ args: lix.ingest (args // {base = ./.;})

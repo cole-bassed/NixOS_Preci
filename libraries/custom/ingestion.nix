@@ -12,14 +12,12 @@
 }: let
   exports = {
     scoped = {
-      modules = importModules;
       module = importModule;
       all = importAll;
       collect = collectSpecs;
       collectNamed = collectNamedSpecs;
       importAttrs = readDirAttrs;
       resolve = resolveEntrypoint;
-      mkModules = importModules;
     };
     global = {
       inherit
@@ -27,7 +25,6 @@
         collectSpecs
         importAll
         importModule
-        importModules
         readDirAttrs
         resolveEntrypoint
         ;
@@ -39,18 +36,13 @@
     attrNames
     filterAttrs
     genAttrs
-    isNotEmptyAttr
     mapAttrs
     mapAttrs'
-    optionalAttrs
-    recursiveUpdate
-    setAttrByPath
     ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asModuleList any concatMap elem findFirst last optionals;
+  inherit (lists) asModuleList any concatMap elem findFirst optionals;
   inherit (strings) hasSuffix removeSuffix;
-  inherit (options) mkAppBindings mkBindings mkOption mkRegistryVariables;
-  inherit (types) isFunction attrs;
+  inherit (types) isFunction;
 
   candidates = entrypoints.nix.candidates or ["default.nix"];
 
@@ -304,77 +296,67 @@
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
   };
-
-  importModules = args @ {
-    base,
-    lib ? {},
-    api ? args.api or (lib.api or {}),
-    data ? (
-      let
-        domain =
-          if path != []
-          then (last path)
-          else null;
-      in
-        args.extraArgs.registry or (
-          optionalAttrs
-          (domain != null && api ? ${domain}.registry)
-          api.${domain}.registry
-        )
-    ),
-    excludes ? null,
-    extraArgs ? {},
-    includeFiles ? true,
-    includes ? [],
-    path ? [],
-    childPath ? path,
-    recurse ? true,
-    tags ? defaults.tags,
-    top,
-    declareRegistry ? isNotEmptyAttr data,
-    ...
-  }: let
-    hasData = isNotEmptyAttr data && declareRegistry;
-
-    specs = collectSpecs {
-      inherit args base excludes includes tags includeFiles recurse;
-      path = childPath;
-      extraArgs =
-        recursiveUpdate (args.extraArgs or {}) extraArgs
-        // optionalAttrs hasData {registry = data;};
-    };
-
-    # registryModule = {
-    #   options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
-    #     type = attrs;
-    #     default = data;
-    #     readOnly = true;
-    #   });
-    # };
-    registryModule = {
-      options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
-        type = attrs;
-        default =
-          data
-          // optionalAttrs (data ? variables || data ? applications)
-          {variables = mkRegistryVariables data;}
-          // optionalAttrs (data ? bindings)
-          {
-            bindings =
-              (mkBindings {
-                inherit (data) bindings;
-                applications = data.applications or {};
-              }).options;
-          }
-          // optionalAttrs (data ? applications)
-          {applications = mkAppBindings {inherit (data) applications;};};
-        readOnly = true;
-      });
-    };
-    registryModules = optionals hasData [registryModule];
-  in {
-    imports = (specs.core or []) ++ registryModules;
-    home-manager.sharedModules = (specs.home or []) ++ registryModules;
-  };
+  # importModules = args @ {
+  #   base,
+  #   lib ? {},
+  #   api ? args.api or (lib.api or {}),
+  #   data ? (
+  #     let
+  #       domain =
+  #         if path != []
+  #         then (last path)
+  #         else null;
+  #     in
+  #       args.extraArgs.registry or (
+  #         optionalAttrs
+  #         (domain != null && api ? ${domain}.registry)
+  #         api.${domain}.registry
+  #       )
+  #   ),
+  #   excludes ? null,
+  #   extraArgs ? {},
+  #   includeFiles ? true,
+  #   includes ? [],
+  #   path ? [],
+  #   childPath ? path,
+  #   recurse ? true,
+  #   tags ? defaults.tags,
+  #   top,
+  #   declareRegistry ? isNotEmptyAttr data,
+  #   ...
+  # }: let
+  #   hasData = isNotEmptyAttr data && declareRegistry;
+  #   specs = collectSpecs {
+  #     inherit args base excludes includes tags includeFiles recurse;
+  #     path = childPath;
+  #     extraArgs =
+  #       recursiveUpdate (args.extraArgs or {}) extraArgs
+  #       // optionalAttrs hasData {registry = data;};
+  #   };
+  #   registryModule = {
+  #     options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
+  #       type = attrs;
+  #       default =
+  #         data
+  #         // optionalAttrs (data ? variables || data ? applications)
+  #         {variables = mkRegistryVariables data;}
+  #         // optionalAttrs (data ? bindings)
+  #         {
+  #           bindings =
+  #             (mkBindings {
+  #               inherit (data) bindings;
+  #               applications = data.applications or {};
+  #             }).options;
+  #         }
+  #         // optionalAttrs (data ? applications)
+  #         {applications = mkAppBindings {inherit (data) applications;};};
+  #       readOnly = true;
+  #     });
+  #   };
+  #   registryModules = optionals hasData [registryModule];
+  # in {
+  #   imports = (specs.core or []) ++ registryModules;
+  #   home-manager.sharedModules = (specs.home or []) ++ registryModules;
+  # };
 in
   exports
