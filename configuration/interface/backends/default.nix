@@ -7,11 +7,11 @@
   ...
 } @ args: let
   inherit (lix.attrsets) foldMerge mapAttrs optionalAttrs hasAttrByPath setAttrByPath;
-  inherit (lix.applications) resolveTiers;
+  # inherit (lix.applications) resolveApps;
   inherit (lix.lists) findFirst head;
   inherit (lix.modules) mkIf mkMerge mkModules;
-  inherit (lix.options) mkAppOptions mkEnableOption mkModuleArgs mkOption;
-  inherit (lix.types) attrs enum nullOr package str submodule;
+  inherit (lix.options) mkRegistryOptions mkEnableOption mkModuleArgs mkOption;
+  inherit (lix.types) enum nullOr package str submodule;
 
   here = path;
   data = import (paths.store.api + "/${(head path)}");
@@ -43,7 +43,7 @@
     inherit (get) prettyName name cfg cfgOr apiOr;
     inherit (set) opt bin;
 
-    default = let
+    registry = let
       derived = {
         enable = apiOr "enable";
         protocol = apiOr "protocol";
@@ -75,6 +75,7 @@
         };
         bindings = {
           modifier = "SUPER";
+          swapCapsEscape = false;
         };
       };
 
@@ -99,81 +100,61 @@
       };
 
     fields =
-      {
-        enable = set.enable {default = default.enable;};
+      (mkRegistryOptions registry)
+      // {
+        enable = set.enable {default = registry.enable;};
 
         package = mkOption {
           type = nullOr package;
-          default = default.package;
+          default = registry.package;
           description = "Package backing the ${prettyName} compositor component.";
         };
 
         protocol = mkOption {
           type = nullOr (enum ["x11" "wayland"]);
-          default = default.protocol;
+          default = registry.protocol;
           description = "Display protocol for ${prettyName}. Defaults to the backend registry or host/user override.";
         };
 
         session = mkOption {
           type = nullOr str;
-          default = default.session;
+          default = registry.session;
           description = "Session name exported by ${prettyName}. Defaults to the backend registry or host/user override.";
         };
 
         greeter = mkOption {
           type = nullOr str;
-          default = default.greeter;
+          default = registry.greeter;
           description = "Greeter or display manager preferred for ${prettyName}. Defaults to the backend registry or host/user override.";
         };
 
         frontend = mkOption {
           type = nullOr str;
-          default = default.frontend;
+          default = registry.frontend;
           description = "Frontend layer paired with ${prettyName}. Defaults to the backend registry or host/user override.";
         };
 
         needsXwaylandSatellite =
           mkEnableOption "xwayland-satellite support for ${prettyName}"
-          // {default = default.needsXwaylandSatellite;};
+          // {default = registry.needsXwaylandSatellite;};
 
-        bindings = mkOption {
-          description = "Global unified environment hotkey definitions.";
-          type = submodule {
-            options = {
-              modifier = mkOption {
-                type = nullOr str;
-                default = default.bindings.modifier;
-                description = "Keyboard configuration modifier key from the registry.";
-              };
-              swapCapsEscape =
-                mkEnableOption
-                "Allow the Caps Lock key to function as Escape"
-                // {default = default.bindings.swapCapsEscape;};
-            };
-          };
-          default = {};
-        };
-
-        vars = mkOption {
-          type = attrs;
-          description = "Pre-resolved application commands and keyboard shortcuts ready for hotkeys.";
-          default = foldMerge [
-            {MOD = cfg.bindings.modifier;}
-            (resolveTiers {
-              sets = {inherit (cfg.applications) browser editor visual launcher terminal;};
-              transformation = "shell";
-            })
-            # (resolveTiers {inherit (cfg.applications) browser editor visual launcher terminal;})
-          ];
-        };
+        # variables = mkOption {
+        #   type = attrs;
+        #   description = "Pre-resolved application commands and keyboard shortcuts ready for hotkeys.";
+        #   default =
+        #     {MOD = registry.bindings.modifier;}
+        #     // mapAttrs (name: app: app.command) (mkAppVars cfg.applications);
+        # };
       }
-      // (mkAppOptions {inherit (default) applications;})
+      # // (mkVarOptions {inherit (default) variables;})
+      # // (mkBindOptions {inherit (default) bindings;})
+      # // (mkAppOptions {inherit (default) applications;})
       // optionalAttrs (scope == "core") {
         uwsm = mkOption {
           description = "UWSM configuration for ${prettyName}. Set to `null` to disable UWSM integration.";
           type = submodule {
             options = {
-              enable = mkEnableOption "${prettyName} UWSM support." // {default = default.uwsm;};
+              enable = mkEnableOption "${prettyName} UWSM support." // {default = registry.uwsm;};
               name = mkOption {
                 type = str;
                 description = "Human-readable name shown by UWSM.";

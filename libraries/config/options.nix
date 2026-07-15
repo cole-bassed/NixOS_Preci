@@ -15,11 +15,16 @@
         mkOpt
         mkAppOptions
         mkAppOption
+        mkBindOptions
+        mkBindOption
         # mkEnableMod
+        mkAppVars
         mkModuleArgs
         mkFloatOption
+        mkRegistryOptions
         mkLatitudeOption
         mkLongitudeOption
+        mkVarOptions
         mkGeoProviderOption
         mkTimezoneOption
         mkLocalTimeOption
@@ -34,6 +39,8 @@
     asAttrs
     attrByPath
     attrValues
+    coalesce
+    extractArgs
     foldMerge
     genAttrs
     hasAttr
@@ -41,14 +48,53 @@
     namesOf
     mapAttrs
     mkNamespaced
+    mapParsedOrdered
     optionalAttrs
     recursiveUpdate
     setAttrByPath
     ;
-  inherit (lists) asList elem hasAny head init last optionals;
+  inherit
+    (lists)
+    asList
+    concatMap
+    elem
+    filter
+    flatten
+    hasAny
+    head
+    init
+    last
+    optionals
+    ;
   inherit (options) mkOption mkEnableOption;
-  inherit (types) nullOr addCheck float isNotEmpty listOf str submodule;
+  inherit
+    (types)
+    attrsOf
+    bool
+    isBool
+    isAttrs
+    isString
+    isList
+    nullOr
+    addCheck
+    either
+    float
+    isNotEmpty
+    listOf
+    str
+    submodule
+    ;
   inherit (strings) toSentenceCase concatStringsSep;
+
+  _defaults = {
+    labels = {
+      browser = "Browser launch";
+      editor = "Editor launch";
+      visual = "Visual/IDE launch";
+      launcher = "Launcher trigger";
+      terminal = "Terminal launch";
+    };
+  };
 
   /**
   Build standard module args (cfg/opt/enable/etc.) for an option whose
@@ -457,55 +503,102 @@
       default = host.localization.locale or default;
     };
 
+  # Shared shape for grouping per-item options into one submodule option.
+  mkGroupedOptions = {
+    name,
+    items,
+    option,
+    description,
+  }: {
+    ${name} = mkOption {
+      inherit description;
+      type = submodule {options = mapAttrs (item: _: option item) items;};
+      default = {};
+    };
+  };
+
+  # Shared shape for a single resolved-from-registry option.
+  mkRegistryOption = {
+    name,
+    type,
+    label ? null,
+    labels ? {},
+    prefix,
+    noun,
+    registry,
+  }: let
+    labels' = recursiveUpdate _defaults.labels labels;
+  in
+    mkOption {
+      inherit type;
+      default = registry.${name} or null;
+      description = "${prefix} ${(
+        if label != null
+        then label
+        else (labels'.${name} or "${name} ${noun}")
+      )} from the registry.";
+    };
+
+  mkRegistryVariables = registry: let
+    commands = mkAppVars {
+      sets =
+        mapAttrs
+        (_: apps: map (app: app.command) apps)
+        (registry.applications or {});
+    };
+  in
+    {MOD = registry.bindings.modifier or "SUPER";}
+    // commands
+    // (registry.variables or {});
+
+  mkRegistryOptions = registry:
+    {}
+    // optionalAttrs (registry ? variables || registry ? applications)
+    (mkVarOptions {variables = mkRegistryVariables registry;})
+    // optionalAttrs (registry ? bindings)
+    (mkBindOptions {bindings = registry.bindings;})
+    // optionalAttrs (registry ? applications)
+    (mkAppOptions {applications = registry.applications;});
+
   mkAppOption = {
     name,
     type ? null,
     label ? null,
     labels ? {},
     applications,
+    modifier ? "SUPER",
   }: let
-    resolved = {
-      labels =
-        recursiveUpdate {
-          browser = "Web browsers";
-          editor = "Terminal-based editors";
-          visual = "Graphical-based editors";
-          launcher = "Application launchers";
-          terminal = "Terminal emulators";
-        }
-        labels;
+    mod = {
+      options = {
+        name = mkOption {
+          type = str;
+          description = "Package name or lookup identifier.";
+        };
+        description = mkOption {
+          type = str;
+          description = "Human-readable descriptive label.";
+        };
+        command = mkOption {
+          type = str;
+          description = "The executable/binary command used to trigger it.";
+        };
+        bindings = mkOption {
+          type = attrsOf (listOf str);
+          default = {};
+          description = "Binding keys normalized to list format like { launch = [ 'V' ]; }";
+        };
+      };
+    };
+  in
+    mkRegistryOption {
+      inherit name label labels;
+      prefix = "Ordered list of";
+      noun = "applications";
+      registry = mkAppBinds {inherit applications modifier;};
       type =
         if isNotEmpty type
         then type
-        else
-          nullOr (listOf (
-            submodule {
-              options = {
-                name = mkOption {
-                  type = str;
-                  description = "Package name or lookup identifier.";
-                };
-                description = mkOption {
-                  type = str;
-                  description = "Human-readable descriptive label.";
-                };
-                command = mkOption {
-                  type = str;
-                  description = "The executable/binary command used to trigger it.";
-                };
-              };
-            }
-          ));
-    };
-  in
-    mkOption {
-      type = resolved.type;
-      default = applications.${name} or null;
-      description = "Ordered list of ${(
-        if label != null
-        then label
-        else (resolved.labels.${name} or "${name} applications")
-      )} from the registry.";
+        else nullOr (listOf (submodule mod));
     };
 
   mkAppOptions = {
@@ -513,17 +606,175 @@
     labels ? {},
     type ? null,
     name ? "applications",
-  }: {
-    ${name} = mkOption {
+  }:
+    mkGroupedOptions {
+      inherit name;
+      items = applications;
+      option = name: mkAppOption {inherit applications labels name type;};
       description = "Priority-ordered tier applications resolved by the registry.";
-      type = submodule {
-        options =
-          mapAttrs
-          (name: _: mkAppOption {inherit applications name labels type;})
-          applications;
-      };
-      default = {};
     };
+
+  mkBindOption = {
+    name,
+    type ? null,
+    label ? null,
+    labels ? {},
+    bindings,
+  }:
+    mkRegistryOption {
+      inherit name label labels;
+      prefix = "Binding key for";
+      noun = "binding";
+      registry = (mkBinds {inherit bindings;}).options;
+      type =
+        if isNotEmpty type
+        then type
+        else either (listOf str) bool;
+    };
+
+  mkBindOptions = {
+    bindings,
+    labels ? {},
+    type ? null,
+    name ? "bindings",
+  }:
+    mkGroupedOptions {
+      inherit name;
+      items = bindings;
+      option = itemName:
+        mkBindOption {
+          inherit bindings labels type;
+          name = itemName;
+        };
+      description = "Hotkey trigger bindings resolved by the registry.";
+    };
+
+  mkAppVars = payload: let
+    args = extractArgs {
+      args = payload;
+      required = ["sets"];
+      defaults = {transformation = "POSIX";};
+    };
+  in
+    mkNamespaced {
+      inherit (args) transformation;
+      sets =
+        mapAttrs
+        (
+          _: commands: let
+            secondary = coalesce commands.secondary commands.primary;
+            tertiary = coalesce commands.tertiary secondary;
+          in {
+            "" = commands.primary;
+            inherit secondary tertiary;
+          }
+        )
+        (mapParsedOrdered args.sets);
+    };
+
+  mkAppBinds = {
+    applications,
+    modifier ? "SUPER",
+  }: let
+    format = name: value:
+      asList modifier
+      ++ (optionals (name == "launch") ["ALT"])
+      ++ asList value;
+
+    resolve = app:
+      if app ? bindings && isAttrs app.bindings
+      then app // {bindings = mapAttrs format app.bindings;}
+      else app;
+  in
+    mapAttrs
+    (
+      _: value:
+        if isList value
+        then map resolve value
+        else value
+    )
+    applications;
+
+  mkBinds = {
+    bindings,
+    applications ? {},
+    modifier ? bindings.modifier or "SUPER",
+  }: let
+    mod = asList modifier;
+
+    assemble = name: key:
+      if name == "modifier"
+      then mod
+      else if isBool key
+      then key
+      else if isString key
+      then {inherit key mod;}
+      else if isList key
+      then {
+        mod = mod ++ init key;
+        key = last key;
+      }
+      else null;
+
+    resolve = entry:
+      if isBool entry || isList entry
+      then entry
+      else entry.mod ++ [entry.key];
+
+    registry = mapAttrs assemble bindings;
+
+    apps =
+      map (app: {
+        key = app.bindings.launch;
+        mod = mod ++ ["SHIFT" "ALT"];
+        action = app.command;
+      })
+      (
+        filter
+        (app: app ? bindings.launch && app.bindings.launch != null)
+        (flatten (valuesOf applications))
+      );
+
+    groups = let
+      validated =
+        filter
+        (name: applications ? ${name} && isString bindings.${name})
+        (namesOf bindings);
+
+      tiers = name: let
+        apps = mkAppVars {sets = applications;};
+        mk = extraMod: field: {
+          key = registry.${name}.key;
+          mod = registry.${name}.mod ++ extraMod;
+          action = apps.${name}.${field}.command;
+        };
+      in [
+        (mk [] "")
+        (mk ["SHIFT"] "secondary")
+        (mk ["ALT"] "tertiary")
+      ];
+    in
+      concatMap tiers validated;
+  in {
+    options = mapAttrs (_: resolve) registry;
+    entries = apps ++ groups;
   };
+
+  mkVarOptions = {
+    variables,
+    name ? "variables",
+    type ? str,
+  }:
+    mkGroupedOptions {
+      inherit name;
+      items = variables;
+      option = key:
+        mkOption {
+          inherit type;
+          default = variables.${key};
+          description = "Variable '${key}' resolved by the registry.";
+        };
+      description = "Custom configuration variables.";
+    };
 in
   exports

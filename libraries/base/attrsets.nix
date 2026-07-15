@@ -24,6 +24,7 @@
         select
         valuesOf
         namesOf
+        coalesce
         ;
       optionalAttrs = asIf;
       defaultOrAll = preferDefault;
@@ -53,6 +54,7 @@
         mapAttrs
         zipAttrsWith
         ;
+      coalesceAttrs = coalesce;
       defaultOrAllAttrs = preferDefault;
       defaultOrAllValues = preferDefaultValues;
       asAttrs = as;
@@ -713,5 +715,11 @@
     if isAttrs value
     then attrNames value
     else [];
+
+  # Returns a if it's not null, otherwise returns b
+  coalesce = a: b:
+    if a != null
+    then a
+    else b;
 in
   exports

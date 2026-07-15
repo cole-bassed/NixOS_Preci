@@ -17,15 +17,15 @@ _: let
         zipAttrsWith
         ;
       inherit as asIf asModule foldl orEmpty unique;
-      maps = builtins.concatMap;
-      at = builtins.elemAt;
+      maps = concatMap;
+      at = elemAt;
       first = head;
       initial = head;
       remaining = tail;
       concat = concatLists;
       isIn = elem;
       select = filter;
-      generate = builtins.genList;
+      generate = genList;
     };
 
     global = {
@@ -35,7 +35,7 @@ _: let
       asListIf = asIf;
       orEmptyList = orEmpty;
       uniqueList = unique;
-      listLength = builtins.length;
+      listLength = length;
       inherit (builtins) concatLists concatMap genList isList;
     };
   };
@@ -44,12 +44,16 @@ _: let
     (builtins)
     attrNames
     concatLists
+    concatMap
     elem
+    elemAt
     filter
+    genList
     head
     isAttrs
     isList
     isString
+    length
     tail
     typeOf
     ;
@@ -91,18 +95,37 @@ _: let
   # => [ ./file.nix ]
   ```
   */
-  as = value: let
-    type = typeOf value;
+  as = args: let
+    isConfig =
+      isAttrs args && args ? value;
+    value =
+      if isConfig
+      then args.value
+      else args;
+    default =
+      if isConfig && args ? default
+      then args.default
+      else [];
+    fatal =
+      if isConfig && args ? fatal
+      then args.fatal
+      else false;
+    result =
+      if isList value
+      then value
+      else if isString value
+      then [value]
+      else if isAttrs value
+      then attrNames value
+      else if typeOf value == "path"
+      then [value]
+      else null;
   in
-    if isList value
-    then value
-    else if isString value
-    then [value]
-    else if isAttrs value
-    then attrNames value
-    else if type == "path"
-    then [value]
-    else throw "lists.as:= unsupported type: ${type}";
+    if result != null
+    then result
+    else if fatal
+    then throw "lists.as: unsupported type: ${typeOf value}"
+    else default;
 
   asModule = value:
     if value == null

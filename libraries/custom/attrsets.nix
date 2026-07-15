@@ -29,6 +29,7 @@
         toOrdered
         foldMerge
         mkNamespaced
+        extractArgs
         ;
       dropNull = removeEmpty;
       merge = mergeUnique;
@@ -72,7 +73,22 @@
     optionalAttrs
     recursiveUpdate
     ;
-  inherit (lists) all concatMap filter findFirstList foldl' genList isList length map nthOr;
+  inherit
+    (lists)
+    all
+    concatMap
+    elem
+    filter
+    findFirstList
+    foldl'
+    genList
+    head
+    isList
+    length
+    map
+    nthOr
+    uniqueStrings
+    ;
   inherit (strings) concatStringsSep toJSON toUpper substring;
   inherit (debug) withContext;
   inherit (types) isAttrs typeOf isString isFunction' isPath;
@@ -273,41 +289,31 @@
     // {inherit primary secondary tertiary preferred fallback default;};
 
   mapParsedOrdered = set: mapAttrs (_: parseOrdered) set;
-  mkNamespaced = args: let
-    hasPayload =
-      (args ? sets)
-      && all
-      (key: key == "sets" || key == "transformation")
-      (namesOf args);
 
-    sets =
-      if hasPayload
-      then args.sets
-      else args;
-
-    # The default is now explicitly "camelCase" to prevent breakages.
-    transformation =
-      if hasPayload && (args ? transformation)
-      then args.transformation
-      else "camelCase";
-
-    # Define the style map: functions taking (prefix, name) and returning a string.
-    styleMap = {
-      camelCase = prefix: name:
-        if name == ""
-        then prefix
-        else "${prefix}${toUpper (substring 0 1 name)}${substring 1 (-1) name}";
-
-      shell = prefix: name:
-        if name == ""
-        then toUpper prefix
-        else "${toUpper prefix}_${toUpper name}";
-
-      none = prefix: name: "${prefix}${name}";
+  mkNamespaced = payload: let
+    args = extractArgs {
+      args = payload;
+      required = ["sets"];
+      defaults = {transformation = "camelCase";};
     };
 
-    # Safely select the formatter, falling back to camelCase if an invalid string is passed.
-    formatName = styleMap.${transformation} or styleMap.camelCase;
+    styleMap =
+      {
+        camelCase = prefix: name:
+          if name == ""
+          then prefix
+          else "${prefix}${toUpper (substring 0 1 name)}${substring 1 (-1) name}";
+
+        shell = prefix: name:
+          if name == ""
+          then toUpper prefix
+          else "${toUpper prefix}_${toUpper name}";
+
+        none = prefix: name: "${prefix}${name}";
+      }
+      // {POSIX = styleMap.shell;};
+
+    formatName = styleMap.${args.transformation} or styleMap.camelCase;
   in
     concatMapAttrs (
       prefix: attrset:
@@ -316,7 +322,7 @@
           value = attrset.${name};
         }) (namesOf attrset))
     )
-    sets;
+    args.sets;
 
   foldMerge = foldl' recursiveUpdate {};
 
@@ -357,5 +363,35 @@
     handlers = {inherit list bool set;};
   in
     handlers.${type} or resolved;
+
+  extractArgs = {
+    args ? null,
+    payload ? null,
+    required ? [],
+    optional ? allowed,
+    defaults ? {},
+    # Automatically derive allowed keys so you rarely have to define them manually
+    allowed ? required ++ (namesOf defaults),
+    # Where to put the raw data if args is a legacy payload
+    legacyMapKey ? (head required),
+  }: let
+    value =
+      if args != null
+      then args
+      else if payload != null
+      then payload
+      else throw "extractArgs: no args or payload provided";
+    check =
+      (isAttrs value)
+      && (all (req: hasAttr req value) required)
+      && (
+        all
+        (key: elem key (uniqueStrings (allowed ++ optional)))
+        (namesOf value)
+      );
+  in
+    if check
+    then defaults // value
+    else defaults // {"${legacyMapKey}" = value;};
 in
   exports

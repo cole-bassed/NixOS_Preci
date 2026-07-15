@@ -7,7 +7,7 @@
 }: let
   exports = {
     scoped = {
-      inherit asList nthOr orNull orDefault orEmpty;
+      inherit nthOr orNull orDefault orEmpty;
       atOr = nthOr;
       has = has';
       hasAny = hasAny';
@@ -19,10 +19,7 @@
       isNotEmptyList = isNotEmpty';
       orDefaultList = orDefault;
       orNullList = orNull;
-      toList' = asList;
       valueInList = nthOr;
-
-      # Added to global exports
       inList = has';
       anyInList = hasAny';
     };
@@ -30,7 +27,7 @@
 
   inherit (attrsets) isAttrs;
   inherit (debug) assertWithContext;
-  inherit (lists) elemAt isList length optionals toList any elem; # Inherited 'any' and 'elem'
+  inherit (lists) asList elemAt isList length optionals any elem;
   inherit (types) typeOf isEmpty;
 
   isEmpty' = value: value == [];
@@ -88,8 +85,6 @@
       context = "evaluating lists.orEmpty";
     };
       optionals (isNotEmpty' value) value;
-
-  asList = val: optionals (val != null) (toList val);
 
   nthOr = input: let
     fromArgs = {

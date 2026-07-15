@@ -3,7 +3,11 @@
   lix,
   ...
 }:
-(lix.attrsets.concatMapAttrs (name: value: {${"$" + name} = value;}) cfg.vars)
+(
+  lix.attrsets.concatMapAttrs
+  (name: value: {${"$" + name} = value;})
+  cfg.variables
+)
 // {
   # ╔════════════════════════════════════════════════╗
   # ╠ ENVIRONMENT & BASE CONFIG                      ╣

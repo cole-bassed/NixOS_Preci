@@ -98,10 +98,7 @@ configure() {
 		monitor_sec_rate="144"
 		monitor_sec_pos="mirror"
 		monitor_sec_disable=1 #? damaged/overheating panel — force off every run
-		# sudo cat /sys/kernel/debug/dri/0000:06:00.0/eDP-1/status
-		# echo 1 | sudo tee /sys/kernel/debug/dri/0000:06:00.0/eDP-1/trigger_hotplug
-		# sleep 2
-		# cat /sys/class/drm/card2-eDP-1/status
+		# sudo sh -c 'echo on > /sys/kernel/debug/dri/2/eDP-1/force'; sudo sh -c 'echo 1 > /sys/kernel/debug/dri/2/eDP-1/trigger_hotplug'; sleep 2; cat /sys/class/drm/card2-eDP-1/status; hyprctl reload
 
 		monitor_ter_name=""
 		monitor_ter_width="1920"
@@ -332,6 +329,77 @@ setup_monitors() {
 		hyprland) hyprctl keyword monitor "$1, disable" >/dev/null 2>&1 ;;
 		niri) niri msg output "$1" off >/dev/null 2>&1 ;;
 		*) ;;
+		esac
+	}
+
+	# --------------------------------------------------------------------------
+	# kernel_force_connector NAME
+	# --------------------------------------------------------------------------
+	# Forces a DRM connector to report "connected" at the kernel level via
+	# debugfs, for panels that fail hardware detection but are otherwise usable
+	# (e.g. a flaky/overheating eDP panel that needs a hotplug nudge). Locates
+	# the connector's debugfs directory by searching for NAME under each
+	# /sys/kernel/debug/dri/* entry — debugfs indices do not match
+	# /sys/class/drm/cardN numbering, so this cannot be hardcoded. No-op
+	# (returns 0) if already connected. Requires sudo; if a password prompt
+	# would be needed and none is cached, warns and returns 1 rather than
+	# blocking the rest of setup_monitors.
+	# --------------------------------------------------------------------------
+	kernel_force_connector() {
+		_kfc_name="${1:-}"
+		case "${_kfc_name}" in "") return 1 ;; *) ;; esac
+
+		#> Locate /sys/class/drm/cardN-NAME/status
+		_kfc_status=""
+		for _p in /sys/class/drm/card*-"${_kfc_name}"/status; do
+			[ -e "${_p}" ] && _kfc_status="${_p}" && break
+		done
+		case "${_kfc_status}" in
+		"")
+			print_warn "kernel_force_connector: ${_kfc_name} not found under /sys/class/drm"
+			return 1
+			;;
+		*) ;;
+		esac
+
+		#> Already connected — nothing to do
+		case "$(cat "${_kfc_status}" 2>/dev/null)" in
+		connected) return 0 ;;
+		*) ;;
+		esac
+
+		#> Don't block on an interactive sudo prompt
+		if ! sudo -n true 2>/dev/null; then
+			print_warn "kernel_force_connector: sudo needs a password; skipping kernel-level force for ${_kfc_name}"
+			return 1
+		fi
+
+		#> Locate the matching debugfs directory (indexed by minor, not card number)
+		_kfc_dir=""
+		for _d in /sys/kernel/debug/dri/*/; do
+			[ -d "${_d}${_kfc_name}" ] && _kfc_dir="${_d}${_kfc_name}" && break
+		done
+		case "${_kfc_dir}" in
+		"")
+			print_warn "kernel_force_connector: no debugfs entry found for ${_kfc_name}"
+			return 1
+			;;
+		*) ;;
+		esac
+
+		sudo sh -c "echo on > '${_kfc_dir}/force'" 2>/dev/null
+		sudo sh -c "echo 1 > '${_kfc_dir}/trigger_hotplug'" 2>/dev/null
+		sleep 2
+
+		case "$(cat "${_kfc_status}" 2>/dev/null)" in
+		connected)
+			print_success "kernel_force_connector: ${_kfc_name} forced connected"
+			return 0
+			;;
+		*)
+			print_warn "kernel_force_connector: ${_kfc_name} still disconnected after force"
+			return 1
+			;;
 		esac
 	}
 
@@ -634,8 +702,15 @@ setup_monitors() {
 		esac
 	}
 
+	apply_monitor_states() {
+		case "${monitor_pri_disable:-0}" in 1) ;; *) kernel_force_connector "${monitor_pri_name:-}" ;; esac
+		case "${monitor_sec_disable:-0}" in 1) ;; *) kernel_force_connector "${monitor_sec_name:-}" ;; esac
+		case "${monitor_ter_disable:-0}" in 1) ;; *) kernel_force_connector "${monitor_ter_name:-}" ;; esac
+		apply_disables
+	}
+
 	# ── Dispatch ──────────────────────────────────────────────────────────────
-	apply_disables
+	apply_monitor_states
 	calc_positions || return 1
 
 	case "${compositor}" in
