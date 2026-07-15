@@ -22,6 +22,13 @@
 
       defaults = recursiveUpdate {
         tags = ["core" "home"];
+        labels = {
+          browser = "Browser launch";
+          editor = "Editor launch";
+          visual = "Visual/IDE launch";
+          launcher = "Launcher trigger";
+          terminal = "Terminal launch";
+        };
       } (recursiveUpdate defaults (flake.defaults or {}));
 
       excludes =

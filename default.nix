@@ -20,21 +20,31 @@
     };
   };
 
-  defaults.host = let
-    inherit (builtins) isAttrs getEnv;
-    env = {
-      host = getEnv "HOSTNAME";
-      name = getEnv "NAME";
+  defaults = {
+    tags = ["core" "home"];
+    labels = {
+      browser = "Browser launch";
+      editor = "Editor launch";
+      visual = "Visual/IDE launch";
+      launcher = "Launcher trigger";
+      terminal = "Terminal launch";
     };
-  in
-    # TODO: Does flake truly ever pass currentHost as an argument?
-    if isAttrs flake && ((flake.currentHost or "") != "")
-    then flake.currentHost
-    else if (env.host != "")
-    then env.host
-    else if (env.name != "")
-    then env.name
-    else "Preci";
+    host = let
+      inherit (builtins) isAttrs getEnv;
+      env = {
+        host = getEnv "HOSTNAME";
+        name = getEnv "NAME";
+      };
+    in
+      # TODO: Does flake truly ever pass currentHost as an argument?
+      if isAttrs flake && ((flake.currentHost or "") != "")
+      then flake.currentHost
+      else if (env.host != "")
+      then env.host
+      else if (env.name != "")
+      then env.name
+      else "Preci";
+  };
 
   libraries =
     import paths.store.libraries

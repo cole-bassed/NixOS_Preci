@@ -1,4 +1,5 @@
 {
+  attrsets,
   debug,
   lists,
   strings,
@@ -11,6 +12,8 @@
       to = {float = toFloat;};
       from = {};
       as = {float = asFloat;};
+      inherit (attrsets) asList;
+      inherit (lists) asAttrs;
     };
     global = {
       inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull toFloat;
