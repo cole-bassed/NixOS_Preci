@@ -116,7 +116,10 @@ _: let
       else if isString value
       then [value]
       else if isAttrs value
-      then attrNames value
+      then
+        if (args.wrapAttrs or false)
+        then [value]
+        else attrNames value
       else if typeOf value == "path"
       then [value]
       else null;
@@ -128,11 +131,11 @@ _: let
     else default;
 
   asModule = value:
-    if value == null
-    then []
-    else if isList value
-    then value
-    else [value];
+    as {
+      inherit value;
+      default = [];
+      wrapAttrs = true;
+    };
 
   /**
   Conditionally coerce a value into a list.

@@ -27,6 +27,7 @@
   }: let
     args = mkModuleArgs {
       inherit
+        lix
         config
         defaults
         host
