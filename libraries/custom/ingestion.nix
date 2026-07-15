@@ -49,7 +49,7 @@
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
   inherit (lists) asModuleList any concatMap elem findFirst last optionals;
   inherit (strings) hasSuffix removeSuffix;
-  inherit (options) mkOption;
+  inherit (options) mkAppBinds mkBinds mkOption mkRegistryVariables;
   inherit (types) isFunction attrs;
 
   candidates = entrypoints.nix.candidates or ["default.nix"];
@@ -344,10 +344,30 @@
         // optionalAttrs hasData {registry = data;};
     };
 
+    # registryModule = {
+    #   options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
+    #     type = attrs;
+    #     default = data;
+    #     readOnly = true;
+    #   });
+    # };
     registryModule = {
       options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
         type = attrs;
-        default = data;
+        default =
+          data
+          // optionalAttrs (data ? variables || data ? applications)
+          {variables = mkRegistryVariables data;}
+          // optionalAttrs (data ? bindings)
+          {
+            bindings =
+              (mkBinds {
+                inherit (data) bindings;
+                applications = data.applications or {};
+              }).options;
+          }
+          // optionalAttrs (data ? applications)
+          {applications = mkAppBinds {inherit (data) applications;};};
         readOnly = true;
       });
     };

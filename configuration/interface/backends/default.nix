@@ -26,7 +26,6 @@
     defaults ? {},
   }: let
     args = mkModuleArgs {
-      lib = lix;
       inherit
         config
         defaults

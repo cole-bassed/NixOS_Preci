@@ -45,55 +45,6 @@
         (mapParsedOrdered args.sets);
     };
 
-  # resolveBinds = {
-  #   applications,
-  #   bindings,
-  #   modifier ? "SUPER",
-  # }: let
-  #   resolved = {
-  #     categories = name: key: let
-  #       tiers = (resolveApps {sets = applications;}).${name};
-  #       binds = [
-  #         {
-  #           inherit key;
-  #           mod = [modifier];
-  #           action = tiers."".command;
-  #         }
-  #         {
-  #           inherit key;
-  #           mod = [modifier "SHIFT"];
-  #           action = tiers.secondary.command;
-  #         }
-  #         {
-  #           inherit key;
-  #           mod = [modifier "ALT"];
-  #           action = tiers.tertiary.command;
-  #         }
-  #       ];
-  #     in
-  #       concatMap (name: binds name bindings.${name})
-  #       (filter (n: bindings ? ${n}) (namesOf bindings));
-
-  #     applications = let
-  #       mkBinds = category:
-  #         map
-  #         (
-  #           app:
-  #             if app ? bindings.launch
-  #             then {
-  #               mod = [modifier "SHIFT" "ALT"];
-  #               key = app.bindings.launch;
-  #               action = app.command;
-  #             }
-  #             else null
-  #         )
-  #         (asList applications.${category});
-  #       binds = concatMap mkBinds (namesOf applications);
-  #     in
-  #       filter (b: b != null) binds;
-  #   };
-  # in
-  #   with resolved; categories ++ applications;
   resolveBinds = {
     applications,
     bindings,

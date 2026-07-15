@@ -540,16 +540,19 @@
     };
 
   mkRegistryVariables = registry: let
-    commands = mkAppVars {
+    commands = let
       sets =
         mapAttrs
         (_: apps: map (app: app.command) apps)
         (registry.applications or {});
+    in
+      optionalAttrs (sets != {}) (mkAppVars {inherit sets;});
+
+    bindings = optionalAttrs (registry ? bindings.modifier) {
+      MOD = registry.bindings.modifier;
     };
   in
-    {MOD = registry.bindings.modifier or "SUPER";}
-    // commands
-    // (registry.variables or {});
+    bindings // commands // (registry.variables or {});
 
   mkRegistryOptions = registry:
     {}
