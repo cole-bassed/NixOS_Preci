@@ -5,7 +5,7 @@
     recurse = true;
     excludes = [
       "applications"
-      "base"
+      # "base"
       "displays"
       # "interface"
       "secrets"
