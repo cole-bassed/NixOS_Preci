@@ -6,9 +6,9 @@
     base = ./.;
     excludes = [
       # "backend"
-      "frontend"
-      "protocol"
-      "session"
+      # "frontend"
+      # "protocol"
+      # "session"
     ];
   };
 

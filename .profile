@@ -90,7 +90,7 @@ configure() {
 		monitor_pri_name="HDMI-A-1"
 		monitor_pri_width="1920"
 		monitor_pri_height="1080"
-		monitor_pri_rate="60"
+		monitor_pri_rate="100"
 
 		monitor_sec_name="eDP-1"
 		monitor_sec_width="1920"

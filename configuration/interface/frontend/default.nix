@@ -6,15 +6,30 @@
   ...
 } @ args: let
   inherit (lix.api) getInteractiveUsers;
-  inherit (lix.attrsets) attrByPath namesOf valuesOf foldMerge hasAttr hasAttrByPath mapAttrs optionalAttrs recursiveUpdate setAttrByPath;
+  inherit (lix.api) interfaceRegistry;
+  inherit (lix.registry) select;
+  inherit
+    (lix.attrsets)
+    attrByPath
+    foldMerge
+    hasAttr
+    hasAttrByPath
+    mapAttrs
+    namesOf
+    optionalAttrs
+    recursiveUpdate
+    setAttrByPath
+    valuesOf
+    ;
   inherit (lix.lists) elem elemAt filter findFirst length;
-  inherit (lix.modules) mkDefault mkIf mkMerge ingest;
-  inherit (lix.options) mkEnable mkModuleArgs mkOption;
+  inherit (lix.modules) mkDefault mkIf mkMerge mkModules mkModuleArgs;
+  inherit (lix.options) mkEnable mkOption;
   inherit (lix.types) attrs enum nullOr package submodule;
   here = path;
   aliases = {
     dms = "dank-material";
   };
+
   frontendValues = [
     "dms"
     "dank-material"
@@ -28,15 +43,17 @@
     if frontend == null
     then null
     else aliases.${frontend} or frontend;
+
   registryFrontendOf = spec: let
-    names = namesOf (selection spec);
+    names = namesOf (select {inherit spec;});
     value =
       if length names > 0
       then elemAt names 0
       else null;
-    env = optionalAttrs (value != null) (registry.${value} or {});
+    env = optionalAttrs (value != null) (interfaceRegistry.${value} or {});
   in
     normalize (env.frontend or null);
+
   selectedFrontend = spec: normalize ((spec.interface or {}).frontend or (registryFrontendOf spec));
   materialize = selected:
     mapAttrs
@@ -63,17 +80,22 @@
         )
       );
   };
-  activeBackendNames = namesOf (selection host);
+  activeBackendNames = namesOf (select {spec = host;});
+
   primaryBackend =
     if length activeBackendNames > 0
     then elemAt activeBackendNames 0
     else null;
+
   primaryEnv =
     if primaryBackend != null
-    then registry.${primaryBackend} or {}
+    then interfaceRegistry.${primaryBackend} or {}
     else {};
+
   registryFrontend = registryFrontendOf host;
+
   isWayland = primaryEnv.protocol or null == "wayland";
+
   mkMod = {
     config,
     options ? {},
@@ -108,81 +130,82 @@
       (mkIf (fields.package.default != null) (opt {package = mkDefault fields.package.default;}))
     ];
   };
-  inner = ingest (args
-    // {
-      base = ./.;
-      excludes = [];
-      declareRegistry = false;
-      childPath = path;
-      extraArgs = let
-        buildChild = {
-          config,
-          options ? {},
-          path,
-          pkgs ? {},
-          scope ? "core",
-          osConfig ? config,
-          defaults ? {},
-        }: let
-          mod = mkMod {inherit config path pkgs scope options;};
-          module = mod.args.module;
-          cfgOr = key:
-            attrByPath
-            ([top] ++ path ++ [key]) (defaults.${key} or null)
-            osConfig;
-          enableTarget = {
-            options,
-            enabled,
-            target ? null,
-            targets ? [],
-          }: let
-            target' =
-              if target != null && hasAttrByPath target options
-              then target
-              else findFirst (candidate: hasAttrByPath candidate options) null targets;
-            hasSub = key: target' != null && hasAttrByPath (target' ++ [key]) options;
-            frontendCfg = optionalAttrs (hasSub "enable") {enable = enabled;};
-          in
-            optionalAttrs (target' != null && frontendCfg != {}) (setAttrByPath target' frontendCfg);
-        in
-          module
-          // {
-            inherit cfgOr enableTarget;
-            inherit (mod) options config;
-          };
-        mkChild = {
-          path,
-          scope ? "core",
+
+  moduleArgs = {
+    base = ./.;
+    excludes = [];
+    declareRegistry = false;
+    childPath = path;
+    extraArgs = let
+      buildChild = {
+        config,
+        options ? {},
+        path,
+        pkgs ? {},
+        scope ? "core",
+        osConfig ? config,
+        defaults ? {},
+      }: let
+        mod = mkMod {inherit config path pkgs scope options;};
+        module = mod.args.module;
+        cfgOr = key:
+          attrByPath
+          ([top] ++ path ++ [key]) (defaults.${key} or null)
+          osConfig;
+        enableTarget = {
+          options,
+          enabled,
           target ? null,
           targets ? [],
-          mkOptions ? (_: {}),
-          extraConfig ? (_: {}),
-        }: {
-          config,
-          options,
-          pkgs,
-          ...
         }: let
-          child = buildChild {inherit config options path pkgs scope;};
-          cfg = child.get.config.module;
-          enabled = cfg.enable or (cfg.isRequired or false);
-          extraOptions = mkOptions child;
-        in {
-          options =
-            if extraOptions == {}
-            then child.options
-            else recursiveUpdate child.options (child.set.options.module extraOptions);
-          config = mkMerge [
-            child.config
-            (child.enableTarget {inherit options enabled target targets;})
-            (extraConfig {inherit child cfg enabled config options pkgs;})
-          ];
+          target' =
+            if target != null && hasAttrByPath target options
+            then target
+            else findFirst (candidate: hasAttrByPath candidate options) null targets;
+          hasSub = key: target' != null && hasAttrByPath (target' ++ [key]) options;
+          frontendCfg = optionalAttrs (hasSub "enable") {enable = enabled;};
+        in
+          optionalAttrs (target' != null && frontendCfg != {}) (setAttrByPath target' frontendCfg);
+      in
+        module
+        // {
+          inherit cfgOr enableTarget;
+          inherit (mod) options config;
         };
+      mkChild = {
+        path,
+        scope ? "core",
+        target ? null,
+        targets ? [],
+        mkOptions ? (_: {}),
+        extraConfig ? (_: {}),
+      }: {
+        config,
+        options,
+        pkgs,
+        ...
+      }: let
+        child = buildChild {inherit config options path pkgs scope;};
+        cfg = child.get.config.module;
+        enabled = cfg.enable or (cfg.isRequired or false);
+        extraOptions = mkOptions child;
       in {
-        inherit mkChild;
-        mkArgs = buildChild;
+        options =
+          if extraOptions == {}
+          then child.options
+          else recursiveUpdate child.options (child.set.options.module extraOptions);
+        config = mkMerge [
+          child.config
+          (child.enableTarget {inherit options enabled target targets;})
+          (extraConfig {inherit child cfg enabled config options pkgs;})
+        ];
       };
-    });
+    in {
+      inherit mkChild;
+      mkArgs = buildChild;
+    };
+  };
+
   mk = scope: {config, ...}: let
     mod = mkModuleArgs {
       inherit config top scope;
@@ -221,6 +244,8 @@
       }
     ];
   };
+
+  inner = mkModules (args // moduleArgs);
 in {
   core.imports = (inner.imports or []) ++ [(mk "core")];
   home.imports = (inner.home-manager.sharedModules or []) ++ [(mk "home")];

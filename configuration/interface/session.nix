@@ -1,44 +1,27 @@
-{lix, ...}: let
+{
+  lix,
+  top,
+  host,
+  api,
+  path,
+  ...
+}: let
   inherit (lix.api) getAdminUsers;
-  inherit (lix.attrsets) attrNames attrValues isAttrs;
-  inherit (lix.lists) elem elemAt filter length;
-  inherit (lix.modules) mkIf;
-  inherit (lix.options) mkEnableOption mkModuleArgs mkOption;
+  inherit (lix.attrsets) attrValues;
+  inherit (lix.lists) elem elemAt first length;
+  inherit (lix.modules) mkIf mkModuleArgs;
+  inherit (lix.options) mkEnableOption mkOption;
+  inherit (lix.registry) resolve;
   inherit (lix.types) enum nullOr str;
 
-  args = config: scope: mkModuleArgs {inherit config top dom mod scope;};
-
-  backendApiOf = spec: let
-    interface = spec.interface or {};
-    raw = interface.backends or null;
-    legacy = interface.environment or {};
-  in
-    if isAttrs raw
-    then raw
-    else legacy;
-
-  resolveBackends = {
-    backendRegistry,
-    spec,
-  }:
-    filter (x: x != null) (map (
-        name: let
-          env = backendRegistry.${name} or null;
-          api = (backendApiOf spec).${name} or {};
-        in
-          if env == null
-          then null
-          else env // api // {inherit name;}
-      )
-      (attrNames (selection spec)));
-
-  first = list:
-    if length list > 0
-    then elemAt list 0
-    else null;
+  resolveBackends = spec:
+    resolve {
+      spec = spec;
+      registry = api.interfaceRegistry;
+      inherit top;
+    };
 
   login = (host.interface or {}).login or {};
-
   primary = host.users.primary.value or null;
   admins = attrValues (getAdminUsers host);
 
@@ -60,13 +43,7 @@
     user = login.autoLogin.user or fallback.user;
   };
 
-  resolved = spec:
-    resolveBackends {
-      inherit backendRegistry;
-      inherit spec;
-    };
-
-  primaryBackend = spec: first (resolved spec);
+  primaryBackend = spec: first (resolveBackends spec);
 
   sessionName = env:
     if env == null
@@ -84,7 +61,7 @@
       else "none"
     );
 
-  greeterValues = map (env: env.greeter or "none") (attrValues backendRegistry);
+  greeterValues = map (env: env.greeter or "none") (attrValues api.interfaceRegistry);
   managerEnumValues = ["none" "dms" "regreet"] ++ greeterValues;
 
   opts = manager: session: {
@@ -111,7 +88,7 @@
   dmsCompositors = ["hyprland" "niri" "sway"];
 
   mk = scope: {config, ...}: let
-    mod = args config scope;
+    mod = mkModuleArgs {inherit config top scope path;};
     cfg = mod.get.config.module;
     opt = mod.set.options.module;
     session = login.defaultSession or (defaultSession host);
@@ -134,9 +111,7 @@
             message = "DMS greeter requires a supported compositor (hyprland, niri, or sway) from the selected interface backend.";
           }
         ];
-
         programs.regreet.enable = greeter == "regreet";
-
         services = {
           displayManager = mkIf (greeter != "none") {
             gdm.enable = greeter == "gdm";

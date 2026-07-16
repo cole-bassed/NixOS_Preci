@@ -1,19 +1,35 @@
-{lix, ...}: let
+{
+  lix,
+  top,
+  host,
+  api,
+  path,
+  ...
+}: let
   inherit (lix.attrsets) attrByPath optionalAttrs;
   inherit (lix.lists) any optionals;
-  inherit (lix.modules) mkIf;
+  inherit (lix.modules) mkIf mkModuleArgs;
   inherit (lix.options) mkEnableOption;
+  inherit (api) interfaceBackends interfaceRegistry;
 
-  per = protocol: names: backends:
-    any (name: attrByPath [name "protocol"] null backends == protocol) names;
+  names = interfaceBackends host;
+  values = interfaceRegistry;
 
-  wantsXwaylandSatellite = names: backends:
-    any (name: attrByPath [name "needsXwaylandSatellite"] false backends) names;
+  per = protocol: any (name: attrByPath [name "protocol"] null values == protocol) names;
+  wantsXwaylandSatellite = any (name: attrByPath [name "needsXwaylandSatellite"] false values) names;
 
-  mk = scope: {pkgs, ...}: {
+  mk = scope: {
+    config,
+    pkgs,
+    ...
+  }: let
+    inherit (mkModuleArgs {inherit config top scope path;}) get set;
+    inherit (get) cfg;
+    inherit (set) opt;
+  in {
     options = opt {
-      x11 = mkEnableOption "X11 support" // {default = per "x11" data.names data.values;};
-      wayland = mkEnableOption "Wayland support" // {default = per "wayland" data.names data.values;};
+      x11 = mkEnableOption "X11 support" // {default = per "x11";};
+      wayland = mkEnableOption "Wayland support" // {default = per "wayland";};
     };
 
     config = optionalAttrs (scope == "core") {
@@ -23,7 +39,7 @@
         sessionVariables = mkIf cfg.wayland {NIXOS_OZONE_WL = "1";};
         systemPackages = with pkgs;
           optionals cfg.wayland [cage libsecret wayland-utils wl-clipboard-rs]
-          ++ optionals (wantsXwaylandSatellite data.names data.values) [xwayland-satellite];
+          ++ optionals wantsXwaylandSatellite [xwayland-satellite];
       };
     };
   };
