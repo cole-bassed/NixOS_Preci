@@ -13,7 +13,7 @@
 }: let
   exports = {
     scoped = {
-      inherit mkModules mkModuleArgs mkCfg mkCfgIf mkOpt mkIf';
+      inherit mkModules mkModuleArgs mkFrontend mkCfg mkCfgIf mkOpt mkIf';
       ingest = mkModules;
       configure = mkModuleArgs;
     };
@@ -28,6 +28,7 @@
     hasAttr
     namesOf
     mapAttrs
+    mapAttrsToList
     mkNamespaced
     optionalAttrs
     recursiveUpdate
@@ -371,5 +372,14 @@
 
   mkIf' = cfg: condition: args:
     mkCfgIf {inherit cfg condition;} args;
+
+  mkFrontend = {
+    frontend,
+    tweaks ? {},
+  }:
+    mkMerge (
+      mapAttrsToList (name: value: mkIf (frontend == name) value)
+      tweaks
+    );
 in
   exports

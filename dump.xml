@@ -1,5 +1,5 @@
-<!-- The shape I am chasing is -->
-<!--
+<!--TODO
+# The shape I am chasing is
 dots.interface = {
   registry = { ... };          # unchanged
   hyprland = {
@@ -33,6 +33,8 @@ dots.interface = {
   niri = { ... same shape ... };
   session = { ... };              # STAYS top-level (unchanged) — autoLogin/manager/defaultSession aggregate
 };
+
+The physical nesting in conguration/interface are just ceremonial and there for organization. If it breaks the logic we can move the backends physically. Another approach could be to move all the backends and frontends flat into applications, then interface just instructs
  -->
 
 <code_files>
