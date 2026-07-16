@@ -37,9 +37,9 @@
     isNotEmptyAttr
     ;
   inherit (ingestion) collectSpecs;
-  inherit (lists) asList elem head init last optionals;
+  inherit (lists) asList asListIf elem head init last optionals;
   inherit (types) attrs;
-  inherit (assembly) mkAppBindings mkBindings mkRegistryVariables;
+  inherit (assembly) mkBindings mkRegistryVariables;
   inherit (modules) mkIf mkMerge;
   inherit (options) mkEnable mkOption;
   inherit (strings) concatStringsSep toSentenceCase;
@@ -47,9 +47,6 @@
 
   mkModules = args @ {
     base,
-    # lix ? {},
-    # lib ? {},
-    # api ? lix.api or (lib.api or{}),
     data ? (
       let
         domain =
@@ -85,49 +82,34 @@
         // optionalAttrs hasData {registry = data;};
     };
 
-    # registryModule = {
-    #   options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
-    #     type = attrs;
-    #     default =
-    #       data
-    #       // optionalAttrs (data ? variables || data ? applications)
-    #       {variables = mkRegistryVariables data;}
-    #       // optionalAttrs (data ? bindings)
-    #       {
-    #         bindings =
-    #           (mkBindings {
-    #             inherit (data) bindings;
-    #             applications = data.applications or {};
-    #           }).options;
-    #       }
-    #       // optionalAttrs (data ? applications)
-    #       {applications = mkAppBindings {inherit (data) applications;};};
-    #     readOnly = true;
-    #   });
-    # };
     registryModule = {
       options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
         type = attrs;
         default =
           mapAttrs
           (
-            _: entry:
-              entry
-              // optionalAttrs (entry ? variables || entry ? applications) {variables = mkRegistryVariables entry;}
-              // optionalAttrs (entry ? bindings) {
-                bindings =
-                  (mkBindings {
-                    inherit (entry) bindings;
-                    applications = entry.applications or {};
-                  }).options;
-              }
-              // optionalAttrs (entry ? applications) {applications = mkAppBindings {inherit (entry) applications;};}
+            _: entry: let
+              hasVars = entry ? variables;
+              hasApps = entry ? applications;
+              hasBinds = entry ? bindings;
+              updates =
+                optionalAttrs hasBinds {
+                  bindings =
+                    (mkBindings {
+                      inherit (entry) bindings;
+                      applications = entry.applications or {};
+                    }).options;
+                }
+                // optionalAttrs hasApps {inherit (entry) applications;}
+                // optionalAttrs hasVars {variables = mkRegistryVariables entry;};
+            in
+              entry // updates
           )
           data;
         readOnly = true;
       });
     };
-    registryModules = optionals hasData [registryModule];
+    registryModules = asListIf hasData [registryModule];
   in {
     imports = (specs.core or []) ++ registryModules;
     home-manager.sharedModules = (specs.home or []) ++ registryModules;

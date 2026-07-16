@@ -7,11 +7,7 @@
 }: let
   exports = {
     scoped = {
-      inherit
-        classified
-        normalized
-        merged
-        ;
+      inherit classified normalized merged;
       hasFlake = hasFlakeModules;
       hasHome = hasHomeModules;
       hasCore = hasCoreModules;

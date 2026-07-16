@@ -10,7 +10,6 @@
       "protocol"
       "session"
     ];
-    recurse = true;
   };
 
   extraArgs = {

@@ -51,6 +51,7 @@ _: let
     genList
     head
     isAttrs
+    isFunction
     isList
     isString
     length
@@ -114,6 +115,8 @@ _: let
       if isList value
       then value
       else if isString value
+      then [value]
+      else if isFunction value
       then [value]
       else if isAttrs value
       then

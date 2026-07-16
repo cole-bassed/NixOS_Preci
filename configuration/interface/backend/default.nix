@@ -11,12 +11,11 @@
   inherit (lix.modules) mkIf mkMerge mkModules mkModuleArgs;
   inherit (lix.options) mkRegistryOptions mkEnableOption mkOption;
   inherit (lix.types) enum nullOr package str submodule;
-  data = lix.api.interface.registry;
+  # here = path;
   moduleArgs = {
     inherit extraArgs;
     base = ./.;
     declareRegistry = false;
-    childPath = path;
   };
 
   extraArgs = {
@@ -27,13 +26,13 @@
       pkgs ? {},
       scope ? "core",
       osConfig ? {},
-      defaults ? {},
+      extraArgs ? {},
     }: let
       args = mkModuleArgs {
         inherit
           lix
           config
-          defaults
+          extraArgs
           host
           options
           osConfig
@@ -42,6 +41,7 @@
           scope
           top
           ;
+        # childPath = here;
       };
       inherit (args) get set;
       inherit (get) prettyName name cfg cfgOr apiOr;
@@ -93,7 +93,7 @@
               then derivedValue
               else value
           )
-          (foldMerge [defaults' data defaults]);
+          (foldMerge [defaults' extraArgs]);
       in
         updated
         // {
