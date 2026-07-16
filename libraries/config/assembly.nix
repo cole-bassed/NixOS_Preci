@@ -41,8 +41,9 @@
     filterAttrs
     genAttrs
     hasAttr
+    foldMerge
     mapAttrs
-    mapAttrsasList
+    mapAttrsToList
     mergeAttrsList
     mkNamespaced
     optionalAttrs
@@ -121,7 +122,7 @@
     outputs = {
       flake = let
         imported =
-          mapAttrsasList
+          mapAttrsToList
           (name: args: import paths'.${name} (base // {args = normalize args;}))
           enabled;
       in
@@ -252,7 +253,7 @@
         );
       };
   in
-    foldl' recursiveUpdate {} (mapAttrsasList build hostsByClass);
+    foldMerge (mapAttrsToList build hostsByClass);
 
   mkConfiguration' = base: args: mkConfiguration {inherit base args;};
 

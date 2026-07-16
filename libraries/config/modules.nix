@@ -85,23 +85,45 @@
         // optionalAttrs hasData {registry = data;};
     };
 
+    # registryModule = {
+    #   options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
+    #     type = attrs;
+    #     default =
+    #       data
+    #       // optionalAttrs (data ? variables || data ? applications)
+    #       {variables = mkRegistryVariables data;}
+    #       // optionalAttrs (data ? bindings)
+    #       {
+    #         bindings =
+    #           (mkBindings {
+    #             inherit (data) bindings;
+    #             applications = data.applications or {};
+    #           }).options;
+    #       }
+    #       // optionalAttrs (data ? applications)
+    #       {applications = mkAppBindings {inherit (data) applications;};};
+    #     readOnly = true;
+    #   });
+    # };
     registryModule = {
       options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
         type = attrs;
         default =
-          data
-          // optionalAttrs (data ? variables || data ? applications)
-          {variables = mkRegistryVariables data;}
-          // optionalAttrs (data ? bindings)
-          {
-            bindings =
-              (mkBindings {
-                inherit (data) bindings;
-                applications = data.applications or {};
-              }).options;
-          }
-          // optionalAttrs (data ? applications)
-          {applications = mkAppBindings {inherit (data) applications;};};
+          mapAttrs
+          (
+            _: entry:
+              entry
+              // optionalAttrs (entry ? variables || entry ? applications) {variables = mkRegistryVariables entry;}
+              // optionalAttrs (entry ? bindings) {
+                bindings =
+                  (mkBindings {
+                    inherit (entry) bindings;
+                    applications = entry.applications or {};
+                  }).options;
+              }
+              // optionalAttrs (entry ? applications) {applications = mkAppBindings {inherit (entry) applications;};}
+          )
+          data;
         readOnly = true;
       });
     };

@@ -1,18 +1,23 @@
 {
   lix,
+  api,
   top,
   host,
   path,
-  paths,
   ...
 } @ args: let
   inherit (lix.attrsets) foldMerge mapAttrs optionalAttrs hasAttrByPath setAttrByPath;
-  inherit (lix.lists) findFirst head;
+  inherit (lix.lists) findFirst;
   inherit (lix.modules) mkIf mkMerge mkModules mkModuleArgs;
   inherit (lix.options) mkRegistryOptions mkEnableOption mkOption;
   inherit (lix.types) enum nullOr package str submodule;
-
-  data = import (paths.store.api + "/${(head path)}");
+  data = lix.api.interface.registry;
+  moduleArgs = {
+    inherit extraArgs;
+    base = ./.;
+    declareRegistry = false;
+    childPath = path;
+  };
 
   extraArgs = {
     mkArgs = {
@@ -206,13 +211,6 @@
       };
     in
       initiated // {inherit initiated evaluated;};
-  };
-
-  moduleArgs = {
-    inherit data extraArgs;
-    base = ./.;
-    declareRegistry = false;
-    childPath = path;
   };
 
   module = mkModules (args // moduleArgs);

@@ -4,7 +4,6 @@
   lists,
   options,
   types,
-  strings,
   ...
 }: let
   exports = {

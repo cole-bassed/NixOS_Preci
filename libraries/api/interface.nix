@@ -2,25 +2,60 @@
   api,
   attrsets,
   lists,
+  paths,
   ...
 }: let
   exports = {
-    scoped = {inherit registry inferredOf selectionOf selectedModules;};
+    scoped = {inherit registry inferredOf selectionOf selectedModules backendsOf;};
     global = {
       interfaceRegistry = registry;
       interfaceSelection = selectionOf;
       interfaceInferred = inferredOf;
-      interfaceNames = namesOf;
+      interfaceBackends = backendsOf;
       interfaceModules = selectedModules;
     };
   };
 
-  inherit (attrsets) as filterAttrs valuesOf;
+  inherit (attrsets) as filterAttrs valuesOf mapAttrs recursiveUpdate;
   inherit (lists) concatMap elem filter unique;
 
-  registry = api.interface;
+  raw = api.interface;
 
-  rawOf = spec: let
+  # data/interface/default.nix -- common/wayland/x11-shaped defaults.
+  # wayland/x11 already have common's applications concatenated in (via ++
+  # at the data layer). resolveProtocol still merges common underneath,
+  # since only common declares bindings/variables and those must fall
+  # through even for the categories wayland/x11 don't redeclare.
+  # default.nix is never picked up as a sibling registry entry
+  # (readDirAttrs excludes it), so it must be imported directly.
+  shared = import (paths.store.api + "/interface");
+  common = shared.common or {};
+  resolveProtocol = protocol: recursiveUpdate common (shared.${protocol} or {});
+
+  # protocol (lowest) -> entry (highest), with applications.<category>
+  # concatenated rather than replaced: an entry's own list becomes the new
+  # primary/prepended entries, and whatever the protocol tier already had
+  # (which itself already has common concatenated in via ++) falls back
+  # after it. Every other key (bindings, variables, protocol, greeter, ...)
+  # keeps plain override-wins semantics.
+  mergeLayer = entry: let
+    protocol = resolveProtocol (entry.protocol or "common");
+    entryApps = entry.applications or {};
+    protocolApps = protocol.applications or {};
+    mergedApps =
+      protocolApps
+      // mapAttrs
+      (category: list: list ++ (protocolApps.${category} or []))
+      entryApps;
+  in
+    (recursiveUpdate protocol entry) // {applications = mergedApps;};
+
+  registry =
+    mapAttrs
+    (_: entry: mergeLayer entry)
+    (removeAttrs raw ["default"]);
+
+  rawBackendsOf = spec: let
     interface = spec.interface or {};
   in
     interface.backends
@@ -38,10 +73,10 @@
     );
 
   selectionOf = spec: spec.applications or {};
-  inferredOf = spec: as (rawOf spec);
+  inferredOf = spec: as (rawBackendsOf spec);
   normalizeName = name: registry.${name} or name;
 
-  namesOf = spec:
+  backendsOf = spec:
     unique (
       map
       normalizeName
@@ -49,8 +84,11 @@
     );
 
   selectedModules = spec: let
-    names = namesOf spec;
+    names = backendsOf spec;
   in
     filterAttrs (name: _: elem name names) registry;
 in
   exports
+
+
+
