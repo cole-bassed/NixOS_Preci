@@ -342,6 +342,22 @@
           then "/run/current-system/sw/bin/${module}"
           else null;
       in {inherit package name path;};
+
+      frontend = tweaks: let
+        inherit (get.config) custom;
+        active = attrByPath ["interface" "frontend"] null custom;
+      in
+        mkIf (active != null) (
+          mkMerge (
+            mapAttrsToList (
+              name: value:
+                mkIf (active == name) {
+                  ${names.custom}.applications.${name} = value;
+                }
+            )
+            tweaks
+          )
+        );
     };
   in
     (mkNamespaced {inherit get set;})
@@ -372,14 +388,5 @@
 
   mkIf' = cfg: condition: args:
     mkCfgIf {inherit cfg condition;} args;
-
-  mkFrontend = {
-    frontend,
-    tweaks ? {},
-  }:
-    mkMerge (
-      mapAttrsToList (name: value: mkIf (frontend == name) value)
-      tweaks
-    );
 in
   exports
