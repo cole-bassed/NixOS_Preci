@@ -11,14 +11,10 @@
     scoped = {
       inherit
         mkEnable
-        # mkEnable'
-        mkCfg
-        mkOpt
         mkAppOptions
         mkAppOption
         mkBindOptions
         mkBindOption
-        # mkEnableMod
         mkFloatOption
         mkRegistryOptions
         mkLatitudeOption
@@ -30,36 +26,12 @@
         mkLocaleOption
         ;
     };
-    global = {inherit mkModuleArgs;};
+    global = {};
   };
 
   inherit (assembly) mkAppBindings mkBindings mkRegistryVariables;
-  inherit
-    (attrsets)
-    asAttrs
-    attrByPath
-    attrValues
-    foldMerge
-    genAttrs
-    hasAttr
-    valuesOf
-    namesOf
-    mapAttrs
-    mkNamespaced
-    optionalAttrs
-    recursiveUpdate
-    setAttrByPath
-    ;
-  inherit
-    (lists)
-    asList
-    elem
-    hasAny
-    head
-    init
-    last
-    optionals
-    ;
+  inherit (attrsets) mapAttrs optionalAttrs recursiveUpdate;
+  inherit (lists) hasAny;
   inherit (options) mkOption mkEnableOption;
   inherit
     (types)
@@ -74,7 +46,6 @@
     str
     submodule
     ;
-  inherit (strings) toSentenceCase concatStringsSep;
 
   _defaults = {
     labels = {
@@ -85,256 +56,6 @@
       terminal = "Terminal launch";
     };
   };
-
-  /**
-  Build standard module args (cfg/opt/enable/etc.) for an option whose
-  nesting mirrors its directory nesting.
-
-  Preferred usage (arbitrary depth, mirrors folder structure):
-    mkModuleArgs { inherit config top path pkgs host scope; }
-    where `path` is a list of segments under `top`, e.g.
-    ["interface" "frontend" "dank-material"] for
-    dots.interface.frontend.dank-material.
-
-  Back-compat usage (exactly two segments under top):
-    mkModuleArgs { inherit config top dom mod pkgs host scope; }
-    is equivalent to path = [dom mod] (dom may be null/omitted for a
-    single-segment path).
-
-  If both `path` and `dom`/`mod` are supplied, `path` wins.
-  */
-  mkModuleArgs = {
-    api ? lib.api or (lix.api or {}),
-    config ? {},
-    defaults ? {},
-    host ? {},
-    hostPath ? path,
-    lib ? {},
-    lix ? {},
-    options ? {},
-    osConfig ? {},
-    path,
-    pkgs ? {},
-    # registry ? null,
-    scope ? "core",
-    selection ? null,
-    top ? null,
-    userPath ? path,
-    users ? api.users.getInteractiveUsers host,
-  }: let
-    targets = ["main" "custom" "domain" "parent" "module"];
-    # selection = spec: selectionOf {inherit top spec registry;};
-
-    validate = {
-      path = target:
-        if elem target targets
-        then paths.${target}
-        else
-          throw "Invalid target: '${target}'. Valid targets are: ${
-            concatStringsSep ", " targets
-          }";
-    };
-
-    names =
-      genAttrs targets (
-        target: let
-          check = validate.path target;
-        in
-          if check != []
-          then last check
-          else "main"
-      )
-      // {
-        user =
-          get.config.main.home.username or (
-            get.config.custom.users.primary.name or null
-          );
-        package = pkg.name or null;
-      };
-
-    # pkgName may be a flat string ("gitFull") or a nested path
-    # (["llm-agents" "claude-code"]) — normalize to a list either way.
-    pkg = let
-      name' = get.apiOr "package";
-      path' =
-        if name' != null
-        then asList name'
-        else [get.name];
-    in {
-      path = path';
-      name = last path';
-      spec = attrByPath path' null pkgs;
-    };
-
-    base =
-      if top != null
-      then top
-      else names.custom;
-
-    paths = {
-      validate = validate.path;
-      main = [];
-      custom = [base];
-      module = paths.custom ++ path;
-      parent = init paths.module;
-      domain = paths.custom ++ [(head path)];
-    };
-
-    get = {
-      inherit host scope names paths users;
-      name = names.module;
-      prettyName = set.name {pretty = true;};
-
-      user = let
-        name = names.user;
-      in
-        optionalAttrs
-        (name != null)
-        ((users.${name} or {}) // {inherit name;});
-
-      top =
-        if top != null
-        then top
-        else names.custom;
-
-      config =
-        genAttrs targets
-        (target: set.config {inherit target;});
-      cfg = get.config.module;
-      cfgOr = key: let
-        fromConfig = attrByPath (paths.module ++ [key]) null config;
-      in
-        if fromConfig != null
-        then fromConfig
-        else
-          attrByPath
-          (paths.module ++ [key]) (defaults.${key} or null)
-          osConfig;
-
-      options =
-        genAttrs targets
-        (target: attrByPath (paths.validate target) {} options);
-
-      enabled = {
-        criteria ? elem (host.type or "laptop") ["desktop" "laptop"],
-        selectFrom ? set.selection,
-      }: let
-        materialize = selected:
-          mapAttrs
-          (_: extra: {enable = true;} // extra)
-          (foldMerge selected);
-
-        required = let
-          byHost = [(selectFrom host)];
-          byUser =
-            optionals
-            criteria
-            (map selectFrom (attrValues users));
-        in {
-          core = materialize (byHost ++ byUser);
-          home =
-            materialize
-            (byHost ++ (optionals criteria [(selectFrom get.user)]));
-        };
-      in
-        hasAttr get.name required.${scope};
-
-      package = pkg.spec;
-      pkgName = pkg.name;
-      pkgPath = pkg.path;
-
-      hostEntry = attrByPath hostPath {} host;
-      userEntry = attrByPath userPath {} get.user;
-      dataEntry = genAttrs targets (
-        target: let
-          #TODO This is not making use of our target and genAttrs style setup
-          domain = head path;
-          name = last path;
-          registry =
-            if target == "module"
-            then api.${domain}.registry.${name} or {}
-            else if target == "domain"
-            then api.${domain}.registry or {}
-            else if target == "custom"
-            then api.custom.registry or {}
-            else if target == "main"
-            then api.main.registry or {}
-            else {};
-        in {
-          inherit registry;
-          names = namesOf registry;
-          values = valuesOf registry;
-          select = asAttrs; # TODO: This is not working at all
-        }
-      );
-      apiOr = key:
-        get.hostEntry.${key} or
-            (get.userEntry.${key} or
-              (get.dataEntry.module.registry.${key} or
-                (get.dataEntry.parent.registry.${key} or
-                  (get.dataEntry.domain.registry.${key} or
-                    (get.dataEntry.custom.registry.${key} or
-                      (get.dataEntry.main.registry.${key} or null))))));
-    };
-
-    set = {
-      config = {
-        target ? "module",
-        extra ? {},
-      }: let
-        targetPath = paths.validate target;
-      in
-        attrByPath targetPath {} (
-          recursiveUpdate config
-          (setAttrByPath targetPath extra)
-        );
-
-      options =
-        genAttrs
-        targets (target: extra: setAttrByPath (paths.validate target) extra);
-      opt = set.options.module;
-
-      name = {
-        name ? names.module,
-        pretty ? true,
-      }:
-        if pretty
-        then toSentenceCase name
-        else name;
-      enable = {default ? false}:
-        mkEnable {
-          inherit (get) scope name;
-          inherit default;
-        };
-      package = mkOption {
-        type = with types; nullOr package;
-        default = get.package;
-        description = "Package backing the ${get.prettyName} compositor component.";
-      };
-
-      selection = spec:
-        if selection != null
-        then selection spec
-        else asAttrs spec;
-
-      bin = {
-        module ? names.module,
-        package ? get.package,
-      }: let
-        name =
-          if package != null
-          then package.NIX_MAIN_PROGRAM or module
-          else null;
-        path =
-          if package != null
-          then "/run/current-system/sw/bin/${module}"
-          else null;
-      in {inherit package name path;};
-    };
-  in
-    (mkNamespaced {inherit get set;})
-    // get
-    // {inherit get set;};
 
   mkEnable = {
     name ? null,
@@ -373,18 +94,6 @@
       false = mk false;
       true = mk true;
     };
-
-  mkCfg = {
-    config,
-    path,
-  }:
-    attrByPath (asList path) {} config;
-
-  mkOpt = {
-    options,
-    path,
-  }:
-    setAttrByPath (asList path) options;
 
   mkFloatOption = {
     description,

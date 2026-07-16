@@ -1,13 +1,16 @@
-{lix, ...} @ base:
-lix.modules.ingest (base
-  // {
+{lix, ...} @ args: let
+  inherit (lix.modules) mkModules;
+  moduleArgs = {
     base = ./.;
-    recurse = false;
+    recurse = true;
     excludes = [
       "applications"
-      "services"
-      "secrets"
+      "base"
       "displays"
-      "test"
+      # "interface"
+      "secrets"
+      "services"
     ];
-  })
+  };
+in
+  mkModules (args // moduleArgs)

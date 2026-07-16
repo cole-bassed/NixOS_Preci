@@ -11,18 +11,28 @@
   strings,
   systems,
   types,
-  # hosts,
-  # getHostScopes,
   ...
 }: let
   exports = {
-    scoped = {inherit mkConfiguration mkConfiguration' mkFlake mkFlake' mkFlakeModules mkPaths mkSrc;};
+    scoped = {
+      inherit
+        mkRegistry
+        mkRegistryVariables
+        mkAppVariables
+        mkAppBindings
+        mkBindings
+        mkConfiguration
+        mkConfiguration'
+        mkFlake
+        mkFlake'
+        mkFlakeModules
+        mkPaths
+        mkSrc
+        ;
+    };
     global = {inherit mkFlake mkFlake' mkFlakeModules mkConfiguration mkConfiguration' mkSrc;};
   };
 
-  # `api.hosts` may be the merged host API domain (registry + helper fns), not
-  # just the plain host registry. Use the concrete registry attr when present so
-  # config assembly only iterates real host specs.
   hosts = api.hosts.registry or api.hosts;
   getHostScopes = api.getHostScopes or api.hosts.getScopes;
   inherit
@@ -32,18 +42,35 @@
     genAttrs
     hasAttr
     mapAttrs
-    mapAttrsToList
+    mapAttrsasList
     mergeAttrsList
     mkNamespaced
     optionalAttrs
     recursiveUpdate
     removeAttrs
+    coalesce
+    mapParsedOrdered
+    extractArgs
+    namesOf
+    valuesOf
     ;
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
-  inherit (lists) elem foldl' groupBy toList;
-  inherit (types) isAttrs isBool isEnabled isString typeOf;
+  inherit
+    (lists)
+    elem
+    foldl'
+    groupBy
+    asList
+    asListIf
+    concatMap
+    flatten
+    filter
+    init
+    last
+    ;
+  inherit (types) isAttrs isBool isEnabled isList isString typeOf;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
   inherit (flake.registry.aggregated) overlays packages;
@@ -51,7 +78,7 @@
   mkFlakeModules = flake.modules.mkFlakeModules or (flake.modules.mkFlake or (_: []));
 
   # ╔════════════════════════════════════════════════╗
-  # ╠ FLAKE ASSEMBLY                                 ╣
+  # ╠ FLAKE                                          ╣
   # ╚════════════════════════════════════════════════╝
   mkFlake = {
     base,
@@ -94,7 +121,7 @@
     outputs = {
       flake = let
         imported =
-          mapAttrsToList
+          mapAttrsasList
           (name: args: import paths'.${name} (base // {args = normalize args;}))
           enabled;
       in
@@ -117,29 +144,19 @@
 
   mkFlake' = base: mods: mkFlake {inherit base mods;};
 
-  # ╔════════════════════════════════════════════════╗
-  # ╠ Getters & Setters                              ╣
-  # ╚════════════════════════════════════════════════╝
-  inherit
-    (mkNamespaced {inherit get set;})
-    getClass
-    getNixpkgs
-    getPkgs
-    getScopes
-    getSystem
-    setPkgAliases
-    ;
-
+  # --------------------------------------------------
+  # --> Getters & Setters
+  # --------------------------------------------------
   set = {
     pkgAliases = host: _final: prev: let
-      system = getSystem host;
+      system = get.system host;
       updated =
         recursiveUpdate
         ((flake.defaults or {}).pkgAliases or {})
         (host.packages.aliases or {});
 
       fromPrev = path: let
-        segments = toList path;
+        segments = asList path;
         step = acc: segment:
           if acc == null || !(isAttrs acc) || !(hasAttr segment acc)
           then null
@@ -178,9 +195,9 @@
     system = host: host.system or (host.platform or hosts.default.system);
 
     pkgs = host: let
-      system = getSystem host;
-      nixpkgs = getNixpkgs host;
-      scopes = getScopes host;
+      system = get.system host;
+      nixpkgs = get.nixpkgs host;
+      scopes = get.scopes host;
     in
       import nixpkgs.source.outPath {
         inherit system;
@@ -194,9 +211,50 @@
               (flake.defaults or {}).allowBroken or false
             );
         };
-        overlays = overlays.select scopes ++ [(setPkgAliases host)];
+        overlays = overlays.select scopes ++ [(set.pkgAliases host)];
       };
   };
+
+  # ╔════════════════════════════════════════════════╗
+  # ╠ CONFIGURATION                                  ╣
+  # ╚════════════════════════════════════════════════╝
+  mkConfiguration = {
+    base,
+    args ? {},
+  }: let
+    ctx = "mkConfiguration";
+
+    resolved = mapAttrs (_: host: mkHost {inherit base args host;}) hosts;
+
+    hostsByClass =
+      groupBy
+      (name: resolved.${name}.class)
+      (attrNames resolved);
+
+    build = class: names: let
+      classification = getClassification class;
+      builder = getBuilder class;
+      classes = ["nixos" "darwin"];
+    in
+      assert withContext {
+        name = ctx;
+        assertion = elem class classes;
+        message = "unknown class '${class}' in host specs, expected one of [${concat {
+          delim = ", ";
+          parts = classes;
+        }}]";
+        context = "grouping hosts by class";
+      }; {
+        ${classification} = genAttrs names (
+          name:
+            builder
+            {inherit (resolved.${name}) modules pkgs specialArgs;}
+        );
+      };
+  in
+    foldl' recursiveUpdate {} (mapAttrsasList build hostsByClass);
+
+  mkConfiguration' = base: args: mkConfiguration {inherit base args;};
 
   mkHost = {
     base,
@@ -205,9 +263,9 @@
   }: let
     ctx = "mkHost";
 
-    class = getClass host;
-    scopes = getScopes host;
-    pkgs = getPkgs host;
+    class = get.class host;
+    scopes = get.scopes host;
+    pkgs = get.pkgs host;
 
     src = mkSrc {
       inherit host;
@@ -268,44 +326,146 @@
   in {inherit class pkgs specialArgs modules;};
 
   # ╔════════════════════════════════════════════════╗
-  # ╠ CONFIGURATION ASSEMBLY                         ╣
+  # ╠ REGISTRY                                       ╣
   # ╚════════════════════════════════════════════════╝
-  mkConfiguration = {
-    base,
-    args ? {},
-  }: let
-    ctx = "mkConfiguration";
+  mkRegistry = registry:
+    optionalAttrs (registry ? variables || registry ? applications)
+    {variables = mkRegistryVariables registry;}
+    // optionalAttrs (registry ? bindings)
+    {
+      bindings =
+        (mkBindings {
+          inherit (registry) bindings;
+          applications = registry.applications or {};
+        }).options;
+    }
+    // optionalAttrs (registry ? applications)
+    {applications = mkAppBindings {inherit (registry) applications;};};
 
-    resolved = mapAttrs (_: host: mkHost {inherit base args host;}) hosts;
-
-    hostsByClass =
-      groupBy
-      (name: resolved.${name}.class)
-      (attrNames resolved);
-
-    build = class: names: let
-      classification = getClassification class;
-      builder = getBuilder class;
-      classes = ["nixos" "darwin"];
+  mkRegistryVariables = registry: let
+    commands = let
+      sets =
+        mapAttrs
+        (_: apps: map (app: app.command) apps)
+        (registry.applications or {});
     in
-      assert withContext {
-        name = ctx;
-        assertion = elem class classes;
-        message = "unknown class '${class}' in host specs, expected one of [${concat {
-          delim = ", ";
-          parts = classes;
-        }}]";
-        context = "grouping hosts by class";
-      }; {
-        ${classification} = genAttrs names (
-          name:
-            builder
-            {inherit (resolved.${name}) modules pkgs specialArgs;}
-        );
-      };
-  in
-    foldl' recursiveUpdate {} (mapAttrsToList build hostsByClass);
+      optionalAttrs (sets != {}) (mkAppVariables {inherit sets;});
 
-  mkConfiguration' = base: args: mkConfiguration {inherit base args;};
+    bindings = optionalAttrs (registry ? bindings.modifier) {
+      MOD = registry.bindings.modifier;
+    };
+  in
+    bindings // commands // (registry.variables or {});
+
+  mkAppVariables = payload: let
+    args = extractArgs {
+      args = payload;
+      required = ["sets"];
+      defaults = {transformation = "POSIX";};
+    };
+  in
+    mkNamespaced {
+      inherit (args) transformation;
+      sets =
+        mapAttrs
+        (
+          _: commands: let
+            secondary = coalesce commands.secondary commands.primary;
+            tertiary = coalesce commands.tertiary secondary;
+          in {
+            "" = commands.primary;
+            inherit secondary tertiary;
+          }
+        )
+        (mapParsedOrdered args.sets);
+    };
+
+  mkAppBindings = {
+    applications,
+    modifier ? "SUPER",
+  }: let
+    format = name: value:
+      asList modifier
+      ++ (asListIf (name == "launch") ["ALT"])
+      ++ asList value;
+
+    resolve = app:
+      if app ? bindings && isAttrs app.bindings
+      then app // {bindings = mapAttrs format app.bindings;}
+      else app;
+  in
+    mapAttrs
+    (
+      _: value:
+        if isList value
+        then map resolve value
+        else value
+    )
+    applications;
+
+  mkBindings = {
+    bindings,
+    applications ? {},
+    modifier ? bindings.modifier or "SUPER",
+  }: let
+    mod = asList modifier;
+
+    assemble = name: key:
+      if name == "modifier"
+      then mod
+      else if isBool key
+      then key
+      else if isString key
+      then {inherit key mod;}
+      else if isList key
+      then {
+        mod = mod ++ init key;
+        key = last key;
+      }
+      else null;
+
+    resolve = entry:
+      if isBool entry || isList entry
+      then entry
+      else entry.mod ++ [entry.key];
+
+    registry = mapAttrs assemble bindings;
+
+    apps =
+      map (app: {
+        key = app.bindings.launch;
+        mod = mod ++ ["SHIFT" "ALT"];
+        action = app.command;
+      })
+      (
+        filter
+        (app: app ? bindings.launch && app.bindings.launch != null)
+        (flatten (valuesOf applications))
+      );
+
+    groups = let
+      validated =
+        filter
+        (name: applications ? ${name} && isString bindings.${name})
+        (namesOf bindings);
+
+      tiers = name: let
+        apps = mkAppVariables {sets = applications;};
+        mk = extraMod: field: {
+          key = registry.${name}.key;
+          mod = registry.${name}.mod ++ extraMod;
+          action = apps.${name}.${field}.command;
+        };
+      in [
+        (mk [] "")
+        (mk ["SHIFT"] "secondary")
+        (mk ["ALT"] "tertiary")
+      ];
+    in
+      concatMap tiers validated;
+  in {
+    options = mapAttrs (_: resolve) registry;
+    entries = apps ++ groups;
+  };
 in
   exports

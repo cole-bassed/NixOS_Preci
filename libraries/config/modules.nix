@@ -13,15 +13,11 @@
 }: let
   exports = {
     scoped = {
-      inherit mk mkArgs mkCfgIf mkIf';
-      ingest = mk;
-      config = mkArgs;
+      inherit mkModules mkModuleArgs mkCfg mkCfgIf mkOpt mkIf';
+      ingest = mkModules;
+      configure = mkModuleArgs;
     };
-    global = {
-      inherit mkCfgIf mkIf';
-      mkModules = mk;
-      mkModuleArgs = mkArgs;
-    };
+    global = {inherit mkModules mkModuleArgs mkCfgIf mkIf';};
   };
 
   inherit
@@ -49,21 +45,11 @@
   inherit (strings) concatStringsSep toSentenceCase;
   inherit (types) isList;
 
-  mkCfgIf = {
-    cfg,
-    condition ? cfg.enable or false,
-  }: args:
-    mkIf condition (
-      if isList args
-      then mkMerge args
-      else args
-    );
-
-  mkIf' = cfg: condition: args:
-    mkCfgIf {inherit cfg condition;} args;
-
-  mk = args @ {
+  mkModules = args @ {
     base,
+    # lix ? {},
+    # lib ? {},
+    # api ? lix.api or (lib.api or{}),
     data ? (
       let
         domain =
@@ -99,13 +85,6 @@
         // optionalAttrs hasData {registry = data;};
     };
 
-    # registryModule = {
-    #   options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
-    #     type = attrs;
-    #     default = data;
-    #     readOnly = true;
-    #   });
-    # };
     registryModule = {
       options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
         type = attrs;
@@ -132,24 +111,7 @@
     home-manager.sharedModules = (specs.home or []) ++ registryModules;
   };
 
-  /**
-  Build standard module args (cfg/opt/enable/etc.) for an option whose
-  nesting mirrors its directory nesting.
-
-  Preferred usage (arbitrary depth, mirrors folder structure):
-    mkModuleArgs { inherit config top path pkgs host scope; }
-    where `path` is a list of segments under `top`, e.g.
-    ["interface" "frontend" "dank-material"] for
-    dots.interface.frontend.dank-material.
-
-  Back-compat usage (exactly two segments under top):
-    mkModuleArgs { inherit config top dom mod pkgs host scope; }
-    is equivalent to path = [dom mod] (dom may be null/omitted for a
-    single-segment path).
-
-  If both `path` and `dom`/`mod` are supplied, `path` wins.
-  */
-  mkArgs = {
+  mkModuleArgs = {
     api ? lib.api or (lix.api or {}),
     config ? {},
     host ? {},
@@ -380,5 +342,30 @@
     (mkNamespaced {inherit get set;})
     // get
     // {inherit get set;};
+
+  mkCfg = {
+    config,
+    path,
+  }:
+    attrByPath (asList path) {} config;
+
+  mkOpt = {
+    options,
+    path,
+  }:
+    setAttrByPath (asList path) options;
+
+  mkCfgIf = {
+    cfg,
+    condition ? cfg.enable or false,
+  }: args:
+    mkIf condition (
+      if isList args
+      then mkMerge args
+      else args
+    );
+
+  mkIf' = cfg: condition: args:
+    mkCfgIf {inherit cfg condition;} args;
 in
   exports

@@ -5,16 +5,29 @@ _flake: {
   top,
   ...
 }: let
-  inherit (builtins) attrNames concatLists filter listToAttrs pathExists readDir;
+  inherit
+    (builtins)
+    attrNames
+    concatLists
+    filter
+    isAttrs
+    mapAttrs
+    head
+    isBool
+    isList
+    listToAttrs
+    pathExists
+    readDir
+    ;
 
   hostName = host.name;
   enabledUsers = host.users.byStatus.enabled.values or {};
   enabledUserNames = attrNames enabledUsers;
 
   normalizeValue = value:
-    if builtins.isBool value
+    if isBool value
     then {enable = value;}
-    else if builtins.isAttrs value
+    else if isAttrs value
     then ({enable = value.enable or true;} // value)
     else {
       enable = true;
@@ -22,15 +35,15 @@ _flake: {
     };
 
   normalizeServices = value:
-    if builtins.isList value
+    if isList value
     then
-      builtins.listToAttrs (map (name: {
+      listToAttrs (map (name: {
           inherit name;
           value = {enable = true;};
         })
         value)
-    else if builtins.isAttrs value
-    then builtins.mapAttrs (_: normalizeValue) value
+    else if isAttrs value
+    then mapAttrs (_: normalizeValue) value
     else {};
 
   hostServices = normalizeServices (host.services or {});
@@ -78,7 +91,7 @@ _flake: {
   in
     if existing == []
     then null
-    else builtins.head existing;
+    else head existing;
 
   userSecretFile = userName: ../../../data/users/${userName}/secrets.yaml;
 

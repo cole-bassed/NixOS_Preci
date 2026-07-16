@@ -8,9 +8,18 @@
   inherit (lix.options) mkEnableOption mkOption;
   inherit (lix.types) asFloat int nullOr str submodule;
 
-  registry = host.devices.display or (api.displays or {});
-  selection = spec: (spec.devices or {}).display or {};
-  entry = submodule {
+  data = host.devices.display or (api.displays or {});
+  moduleArgs = {
+    inherit data;
+    base = ./.;
+    path = args.path or ["displays"];
+    recurse = true;
+    declareRegistry = true;
+    extraArgs = {inherit type;};
+  };
+
+  # selection = spec: (spec.devices or {}).display or {};
+  type = submodule {
     options = {
       enable =
         mkEnableOption "display output"
@@ -115,15 +124,4 @@
     };
   };
 in
-  mkModules (
-    args
-    // {
-      base = ./.;
-      path = args.path or ["displays"];
-      recurse = true;
-      declareRegistry = true;
-      extraArgs = {
-        inherit entry registry selection;
-      };
-    }
-  )
+  mkModules (args // moduleArgs)
