@@ -5,10 +5,10 @@
     inherit extraArgs;
     base = ./.;
     excludes = [
-      # "backend"
-      # "frontend"
-      # "protocol"
-      # "session"
+      "backend"
+      "frontend"
+      "protocol"
+      "session"
     ];
   };
 
