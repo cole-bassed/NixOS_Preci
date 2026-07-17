@@ -3,15 +3,15 @@
   assembly,
   attrsets,
   lists,
-  paths,
+  # paths,
   types,
   ...
 }: let
-  mod = "interface";
+  name = "interface";
   defaults = {
     host = api.hosts.default;
     user = defaults.host.users.primary.value or {};
-    api = api.${mod};
+    api = api.${name};
   };
   exports = {
     scoped = {
@@ -28,65 +28,43 @@
         ;
     };
     global = {
-      "${mod}Registry" = registry;
-      "mk${mod}Registry" = mkRegistry;
-      "mk${mod}Selection" = selectionOf;
-      "mk${mod}Inferred" = inferredOf;
-      "mk${mod}Environment" = mkEnvironments;
-      "mk${mod}Modules" = selectedModules;
-      "${mod}Primary" = primaryOf;
-      "${mod}Secondary" = secondaryOf;
-      "${mod}Tertiary" = tertiaryOf;
+      "${name}Primary" = primaryOf;
+      "${name}Registry" = registry;
+      "${name}Secondary" = secondaryOf;
+      "${name}Tertiary" = tertiaryOf;
+      "mk${name}Environment" = mkEnvironments;
+      "mk${name}Inferred" = inferredOf;
+      "mk${name}Modules" = selectedModules;
+      "mk${name}Registry" = mkRegistry;
+      "mk${name}Selection" = selectionOf;
     };
   };
 
-  inherit (assembly) mkApi;
+  inherit (assembly) mkApi normalizeFieldName;
   inherit
     (attrsets)
     asAttrs
     asAttrsIf
     filterAttrs
-    mapAttrs
     parseOrderedAttrs
-    recursiveUpdate
     valuesOf
     ;
   inherit (lists) asList concatMap elem filter foldl' unique;
   inherit (types) isAttrs isString;
 
-  shared = import (paths.store.api + "/${mod}");
-  common = shared.common or {};
-
-  # Each registry entry is fully resolved here -- bindings/variables/app
-  # bindings compiled via assembly.mkRegistry -- so there is exactly one
-  # resolved registry, not a library-layer unresolved copy plus a
-  # NixOS-layer resolved copy.
-  mkRegistry = {api ? defaults.api}: let
-    merged = mapAttrs (
-      _: env: let
-        protocol = recursiveUpdate common (
-          shared.${env.protocol or "common"} or {}
-        );
-        applications = let
-          ofProtocol = protocol.applications or {};
-          ofEnvironment = env.applications or {};
-        in
-          ofProtocol
-          // mapAttrs (category: list:
-            list ++ (ofProtocol.${category} or []))
-          ofEnvironment;
-      in
-        (recursiveUpdate protocol env) // {inherit applications;}
-    ) (removeAttrs api ["default"]);
-  in
-    mkApi merged;
+  mkRegistry = {
+    api ? defaults.api,
+    extra ? null,
+    overrides ? null,
+  }:
+    mkApi {inherit api name extra overrides;};
   registry = mkRegistry {};
 
   selectionOf = spec: spec.applications or {};
-  normalizeName = name: registry.${name} or name;
+  normalizeName = name: (normalizeFieldName {inherit registry name;});
 
   mkEnvironmentsRaw = spec: let
-    api = spec.${mod} or {};
+    api = spec.${name} or {};
   in
     asList (
       api.environment or (

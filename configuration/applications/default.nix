@@ -9,7 +9,6 @@
   moduleArgs = {
     inherit extraArgs;
     base = ./.;
-    declareRegistry = true;
     excludes = [
       "alacritty"
       # "caelestia"

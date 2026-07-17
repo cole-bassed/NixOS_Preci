@@ -2,6 +2,7 @@
   attrsets,
   lists,
   types,
+  paths,
   ...
 }: let
   exports = {
@@ -15,6 +16,8 @@
         mkRegistryModules
         mkRegistryOption
         mkRegistryVariables
+        normalizeField
+        normalizeFieldName
         ;
     };
     global = {
@@ -33,6 +36,7 @@
     extractArgs
     foldMerge
     mapAttrs
+    genAttrs
     mapParsedOrdered
     mkNamespaced
     namesOf
@@ -48,8 +52,10 @@
     concatMap
     flatten
     filter
+    foldl'
     init
     last
+    uniqueStrings
     ;
   inherit (types) attrs isAttrs isBool isList isNotEmpty isString;
   inherit (types) mkOption;
@@ -74,25 +80,75 @@
     ];
 
   # Maps over the registry collection and selectively updates/compiles fields
-  mkRegistry = mapAttrs (
-    _: entry: let
-      updates =
-        optionalAttrs (entry ? applications) {
-          applications = mkAppBindings {inherit (entry) applications;};
-        }
-        // optionalAttrs (entry ? bindings) {
-          bindings =
-            (mkBindings {
-              inherit (entry) bindings;
-              applications = entry.applications or {};
-            }).options;
-        }
-        // optionalAttrs (entry ? variables) {
-          variables = mkRegistryVariables entry;
-        };
-    in
-      entry // updates
-  );
+  mkRegistry = {
+    name, #? The module/API name used to fetch shared/common protocols
+    extra ? {}, #? Manual/extra definitions to merge on top
+    overrides ? {}, #? Forced structural overrides (replaces keys in base if found)
+    api, #? Raw input API registry map
+  }: let
+    #> Pre-process the baseline api to strip out overridden keys.
+    #? If a key exists in overrides, we completely discard it from the base API.
+    stripped = removeAttrs (removeAttrs api ["default"]) (namesOf overrides);
+
+    #> Safely combine the stripped API baseline with extra definitions
+    rawRegistry = foldMerge [
+      stripped
+      extra
+      overrides
+    ];
+  in
+    mapAttrs (
+      envName: env: let
+        #> Load the shared protocol definitions for this module
+        shared = import (paths.store.api + "/${name}");
+        common = shared.common or {};
+
+        #> Strip overridden keys from protocol baseline so they don't leak back in
+        baseProtocol = foldMerge [
+          common
+          (shared.${env.protocol or "common"} or {})
+        ];
+        protocol = removeAttrs baseProtocol (namesOf overrides);
+
+        #> Resolve Applications (Deep merge application lists, respecting key overrides)
+        applications = let
+          #> If applications is overridden, we ignore the protocol's defaults
+          ofProtocol =
+            if overrides ? applications
+            then {}
+            else (protocol.applications or {});
+          ofEnvironment = env.applications or {};
+
+          allCategories = uniqueStrings (namesOf ofProtocol ++ namesOf ofEnvironment);
+        in
+          genAttrs allCategories (
+            category:
+              (ofProtocol.${category} or []) ++ (ofEnvironment.${category} or [])
+          );
+
+        #> Merge protocol and env safely, with our computed applications resolving last
+        entry = foldMerge [protocol env] // {inherit applications;};
+
+        #> Compile the resolved entry's sub-structures (the compiler phase)
+        updates =
+          optionalAttrs (entry ? applications) {
+            applications =
+              mkAppBindings {inherit (entry) applications;};
+          }
+          // optionalAttrs (entry ? bindings) {
+            bindings =
+              (mkBindings {
+                inherit (entry) bindings;
+                applications = entry.applications or {};
+              }).options;
+          }
+          // optionalAttrs (entry ? variables) {
+            variables = mkRegistryVariables entry;
+          };
+      in
+        entry // updates
+    )
+    rawRegistry;
 
   # Wraps the compiled registry in a standard, read-only Nix option schema
   mkRegistryOption = registry:
@@ -134,10 +190,35 @@
     domain ? null,
     name ? "registry",
   }: let
-    module =
-      mkRegistryModule {inherit domain name path registry top;};
+    module = mkRegistryModule {
+      inherit domain name path registry top;
+    };
   in
     asListIf (isNotEmpty module) (asModule module);
+
+  normalizeField = {
+    registry,
+    name,
+  }: let
+    aliasMap = foldl' (
+      acc: entryName: let
+        entry = registry.${entryName};
+        aliasesOf = asList (entry.alias or (entry.aliases or []));
+      in
+        acc // (genAttrs aliasesOf (_: entryName))
+    ) {} (namesOf registry);
+
+    canonical = aliasMap.${name} or name;
+  in {
+    name = canonical;
+    value = registry.${canonical} or {};
+  };
+
+  normalizeFieldName = {
+    registry,
+    name,
+  }:
+    (normalizeField {inherit registry name;}).name;
 
   # ╔════════════════════════════════════════════════╗
   # ╠ APPLICATIONS                                   ╣

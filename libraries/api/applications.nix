@@ -1,9 +1,15 @@
 {
   api,
+  assembly,
   attrsets,
   lists,
   ...
 }: let
+  name = "applications";
+  defaults = {
+    api = api.${name};
+  };
+
   exports = {
     scoped = {
       inherit
@@ -28,10 +34,17 @@
     };
   };
 
+  inherit (assembly) mkApi normalizeFieldName;
   inherit (attrsets) attrNames filterAttrs listToAttrs valuesOf;
   inherit (lists) asList concatMap elem foldl' unique;
 
-  registry = api.applications or {};
+  mkRegistry = {
+    api ? defaults.api,
+    extra ? null,
+    overrides ? null,
+  }:
+    mkApi {inherit api name extra overrides;};
+  registry = mkRegistry {};
 
   entryCategories = entry: asList (entry.category or []);
   entryAliases = entry: asList (entry.alias or (entry.aliases or []));
@@ -64,7 +77,7 @@
       pairs);
 
   selectionOf = spec: spec.applications or {};
-  normalizeName = name: aliases.${name} or name;
+  normalizeName = name: (normalizeFieldName {inherit registry name;});
 
   namesOf = spec:
     unique (

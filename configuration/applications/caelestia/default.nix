@@ -10,7 +10,8 @@
   inherit (lix.options) mkOption;
   inherit (lix.types) package;
 
-  name = last path;
+  rawName = last path;
+  name = api.applications.aliases.${rawName} or rawName;
   entry = api.applications.registry.${name} or {};
 
   mk = scope: {
@@ -18,7 +19,10 @@
     pkgs,
     ...
   }: let
-    mod = mkModuleArgs {inherit config top scope path;};
+    mod = mkModuleArgs {
+      inherit config top scope;
+      path = (lix.lists.init path) ++ [name];
+    };
     cfg = mod.get.config.module;
     opt = mod.set.options.module;
   in {
