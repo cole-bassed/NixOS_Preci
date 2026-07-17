@@ -9,6 +9,12 @@
   inherit (lix.options) mkEnableOption mkOption;
   inherit (lix.types) enum;
 
+  # Same shape as configuration/applications/niri/default.nix's
+  # mkActionOption -- see ./actions.nix for the shared definitions, kept
+  # in a separate file so it's easy to diff against niri's copy and spot
+  # drift between the two backends' action sets.
+  inherit (import ./actions.nix {inherit lix;}) mkActions;
+
   mk = scope: {
     config,
     options,
@@ -41,6 +47,12 @@
         enableRules =
           mkEnableOption "Whether to enable sane ${prettyName} window rules"
           // {default = true;};
+
+        semanticKeybinds =
+          mkEnableOption "modular semantic keybind layer for ${prettyName}"
+          // {default = true;};
+
+        actions = mkActions;
       });
 
     config = mkMerge [
@@ -63,7 +75,7 @@
 
     imports =
       if scope == "home"
-      then [./addons]
+      then [./addons ./bindings.nix]
       else [];
   };
 in {
