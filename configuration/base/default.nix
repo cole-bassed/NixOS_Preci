@@ -1,5 +1,5 @@
-# {lix, ...} @ args: let
-#   inherit (lix.modules) mkModules;
-# in
-#   mkModules (args // {base = ./.;})
-{}
+{lix, ...} @ args: let
+  inherit (lix.modules) mkModules;
+  moduleArgs = {base = ./.;};
+in
+  mkModules (args // moduleArgs)

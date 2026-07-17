@@ -2,10 +2,9 @@
   inherit (lix.modules) mkModules;
   moduleArgs = {
     base = ./.;
-    recurse = true;
     excludes = [
-      "applications"
-      "base"
+      # "applications"
+      # "base"
       "displays"
       # "interface"
       "secrets"

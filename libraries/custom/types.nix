@@ -14,6 +14,9 @@
       as = {float = asFloat;};
       inherit (attrsets) asList;
       inherit (lists) asAttrs;
+
+      nullStr = nullOr str;
+      nullPkg = nullOr package;
     };
     global = {
       inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull toFloat;
@@ -24,7 +27,7 @@
   inherit (debug) withContext;
   inherit (lists) head tail isList optionals reverseList;
   inherit (strings) concatStrings fromJSON stringLength stringToCharacters;
-  inherit (types) coercedTo float int isAttrs isBool isFloat isInt str typeOf isString;
+  inherit (types) coercedTo float int isAttrs isBool isFloat isInt str nullOr package typeOf isString;
 
   /**
   Determine if a module, feature, or configuration target is enabled.

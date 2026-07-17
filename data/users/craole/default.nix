@@ -35,18 +35,11 @@ in {
   ssh = "age1a2m7lypwqplsn8w8um9fzlrej84meee0zw9uljllqlayn46edpwq9mkfwg";
 
   interface = {
-    backend = {
-      managers = [
-        "niri"
-        "mango"
-        # "hyprland"
-      ];
-      desktops = [];
-    };
-    keyboard = {
-      swapCapsEscape = false;
-      vimKeybinds = false;
-    };
+    environments = [
+      "niri"
+      "mango"
+      # "hyprland"
+    ];
   };
 
   git = {

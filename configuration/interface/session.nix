@@ -5,21 +5,13 @@
   api,
   path,
   ...
-}: let
+} @ args: let
   inherit (lix.api) getAdminUsers;
   inherit (lix.attrsets) attrValues;
-  inherit (lix.lists) elem elemAt first length;
+  inherit (lix.lists) elem elemAt length;
   inherit (lix.modules) mkIf mkModuleArgs;
   inherit (lix.options) mkEnableOption mkOption;
-  inherit (lix.registry) resolve;
-  inherit (lix.types) enum nullOr str;
-
-  resolveBackends = spec:
-    resolve {
-      spec = spec;
-      registry = api.interfaceRegistry;
-      inherit top;
-    };
+  inherit (lix.types) attrs enum listOf nullOr str;
 
   login = (host.interface or {}).login or {};
   primary = host.users.primary.value or null;
@@ -43,64 +35,75 @@
     user = login.autoLogin.user or fallback.user;
   };
 
-  primaryBackend = spec: first (resolveBackends spec);
-
-  sessionName = env:
-    if env == null
-    then null
-    else login.sessions.${env.name} or env.session or env.name;
-
-  defaultSession = spec: sessionName (primaryBackend spec);
-
-  displayManagerFor = spec: let
-    env = primaryBackend spec;
-  in
-    login.manager or host.interface.displayManager or (
-      if env != null
-      then env.greeter or "regreet"
-      else "none"
-    );
-
-  greeterValues = map (env: env.greeter or "none") (attrValues api.interfaceRegistry);
-  managerEnumValues = ["none" "dms" "regreet"] ++ greeterValues;
-
-  opts = manager: session: {
-    manager = mkOption {
-      type = enum managerEnumValues;
-      default = manager;
-      description = "Display manager or greeter used to start graphical sessions.";
-    };
-    defaultSession = mkOption {
-      type = nullOr str;
-      default = session;
-      description = "Default graphical session selected by the display manager.";
-    };
-    autoLogin = {
-      enable = mkEnableOption "automatic login" // {default = auto.enable;};
-      user = mkOption {
-        type = nullOr str;
-        default = auto.user;
-        description = "User to automatically log in when autologin is enabled.";
-      };
-    };
+  sessions = api.interface.mkSessions {
+    user = fallback.admin;
+    inherit host;
+  };
+  default = api.interface.mkDefaultSession {
+    user = fallback.admin;
+    inherit host;
   };
 
+  defaultSessionName =
+    if (default ? name && default.name != null)
+    then
+      (
+        let
+          inherit (default) name;
+        in
+          login.sessions.${name} or (default.session or name)
+      )
+    else null;
+
+  displayManager = host.interface.greeter or (default.greeter or "regreet");
+  greeterValues = map (env: env.greeter or "none") (attrValues api.interfaceRegistry);
+  managerEnumValues = ["none" "dms" "regreet"] ++ greeterValues;
   dmsCompositors = ["hyprland" "niri" "sway"];
 
   mk = scope: {config, ...}: let
-    mod = mkModuleArgs {inherit config top scope path;};
-    cfg = mod.get.config.module;
-    opt = mod.set.options.module;
-    session = login.defaultSession or (defaultSession host);
+    mod = mkModuleArgs (args // {inherit config scope;});
+    inherit (mod) get set;
+    cfg = get.config.module;
     greeter = cfg.manager;
-    compositor = let
-      pref = primaryBackend host;
-    in
-      if pref != null && elem pref.name dmsCompositors
-      then pref.name
+    compositor =
+      if default != null && elem (default.name or "") dmsCompositors
+      then default.name
       else null;
   in {
-    options = opt (opts (displayManagerFor host) session);
+    options = set.opt {
+      active = mkOption {
+        type = listOf attrs;
+        default = sessions;
+        description = "All active interface sessions (environments) for this host/user, in priority order.";
+      };
+
+      autoLogin = {
+        enable = mkEnableOption "automatic login" // {default = auto.enable;};
+        user = mkOption {
+          type = nullOr str;
+          default = auto.user;
+          description = "User to automatically log in when autologin is enabled.";
+        };
+      };
+
+      default = mkOption {
+        type = nullOr attrs;
+        default = default;
+        description = "The default/preselected session -- the top entry in `sessions`.";
+      };
+
+      defaultSession = mkOption {
+        type = nullOr str;
+        default = defaultSessionName;
+        description = "Default graphical session selected by the display manager.";
+      };
+
+      manager = mkOption {
+        type = enum managerEnumValues;
+        default = displayManager;
+        description = "Display manager or greeter used to start graphical sessions.";
+      };
+    };
 
     config =
       if scope == "core"
@@ -108,7 +111,7 @@
         assertions = [
           {
             assertion = (greeter != "dms") || compositor != null;
-            message = "DMS greeter requires a supported compositor (hyprland, niri, or sway) from the selected interface backend.";
+            message = "DMS greeter requires a supported compositor (hyprland, niri, or sway) as the default interface session.";
           }
         ];
         programs.regreet.enable = greeter == "regreet";

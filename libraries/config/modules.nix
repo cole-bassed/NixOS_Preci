@@ -13,7 +13,7 @@
 }: let
   exports = {
     scoped = {
-      inherit mkModules mkModuleArgs mkFrontend mkCfg mkCfgIf mkOpt mkIf';
+      inherit mkModules mkModuleArgs mkCfg mkCfgIf mkOpt mkIf';
       ingest = mkModules;
       configure = mkModuleArgs;
     };
@@ -116,14 +116,35 @@
     home-manager.sharedModules = (specs.home or []) ++ registryModules;
   };
 
+  mkCfg = {
+    config,
+    path,
+  }:
+    attrByPath (asList path) {} config;
+
+  mkOpt = {
+    options,
+    path,
+  }:
+    setAttrByPath (asList path) options;
+
+  mkCfgIf = {
+    cfg,
+    condition ? cfg.enable or false,
+  }: args:
+    mkIf condition (
+      if isList args
+      then mkMerge args
+      else args
+    );
+
+  mkIf' = cfg: condition: args:
+    mkCfgIf {inherit cfg condition;} args;
   mkModuleArgs = {
-    api ? lib.api or (lix.api or {}),
     config ? {},
     host ? {},
     hostPath ? path,
     extraArgs ? {},
-    lib ? {},
-    lix ? {},
     options ? {},
     osConfig ? {},
     path,
@@ -133,6 +154,7 @@
     top ? null,
     userPath ? path,
     users ? api.users.getInteractiveUsers host,
+    ...
   }: let
     targets = ["main" "custom" "domain" "parent" "module"];
     # selection = spec: selectionOf {inherit top spec registry;};
@@ -352,7 +374,7 @@
             mapAttrsToList (
               name: value:
                 mkIf (active == name) {
-                  ${names.custom}.applications.${name} = value;
+                  # ${names.custom}.applications.${name} = value;
                 }
             )
             tweaks
@@ -363,30 +385,5 @@
     (mkNamespaced {inherit get set;})
     // get
     // {inherit get set;};
-
-  mkCfg = {
-    config,
-    path,
-  }:
-    attrByPath (asList path) {} config;
-
-  mkOpt = {
-    options,
-    path,
-  }:
-    setAttrByPath (asList path) options;
-
-  mkCfgIf = {
-    cfg,
-    condition ? cfg.enable or false,
-  }: args:
-    mkIf condition (
-      if isList args
-      then mkMerge args
-      else args
-    );
-
-  mkIf' = cfg: condition: args:
-    mkCfgIf {inherit cfg condition;} args;
 in
   exports

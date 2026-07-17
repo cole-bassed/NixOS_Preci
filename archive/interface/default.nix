@@ -1,3 +1,39 @@
+# {lix, ...} @ args: let
+#   inherit (lix.modules) mkModules mkModuleArgs;
+#   moduleArgs = {
+#     inherit extraArgs;
+#     base = ./.;
+#     excludes = [
+#       "backend"
+#       "frontend"
+#       "protocol"
+#       "session"
+#     ];
+#   };
+#   extraArgs = {
+#     mkArgs = {
+#       config,
+#       osConfig ? {},
+#       options ? {},
+#       path,
+#       scope ? "core",
+#       pkgs ? {},
+#       extraArgs ? {},
+#     }:
+#       mkModuleArgs {
+#         inherit
+#           config
+#           options
+#           osConfig
+#           path
+#           pkgs
+#           scope
+#           extraArgs
+#           ;
+#       };
+#   };
+# in
+#   mkModules (args // moduleArgs)
 {
   lix,
   api,
@@ -10,14 +46,16 @@
   inherit (lix.lists) findFirst;
   inherit (lix.modules) mkIf mkMerge mkModules mkModuleArgs;
   inherit (lix.options) mkRegistryOptions mkEnableOption mkOption;
-  inherit (lix.types) enum nullOr nullPkg nullStr str submodule;
+  inherit (lix.types) enum nullOr package str submodule;
 
   moduleArgs = {
     inherit extraArgs;
     base = ./.;
-    # declareRegistry = false;
+    declareRegistry = false;
     excludes = [
-      # "protocol"
+      "backend"
+      "frontend"
+      "protocol"
       # "session"
       # "policy"
     ];
@@ -114,7 +152,7 @@
           enable = set.enable {default = registry.enable;};
 
           package = mkOption {
-            type = nullPkg;
+            type = nullOr package;
             default = registry.package;
             description = "Package backing the ${prettyName} compositor component.";
           };
@@ -126,19 +164,19 @@
           };
 
           session = mkOption {
-            type = nullStr;
+            type = nullOr str;
             default = registry.session;
             description = "Session name exported by ${prettyName}. Defaults to the backend registry or host/user override.";
           };
 
           greeter = mkOption {
-            type = nullStr;
+            type = nullOr str;
             default = registry.greeter;
             description = "Greeter or display manager preferred for ${prettyName}. Defaults to the backend registry or host/user override.";
           };
 
           frontend = mkOption {
-            type = nullStr;
+            type = nullOr str;
             default = registry.frontend;
             description = "Frontend layer paired with ${prettyName}. Defaults to the backend registry or host/user override.";
           };

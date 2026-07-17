@@ -125,22 +125,10 @@ in {
       loader = "systemd-boot";
       timeout = 1;
     };
-    greeter = "dank-material-shell";
-    backends = {
-      hyprland = {
-        preferred = true;
-        enable = true;
-        frontend = "dank-material-shell";
-      };
-      niri = {
-        enable = true;
-        preferred = false;
-        frontend = "caelestia-shell";
-        # needsXwaylandSatellite = true;
-        # fallbackConfig = "config/niri/config.kdl";
-      };
-    };
+    # greeter = "dank-material-shell"; #? This overrides the environment greeter
+    environments = ["hyprland"];
     keyboard = {
+      #? This overrides the environment greeter
       modifier = "SUPER";
       swapCapsEscape = false;
     };

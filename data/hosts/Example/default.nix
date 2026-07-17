@@ -679,20 +679,30 @@ in {
     };
     bootLoader = "systemd-boot";
     bootLoaderTimeout = 1;
-    backends = {
-      hyprland = {
-        # session = "hyprland";
-        # greeter = "dank-material-shell";
-        # frontend = "dank-material";
-        # uwsm = true;
-        # configType = "lua";
-      };
-      niri = {
+
+    greeter = "dank-material-shell"; #? This overrides the environment greeter
+    environments = [
+      {
+        # enable = true; #? Defaults to true if not set
+        # name = "hyprland" #? name or session must be set (so we know while env this is)
+        # greeter = "dank-material-shell"; #? All these are defined in the default registry, these are overrides
+        # frontend = "dank-material-shell"; #? All these are defined in the default registry, these are overrides
+        # uwsm = true; #? All these are defined in the default registry, these are overrides
+        # configType = "lua"; #? All these are defined in the default registry, these are overrides
+      } #? This would be the default session
+      "mango" #? Mango with all it's registry defaults
+      {
+        # name = "niri"
+        # session = "niri";
+        # enable = true;
+        # preferred = false;
+        # frontend = "caelestia-shell";
         # needsXwaylandSatellite = true;
         # fallbackConfig = "config/niri/config.kdl";
-      };
-    };
+      }
+    ];
     keyboard = {
+      #? This overrides the environment greeter
       modifier = "SUPER";
       swapCapsEscape = false;
     };
