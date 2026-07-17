@@ -40,6 +40,7 @@
     };
   };
 
+  inherit (assembly) mkApi;
   inherit
     (attrsets)
     asAttrs
@@ -60,8 +61,8 @@
   # bindings compiled via assembly.mkRegistry -- so there is exactly one
   # resolved registry, not a library-layer unresolved copy plus a
   # NixOS-layer resolved copy.
-  mkRegistry = {api ? defaults.api}:
-    mapAttrs (
+  mkRegistry = {api ? defaults.api}: let
+    merged = mapAttrs (
       _: env: let
         protocol = recursiveUpdate common (
           shared.${env.protocol or "common"} or {}
@@ -74,10 +75,11 @@
           // mapAttrs (category: list:
             list ++ (ofProtocol.${category} or []))
           ofEnvironment;
-        merged = (recursiveUpdate protocol env) // {inherit applications;};
       in
-        merged // (assembly.mkRegistry merged)
+        (recursiveUpdate protocol env) // {inherit applications;}
     ) (removeAttrs api ["default"]);
+  in
+    mkApi merged;
   registry = mkRegistry {};
 
   selectionOf = spec: spec.applications or {};

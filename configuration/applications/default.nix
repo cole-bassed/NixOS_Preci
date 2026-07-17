@@ -6,100 +6,33 @@
 } @ args: let
   inherit (lix.modules) mkModules;
 
-  # data = {
-  #   git = {
-  #     group = "vcs";
-  #     package = "gitFull";
-  #   };
-  #   lfs = {
-  #     group = "vcs";
-  #     package = "git-lfs";
-  #   };
-  #   gh = {
-  #     group = "vcs";
-  #     package = "gh";
-  #   };
-  #   jj = {
-  #     group = "vcs";
-  #     package = "jujutsu";
-  #   };
-  #   gitui = {
-  #     group = "vcs";
-  #     package = "gitui";
-  #   };
-  #   delta = {
-  #     group = "vcs";
-  #     package = "delta";
-  #   };
-  #   claude = {
-  #     group = "ai";
-  #     package = "claude-code";
-  #   };
-  #   codex = {
-  #     group = "ai";
-  #     package = "codex";
-  #   };
-  #   helix = {
-  #     group = "editors";
-  #     package = "helix";
-  #   };
-  #   vscode = {
-  #     group = "editors";
-  #     package = "vscode-fhs";
-  #   };
-  #   zed = {
-  #     group = "editors";
-  #     package = "zed-editor-fhs";
-  #   };
-  #   alacritty = {
-  #     group = "terminals";
-  #     package = "alacritty";
-  #   };
-  #   foot = {
-  #     group = "terminals";
-  #     package = "foot";
-  #   };
-  #   kitty = {
-  #     group = "terminals";
-  #     package = "kitty";
-  #   };
-  #   tmux = {
-  #     group = "terminals";
-  #     package = "tmux";
-  #   };
-
-  #   tailscale = {
-  #     group = "connectivity";
-  #     package = "tailscale";
-  #   };
-  # };
-
   moduleArgs = {
     inherit extraArgs;
     base = ./.;
+    declareRegistry = true;
     excludes = [
       "alacritty"
+      # "caelestia"
       "claude"
+      "codex"
       "dank-material"
       "delta"
-      "gh"
-      "gitui"
-      "hyprland"
-      "kitty"
-      "niri"
-      "ollama"
-      "starship"
-      "vicinae"
-      "caelestia"
-      "codex"
       "foot"
+      "gh"
       "git"
+      "gitui"
       "hermes"
+      "hyprland"
       "jj"
+      "kitty"
       "mango"
+      "niri"
       "noctalia"
+      "ollama"
       "openclaw"
+      "starship"
       "tailscale"
+      "vicinae"
       "zen-browser"
     ];
   };

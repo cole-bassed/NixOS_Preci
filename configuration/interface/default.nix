@@ -10,17 +10,21 @@
   inherit (lix.lists) findFirst;
   inherit (lix.modules) mkIf mkMerge mkModules mkModuleArgs;
   inherit (lix.options) mkRegistryOptions mkEnableOption mkOption;
-  inherit (lix.types) attrs enum nullOr nullPkg nullStr str submodule;
+  inherit
+    (lix.types)
+    enum
+    nullAny
+    nullOr
+    nullPkg
+    nullStr
+    str
+    submodule
+    ;
 
   moduleArgs = {
     inherit extraArgs;
     base = ./.;
     declareRegistry = false;
-    excludes = [
-      # "protocol"
-      # "session"
-      # "policy"
-    ];
   };
 
   extraArgs = {
@@ -227,13 +231,7 @@
   };
 
   module = mkModules (args // moduleArgs);
-
-  # Flat, top-level session tiers -- not nested under a `session`/`policy`
-  # sub-path. `primary`/`secondary`/`tertiary` are the resolved,
-  # fully-compiled registry entries (bindings/variables already
-  # assembled) in priority order; `defaultSession` is just the primary
-  # tier's name, for direct use as a display-manager session string.
-  tiersModule = scope: {config, ...}: let
+  mkModule = scope: {config, ...}: let
     mod = mkModuleArgs (args // {inherit config scope;});
     inherit (mod) get set;
     inherit (get) user;
@@ -243,31 +241,47 @@
     tertiary = api.interface.tertiaryOf {inherit user host;};
   in {
     options = set.opt {
+      session = mkOption {
+        type = nullStr;
+        default = primary.name or null;
+        description = "Name of the primary session, for display-manager configuration.";
+      };
+      frontend = mkOption {
+        type = nullStr;
+        default = primary.frontend or null;
+        description = "Frontend of the primary session.";
+      };
+      greeter = mkOption {
+        type = nullStr;
+        default = primary.greeter or null;
+        description = "Greeter of the primary session.";
+      };
+      protocol = mkOption {
+        type = nullOr (enum ["x11" "wayland"]);
+        default = primary.protocol or null;
+        description = "Display protocol of the primary session.";
+      };
+
       primary = mkOption {
-        type = nullOr attrs;
+        type = nullAny;
         default = primary;
         description = "The primary/default resolved interface session.";
       };
       secondary = mkOption {
-        type = nullOr attrs;
+        type = nullAny;
         default = secondary;
         description = "The secondary resolved interface session, if any.";
       };
       tertiary = mkOption {
-        type = nullOr attrs;
+        type = nullAny;
         default = tertiary;
         description = "The tertiary resolved interface session, if any.";
-      };
-      defaultSession = mkOption {
-        type = nullStr;
-        default = primary.name or null;
-        description = "Name of the primary session, for display-manager configuration.";
       };
     };
 
     config = {};
   };
 in {
-  core.imports = (module.imports or []) ++ [(tiersModule "core")];
-  home.imports = (module.home-manager.sharedModules or []) ++ [(tiersModule "home")];
+  core.imports = (module.imports or []) ++ [(mkModule "core")];
+  home.imports = (module.home-manager.sharedModules or []) ++ [(mkModule "home")];
 }

@@ -13,6 +13,7 @@
         registry
         selectedModules
         selectionOf
+        supportedOf
         ;
     };
 
@@ -23,15 +24,44 @@
       applicationSelection = selectionOf;
       applicationNames = namesOf;
       applicationModules = selectedModules;
+      applicationSupported = supportedOf;
     };
   };
 
-  inherit (attrsets) valuesOf filterAttrs;
-  inherit (lists) concatMap elem unique;
+  inherit (attrsets) attrNames filterAttrs listToAttrs valuesOf;
+  inherit (lists) asList concatMap elem foldl' unique;
 
-  registry = removeAttrs (api.applications.modules or {}) ["name" "tags"];
-  categories = removeAttrs (api.applications.categories or {}) ["name" "tags"];
-  aliases = removeAttrs (api.applications.aliases or {}) ["name" "tags"];
+  registry = api.applications or {};
+
+  entryCategories = entry: asList (entry.category or []);
+  entryAliases = entry: asList (entry.alias or (entry.aliases or []));
+
+  categories = let
+    pairs =
+      concatMap
+      (name: map (cat: {inherit cat name;}) (entryCategories registry.${name}))
+      (attrNames registry);
+  in
+    foldl'
+    (acc: p: acc // {${p.cat} = (acc.${p.cat} or []) ++ [p.name];})
+    {}
+    pairs;
+
+  aliases = let
+    pairs =
+      concatMap
+      (name:
+        map (a: {
+          inherit name;
+          alias = a;
+        }) (entryAliases registry.${name}))
+      (attrNames registry);
+  in
+    listToAttrs (map (p: {
+        name = p.alias;
+        value = p.name;
+      })
+      pairs);
 
   selectionOf = spec: spec.applications or {};
   normalizeName = name: aliases.${name} or name;
@@ -47,5 +77,8 @@
     names = namesOf spec;
   in
     filterAttrs (name: _: elem name names) registry;
+
+  supportedOf = name:
+    map normalizeName (asList (registry.${name}.supported or []));
 in
   exports

@@ -8,15 +8,19 @@
 }: let
   exports = {
     scoped = {
-      inherit isFunction' asFloat toFloat;
+      inherit
+        isFunction'
+        asFloat
+        toFloat
+        nullStr
+        nullPkg
+        nullAny
+        ;
       to = {float = toFloat;};
       from = {};
       as = {float = asFloat;};
       inherit (attrsets) asList;
       inherit (lists) asAttrs;
-
-      nullStr = nullOr str;
-      nullPkg = nullOr package;
     };
     global = {
       inherit isEmpty isEnabled isFunction' isNotEmpty isNotNull isNull toFloat;
@@ -27,7 +31,26 @@
   inherit (debug) withContext;
   inherit (lists) head tail isList optionals reverseList;
   inherit (strings) concatStrings fromJSON stringLength stringToCharacters;
-  inherit (types) coercedTo float int isAttrs isBool isFloat isInt str nullOr package typeOf isString;
+  inherit
+    (types)
+    anything
+    coercedTo
+    float
+    int
+    isAttrs
+    isBool
+    isFloat
+    isInt
+    isString
+    nullOr
+    package
+    str
+    typeOf
+    ;
+
+  nullStr = nullOr str;
+  nullPkg = nullOr package;
+  nullAny = nullOr anything;
 
   /**
   Determine if a module, feature, or configuration target is enabled.
