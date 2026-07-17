@@ -7,35 +7,31 @@
 }: let
   exports = {
     scoped = {
-      inherit nthOr orNull orDefault orEmpty;
+      inherit has hasAny nthOr orNull orDefault orEmpty isEmpty isNotEmpty;
       atOr = nthOr;
-      has = has';
-      hasAny = hasAny';
-      isEmpty = isEmpty';
-      isNotEmpty = isNotEmpty';
     };
     global = {
-      isEmptyList = isEmpty';
-      isNotEmptyList = isNotEmpty';
+      isEmptyList = isEmpty;
+      isNotEmptyList = isNotEmpty;
       orDefaultList = orDefault;
       orNullList = orNull;
       valueInList = nthOr;
-      inList = has';
-      anyInList = hasAny';
+      inList = has;
+      anyInList = hasAny;
     };
   };
 
   inherit (attrsets) isAttrs;
   inherit (debug) assertWithContext;
   inherit (lists) asList elemAt isList length optionals any elem;
-  inherit (types) typeOf isEmpty;
+  inherit (types) typeOf;
 
-  isEmpty' = value: value == [];
-  isNotEmpty' = value: !isEmpty' value;
+  isEmpty = value: value == [] || value == null;
+  isNotEmpty = value: !isEmpty value && isList value;
 
   # --- Membership Checks ---
 
-  has' = item: list:
+  has = item: list:
     assert assertWithContext {
       name = "lists.has";
       assertion = isList list;
@@ -44,7 +40,7 @@
     };
       elem item list;
 
-  hasAny' = candidates: list:
+  hasAny = candidates: list:
     assert assertWithContext {
       name = "lists.hasAny";
       assertion = isList list;
@@ -73,7 +69,7 @@
       message = "expected lists, got default=${typeOf default} value=${typeOf value}";
       context = "evaluating lists.orDefault";
     };
-      if isNotEmpty' value
+      if isNotEmpty value
       then value
       else default;
 
@@ -84,7 +80,7 @@
       message = "expected a list or null, got ${typeOf value}";
       context = "evaluating lists.orEmpty";
     };
-      optionals (isNotEmpty' value) value;
+      optionals (isNotEmpty value) value;
 
   nthOr = input: let
     fromArgs = {

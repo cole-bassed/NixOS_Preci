@@ -2,5 +2,13 @@
   category = ["greeter" "frontend"];
   protocol = "wayland";
   scopes = ["core" "home"];
-  aliases = ["dms" "dank" "dank-material" "dm-shell" "dms-shell" "dms-greeter"];
+  package = "dms-shell";
+  aliases = [
+    "dms-shell"
+    "dms"
+    "dank"
+    "dank-material"
+    "dm-shell"
+    "dms-greeter"
+  ];
 }

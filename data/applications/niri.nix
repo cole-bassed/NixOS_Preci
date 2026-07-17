@@ -9,5 +9,6 @@
   scopes = ["core" "home"];
   aliases = ["niri-wm"];
   needsXwaylandSatellite = true;
+  package = "niri-unstable";
   configType = "kdl";
 }

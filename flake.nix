@@ -574,10 +574,10 @@
     defaults = {
       allowUnfree = true;
       pkgAliases = {
-        caelestia = "caelestia-shell";
-        dank-material = "dms-shell";
-        niri = "niri-unstable";
-        openclaw = ["llm-agents" "openclaw"];
+        # caelestia = "caelestia-shell";
+        # dank-material = "dms-shell";
+        # niri = "niri-unstable";
+        # openclaw = ["llm-agents" "openclaw"];
 
         # FIX: We shouldn't need to do this
         # "noctalia-shell" = "noctalia";

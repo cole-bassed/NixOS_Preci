@@ -87,10 +87,18 @@
   in
     (mkGroup users) // {byStatus = mkStatusIndex users;};
 
+  # usersOf = host:
+  #   if host ? users.values
+  #   then host.users
+  #   else getUsers host.users; # TODO: This should not be failing as every host much define users
   usersOf = host:
-    if host ? users.values
+    if !(builtins.isAttrs host)
+    then throw "users.nix: 'host' is not an attribute set. Type received: ${builtins.typeOf host}. Value: ${toString host}"
+    else if !(host ? users)
+    then throw "users.nix: 'host' is missing the 'users' attribute! Available host keys: ${builtins.toJSON (builtins.attrNames host)}"
+    else if host ? users.values
     then host.users
-    else getUsers host.users; # TODO: This should not be failing as every host much define users
+    else getUsers host.users;
 
   getEnabledUsers = host:
     (usersOf host).byStatus.enabled.values;

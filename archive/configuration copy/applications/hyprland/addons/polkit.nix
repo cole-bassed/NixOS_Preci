@@ -1,0 +1,3 @@
+_: {
+  hyprpolkitagent.enable = true;
+}
