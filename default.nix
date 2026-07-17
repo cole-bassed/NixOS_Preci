@@ -22,7 +22,7 @@
 
   defaults = {
     tags = ["core" "home"];
-    labels = {
+    labels.application = {
       browser = "Browser launch";
       editor = "Editor launch";
       visual = "Visual/IDE launch";

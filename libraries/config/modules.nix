@@ -38,11 +38,11 @@
     isNotEmptyAttr
     ;
   inherit (ingestion) collectSpecs;
-  inherit (lists) asList asListIf elem head init last optionals;
+  inherit (lists) asList asListIf concat elem foldl' head init last optionals;
   inherit (types) attrs;
   inherit (assembly) mkBindings mkRegistryVariables;
   inherit (modules) mkIf mkMerge;
-  inherit (options) mkEnable mkOption;
+  inherit (options) mkAppOption mkEnable mkOption;
   inherit (strings) concatStringsSep toSentenceCase;
   inherit (types) isList;
 
@@ -140,6 +140,7 @@
 
   mkIf' = cfg: condition: args:
     mkCfgIf {inherit cfg condition;} args;
+
   mkModuleArgs = {
     config ? {},
     host ? {},
@@ -148,7 +149,7 @@
     options ? {},
     osConfig ? {},
     path,
-    pkgs ? {},
+    pkgs ? null,
     scope ? "core",
     selection ? null,
     top ? null,
@@ -156,8 +157,13 @@
     users ? api.users.getInteractiveUsers host,
     ...
   }: let
-    targets = ["main" "custom" "domain" "parent" "module"];
-    # selection = spec: selectionOf {inherit top spec registry;};
+    targets = [
+      "main" #? top-level config
+      "custom" #? dots
+      "domain" #? applications, interface, etc
+      "parent"
+      "module"
+    ];
 
     validate = {
       path = target:
@@ -169,7 +175,16 @@
           }";
     };
 
-    names =
+    names = let
+      raw =
+        if path != []
+        then last path
+        else null;
+      leaf =
+        if raw != null
+        then api.applications.aliases.${raw} or raw
+        else null;
+    in
       genAttrs targets (
         target: let
           check = validate.path target;
@@ -179,45 +194,41 @@
           else "main"
       )
       // {
+        inherit raw leaf;
+        name = names.module;
         user =
           get.config.main.home.username or (
             get.config.custom.users.primary.name or null
           );
-        package = pkg.name or null;
+        pretty = set.name {pretty = true;};
+        package = get.pkg.name or null;
       };
 
-    # pkgName may be a flat string ("gitFull") or a nested path
-    # (["llm-agents" "claude-code"]) — normalize to a list either way.
-    pkg = let
-      name' = get.apiOr "package";
+    paths = let
+      inherit (names) leaf;
+
+      base =
+        if top != null
+        then top
+        else names.custom;
+
       path' =
-        if name' != null
-        then asList name'
-        else [get.name];
+        if path == []
+        then path
+        else (init path) ++ [leaf];
     in {
-      path = path';
-      name = last path';
-      spec = attrByPath path' null pkgs;
-    };
-
-    base =
-      if top != null
-      then top
-      else names.custom;
-
-    paths = {
       validate = validate.path;
       main = [];
       custom = [base];
-      module = paths.custom ++ path;
+      module = paths.custom ++ path';
       parent = init paths.module;
-      domain = paths.custom ++ [(head path)];
+      domain = paths.custom ++ [(head path')];
     };
 
     get = {
       inherit host scope names paths users;
-      name = names.module;
-      prettyName = set.name {pretty = true;};
+      inherit (names) name;
+      prettyName = names.pretty;
 
       user = let
         name = names.user;
@@ -273,20 +284,55 @@
       in
         hasAttr get.name required.${scope};
 
-      package = pkg.spec;
-      pkgName = pkg.name;
-      pkgPath = pkg.path;
+      # pkgName may be a flat string ("gitFull") or a nested path
+      # (["llm-agents" "claude-code"]) — normalize to a list either way.
+      pkg = let
+        override = get.apiOr "package";
+
+        specs = {
+          override =
+            if override == null
+            then null
+            else attrByPath (asList override) null pkgs;
+
+          fallback =
+            if pkgs != null
+            then
+              foldl'
+              (found: candidate:
+                if found != null
+                then found
+                else pkgs.${candidate} or null)
+              null
+              (concat (with names; [raw leaf]))
+            else null;
+        };
+
+        resolved = {
+          path =
+            if override != null
+            then asList override
+            else [names.name];
+          name = last resolved.path;
+          spec =
+            if specs.override != null
+            then specs.override
+            else specs.fallback;
+        };
+      in {inherit (resolved) path name spec;};
+      package = get.pkg.spec;
 
       hostEntry = attrByPath hostPath {} host;
       userEntry = attrByPath userPath {} get.user;
       dataEntry = genAttrs targets (
         target: let
-          #TODO This is not making use of our target and genAttrs style setup
           domain = head path;
-          name = last path;
+          name = names.leaf;
           registry =
             if target == "module"
             then api.${domain}.registry.${name} or {}
+            else if target == "parent"
+            then api.parent.registry or {} # TODO: Not tested
             else if target == "domain"
             then api.${domain}.registry or {}
             else if target == "custom"
@@ -298,7 +344,6 @@
           inherit registry;
           names = namesOf registry;
           values = valuesOf registry;
-          select = asAttrs; # TODO: This is not working at all
         }
       );
       apiOr = key:
@@ -327,6 +372,7 @@
         genAttrs
         targets (target: extra: setAttrByPath (paths.validate target) extra);
       opt = set.options.module;
+      app = mkAppOption get;
 
       name = {
         name ? names.module,
@@ -374,7 +420,7 @@
             mapAttrsToList (
               name: value:
                 mkIf (active == name) {
-                  # ${names.custom}.applications.${name} = value;
+                  ${names.custom}.applications.${name} = value;
                 }
             )
             tweaks
@@ -384,6 +430,9 @@
   in
     (mkNamespaced {inherit get set;})
     // get
-    // {inherit get set;};
+    // {
+      inherit get set;
+      inherit (set) opt app;
+    };
 in
   exports

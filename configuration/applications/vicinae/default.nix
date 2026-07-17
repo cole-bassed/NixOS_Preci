@@ -1,53 +1,55 @@
 {
   lix,
+  api,
   top,
-  lib,
-  pkgs ? null,
-  dom,
-  mod,
+  path,
   ...
 }: let
-  inherit (lib.modules) mkDefault mkIf;
-  inherit (lib.options) mkOption;
-  inherit (lib.types) bool package;
+  inherit (lix.lists) last;
+  inherit (lix.modules) mkDefault mkIf;
+  inherit (lix.options) mkOption;
+  inherit (lix.types) bool package;
   inherit (lix) mkEnable;
-  inherit (lix.options) mkModuleArgs;
+  inherit (lix.options) mkModuleArgs mkApplicationOptions;
+
+  rawName = last path;
+  name = api.applications.aliases.${rawName} or rawName;
 in {
   core = [];
 
-  home = {config, ...}: let
+  home = {
+    config,
+    pkgs,
+    ...
+  }: let
     scope = "home";
-    module = mkModuleArgs {inherit config top dom mod scope;};
-    cfg = module.get.config.module;
-    opt = module.set.options.module;
+    inherit (mkModuleArgs {inherit config top path scope;}) get set;
+    inherit (get) cfg;
+    inherit (set) opt;
 
-    # Shared launch command used by both compositors
-    launch = "${cfg.package}/bin/vicinae";
+    launch = "${cfg.package}/bin/vicinae open"; # TODO: this should be defined in the data layer. All apps mshould define things like command and so forth. something we started to do in data/interface/default.nix but needs to be added to each appentry's declaration file
   in {
-    options = opt {
-      enable = module.set.enable {default = false;};
+    options = opt (
+      (mkApplicationOptions {
+        inherit name get scope pkgs;
+      })
+      // {
+        fallbackPackage = mkOption {
+          type = package;
+          default = pkgs.fuzzel; # TODO: vicinae works on both protocols but fuzzel doesnt, so this has to be protocol dependent and we can use fuzzel vs rofi
+          description = "Fallback launcher package used when Vicinae cannot open.";
+        };
 
-      package = mkOption {
-        type = package;
-        default = pkgs.vicinae;
-        description = "Vicinae package to install for the desktop launcher application profile.";
-      };
+        systemd.enable = mkOption {
+          type = bool;
+          default = true;
+          description = "Whether to start the Vicinae daemon through Home Manager's user service.";
+        };
 
-      fallbackPackage = mkOption {
-        type = package;
-        default = pkgs.fuzzel;
-        description = "Fallback launcher package used when Vicinae cannot open.";
-      };
-
-      systemd.enable = mkOption {
-        type = bool;
-        default = true;
-        description = "Whether to start the Vicinae daemon through Home Manager's user service.";
-      };
-
-      onHyprland = (mkEnable {name = "Vicinae on Hyprland";}).true;
-      onNiri = (mkEnable {name = "Vicinae on Niri";}).true;
-    };
+        onHyprland = (mkEnable {name = "Vicinae on Hyprland";}).true;
+        onNiri = (mkEnable {name = "Vicinae on Niri";}).true;
+      }
+    );
 
     config = mkIf cfg.enable {
       programs.vicinae = {

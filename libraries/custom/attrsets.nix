@@ -324,7 +324,8 @@
     )
     args.sets;
 
-  foldMerge = foldl' recursiveUpdate {};
+  foldMerge = list:
+    foldl' recursiveUpdate {} (filter isAttrs list);
 
   normalize = args: let
     isDescriptor =

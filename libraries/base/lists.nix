@@ -16,13 +16,12 @@ _: let
         tail
         zipAttrsWith
         ;
-      inherit as asIf asModule foldl orEmpty unique;
+      inherit as asIf asModule foldl orEmpty unique concatUnique concat;
       maps = concatMap;
       at = elemAt;
       first = head;
       initial = head;
       remaining = tail;
-      concat = concatLists;
       isIn = elem;
       select = filter;
       generate = genList;
@@ -272,5 +271,30 @@ _: let
         else [x] ++ exec (seen ++ [x]) xs;
   in
     exec [] list;
+
+  /**
+  Flatten, coerce, and filter out nulls/invalids from a list of inputs.
+  Each input can be a raw value or a nested list. They are all safely
+  passed through `as` to coerce them to lists, and invalid types/nulls
+  are quietly dropped.
+
+  # Type
+  ```nix
+  concat :: [ any ] -> [ any ]
+  */
+  concat = list:
+    concatMap (
+      value:
+        filter (item: item != null) (
+          if isList value
+          then map (item: asModule {value = item;}) value
+          else asModule {inherit value;}
+        )
+    ) (orEmpty list);
+
+  /**
+  Performs concat and deduplicates the final output.
+  */
+  concatUnique = list: unique (concat list);
 in
   exports

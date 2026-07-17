@@ -3,26 +3,27 @@
   attrsets,
   lists,
   options,
+  defaults,
   types,
   ...
 }: let
   exports = {
     scoped = {
       inherit
-        mkEnable
-        mkAppOptions
         mkAppOption
-        mkBindOptions
+        mkAppOptions
         mkBindOption
+        mkBindOptions
+        mkEnable
         mkFloatOption
-        mkRegistryOptions
-        mkLatitudeOption
-        mkLongitudeOption
-        mkVarOptions
         mkGeoProviderOption
-        mkTimezoneOption
+        mkLatitudeOption
         mkLocalTimeOption
         mkLocaleOption
+        mkLongitudeOption
+        mkRegistryOptions
+        mkTimezoneOption
+        mkVarOptions
         ;
     };
     global = {};
@@ -30,13 +31,14 @@
 
   inherit (assembly) mkAppBindings mkBindings mkRegistryVariables;
   inherit (attrsets) mapAttrs optionalAttrs recursiveUpdate;
-  inherit (lists) hasAny;
+  inherit (lists) asList hasAny;
   inherit (options) mkOption mkEnableOption;
   inherit
     (types)
     attrsOf
     bool
     nullOr
+    nullPkg
     addCheck
     either
     float
@@ -45,16 +47,6 @@
     str
     submodule
     ;
-
-  _defaults = {
-    labels = {
-      browser = "Browser launch";
-      editor = "Editor launch";
-      visual = "Visual/IDE launch";
-      launcher = "Launcher trigger";
-      terminal = "Terminal launch";
-    };
-  };
 
   mkEnable = {
     name ? null,
@@ -226,7 +218,7 @@
     noun,
     registry,
   }: let
-    labels' = recursiveUpdate _defaults.labels labels;
+    labels' = recursiveUpdate defaults.labels.application labels;
   in
     mkOption {
       inherit type;
@@ -249,22 +241,53 @@
 
   mkAppOption = {
     name,
-    type ? null,
+    scope ? "user",
+    package ? null,
+    apiOr ? (_: null),
+    # Registry-only arguments
     label ? null,
     labels ? {},
-    applications,
+    applications ? [],
     modifier ? "SUPER",
-  }: let
-    mod = {
-      options = {
-        name = mkOption {
-          type = str;
-          description = "Package name or lookup identifier.";
+    type ? null,
+    ...
+  } @ args: let
+    enableOverride = apiOr "enable";
+
+    # Base Module options
+    resolved = {
+      base = {
+        enable = mkEnable {
+          inherit name scope;
+          default = enableOverride == true;
         };
-        description = mkOption {
-          type = str;
-          description = "Human-readable descriptive label.";
+
+        package = mkOption {
+          type = nullPkg;
+          default = package;
+          description = "Package backing the '${name}' application.";
         };
+
+        protocol = mkOption {
+          type = nullOr (types.enum ["wayland" "x11"]);
+          default = apiOr "protocol";
+          description = "Display protocol required by '${name}', if any.";
+        };
+
+        category = mkOption {
+          type = listOf str;
+          default = asList (apiOr "category");
+          description = "Registry category tag(s) for '${name}' (e.g. \"frontend\", \"backend\", \"greeter\").";
+        };
+
+        configType = mkOption {
+          type = nullOr (types.enum ["hyprlang" "lua" "kdl" "conf"]);
+          default = apiOr "configType";
+          description = "Native configuration file format used by '${name}', if it has one.";
+        };
+      };
+
+      binding = {
         command = mkOption {
           type = str;
           description = "The executable/binary command used to trigger it.";
@@ -276,28 +299,39 @@
         };
       };
     };
-  in
-    mkRegistryOption {
-      inherit name label labels;
-      prefix = "Ordered list of";
-      noun = "applications";
-      registry = mkAppBindings {inherit applications modifier;};
-      type =
-        if isNotEmpty type
-        then type
-        else nullOr (listOf (submodule mod));
+    submoduleSchema = {
+      options = resolved.base // resolved.binding;
     };
+  in
+    if !(args ? applications)
+    then resolved.base
+    else
+      mkRegistryOption {
+        inherit name label labels;
+        prefix = "Ordered list of";
+        noun = "applications";
+        registry = mkAppBindings {inherit applications modifier;};
+        type =
+          if isNotEmpty type
+          then type
+          else nullOr (listOf (submodule submoduleSchema));
+      };
 
   mkAppOptions = {
     applications,
     labels ? {},
     type ? null,
     name ? "applications",
+    ...
   }:
     mkGroupedOptions {
       inherit name;
       items = applications;
-      option = name: mkAppOption {inherit applications labels name type;};
+      option = name:
+        mkAppOption {
+          inherit applications labels name type;
+          isRegistry = true;
+        };
       description = "Priority-ordered tier applications resolved by the registry.";
     };
 

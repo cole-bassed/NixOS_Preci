@@ -5,14 +5,12 @@
   path,
   ...
 }: let
-  inherit (lix.lists) last;
+  inherit (lix.lists) last init;
   inherit (lix.modules) mkIf mkModuleArgs;
-  inherit (lix.options) mkOption;
-  inherit (lix.types) package;
+  inherit (lix.options) mkApplicationOptions;
 
   rawName = last path;
   name = api.applications.aliases.${rawName} or rawName;
-  entry = api.applications.registry.${name} or {};
 
   mk = scope: {
     config,
@@ -21,19 +19,16 @@
   }: let
     mod = mkModuleArgs {
       inherit config top scope;
-      path = (lix.lists.init path) ++ [name];
+      path = (init path) ++ [name];
     };
     cfg = mod.get.config.module;
     opt = mod.set.options.module;
   in {
-    options = opt {
-      enable = mod.set.enable {default = false;};
-      package = mkOption {
-        type = package;
-        default = pkgs.${name} or null;
-        description = "Package for ${name}.";
-      };
-    };
+    options = opt (mkApplicationOptions {
+      get = mod.get;
+      inherit name scope pkgs;
+      packageCandidates = [name rawName];
+    });
     config = mkIf cfg.enable (
       if scope == "core"
       then {environment.systemPackages = [cfg.package];}
