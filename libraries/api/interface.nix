@@ -1,5 +1,6 @@
 {
   api,
+  assembly,
   attrsets,
   lists,
   paths,
@@ -15,29 +16,27 @@
   exports = {
     scoped = {
       inherit
-        defaultSession
         inferredOf
-        mkDefaultSession
         mkEnvironments
         mkRegistry
-        mkSessions
+        primaryOf
         registry
+        secondaryOf
         selectedModules
         selectionOf
-        sessions
+        tertiaryOf
         ;
     };
     global = {
       "${mod}Registry" = registry;
-      "${mod}Sessions" = sessions;
-      "${mod}DefaultSession" = defaultSession;
       "mk${mod}Registry" = mkRegistry;
       "mk${mod}Selection" = selectionOf;
       "mk${mod}Inferred" = inferredOf;
       "mk${mod}Environment" = mkEnvironments;
       "mk${mod}Modules" = selectedModules;
-      "mk${mod}Session" = mkDefaultSession;
-      "mk${mod}Sessions" = mkSessions;
+      "${mod}Primary" = primaryOf;
+      "${mod}Secondary" = secondaryOf;
+      "${mod}Tertiary" = tertiaryOf;
     };
   };
 
@@ -57,6 +56,10 @@
   shared = import (paths.store.api + "/${mod}");
   common = shared.common or {};
 
+  # Each registry entry is fully resolved here -- bindings/variables/app
+  # bindings compiled via assembly.mkRegistry -- so there is exactly one
+  # resolved registry, not a library-layer unresolved copy plus a
+  # NixOS-layer resolved copy.
   mkRegistry = {api ? defaults.api}:
     mapAttrs (
       _: env: let
@@ -71,8 +74,9 @@
           // mapAttrs (category: list:
             list ++ (ofProtocol.${category} or []))
           ofEnvironment;
+        merged = (recursiveUpdate protocol env) // {inherit applications;};
       in
-        (recursiveUpdate protocol env) // {inherit applications;}
+        merged // (assembly.mkRegistry merged)
     ) (removeAttrs api ["default"]);
   registry = mkRegistry {};
 
@@ -116,7 +120,13 @@
       removeAttrs entry ["name" "session" "enable"]
     );
 
-  mkSessions = {
+  # Ordered, filtered, resolved list of active environments: entries
+  # without a resolvable name are dropped, entries with `enable = false`
+  # are dropped, user's own ordering is ranked above host's, duplicate
+  # names (by whichever source ranked first) are collapsed. Each returned
+  # entry is the fully-resolved registry entry with that source's
+  # overrides applied on top.
+  resolveTiers = {
     user ? defaults.user,
     host ? defaults.host,
   }: let
@@ -125,7 +135,6 @@
       then []
       else mkEnvironmentsRaw spec;
 
-    #? user's raw list first (in order), host's appended (in order) --
     combined = (rawOf user) ++ (rawOf host);
 
     valid =
@@ -164,18 +173,10 @@
         // {inherit name;})
       deduped;
   in
-    resolved;
-  sessions = mkSessions {};
+    parseOrderedAttrs resolved;
 
-  mkDefaultSession = {
-    user ? defaults.user,
-    host ? defaults.host,
-  }: let
-    resolved = mkSessions {inherit user host;};
-  in
-    if resolved == []
-    then null
-    else (parseOrderedAttrs resolved).primary or null;
-  defaultSession = mkDefaultSession {};
+  primaryOf = args: (resolveTiers args).primary or null;
+  secondaryOf = args: (resolveTiers args).secondary or null;
+  tertiaryOf = args: (resolveTiers args).tertiary or null;
 in
   exports
