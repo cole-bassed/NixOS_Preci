@@ -1,12 +1,9 @@
 {
   category = ["backend"];
   protocol = "wayland";
-  supported = [
-    "noctalia-shell"
-    "caelestia-shell"
-    "dank-material-shell"
-  ];
-  scopes = ["core" "home"];
+  scopes = ["core"];
   aliases = ["mango-wc" "mango-wm"];
   configType = "conf";
+  greeter = "dank-material-shell";
+  frontend = "caelestia-shell";
 }

@@ -569,41 +569,75 @@
                   get.names.leaf
                 );
 
-              fromPkgs =
+              # fromFlake =
+              #   if fromPkgs != null
+              #   then null
+              #   else
+              #     foldl'
+              #     (found: candidate:
+              #       if found != null
+              #       then found
+              #       else if isString candidate && flake ? registry.${candidate}
+              #       then let
+              #         registryFlake = flake.registry.${candidate};
+              #         system = pkgs.stdenv.hostPlatform.system or "x86_64-linux";
+              #       in
+              #         if registryFlake ? packages.${system}
+              #         then registryFlake.packages.${system}.${candidate} or
+              #           (registryFlake.packages.${system}.default or null)
+              #         else null
+              #       else null)
+              #     null
+              #     candidates;
+
+              # fromPkgs =
+              #   foldl'
+              #   (found: candidate:
+              #     if found != null
+              #     then found
+              #     else if isString candidate
+              #     then pkgs.${candidate} or null
+              #     else null)
+              #   null
+              #     candidates;
+
+              fromFlake =
                 foldl'
                 (found: candidate:
                   if found != null
                   then found
-                  else if isString candidate
-                  then pkgs.${candidate} or null
+                  else if isString candidate && flake ? registry.${candidate}
+                  then let
+                    data = flake.registry.${candidate};
+                    system = pkgs.stdenv.hostPlatform.system or "x86_64-linux";
+                  in
+                    if data ? packages.${system}
+                    then let
+                      set = data.packages.${system};
+                    in
+                      set.${candidate} or (set.default or null)
+                    else null
                   else null)
                 null
                 candidates;
 
-              fromFlake =
-                if fromPkgs != null
+              fromPkgs =
+                if fromFlake != null
                 then null
                 else
                   foldl'
                   (found: candidate:
                     if found != null
                     then found
-                    else if isString candidate && flake ? registry.${candidate}
-                    then let
-                      registryFlake = flake.registry.${candidate};
-                      system = pkgs.stdenv.hostPlatform.system or "x86_64-linux";
-                    in
-                      if registryFlake ? packages.${system}
-                      then registryFlake.packages.${system}.${candidate} or
-                        (registryFlake.packages.${system}.default or null)
-                      else null
+                    else if isString candidate
+                    then pkgs.${candidate} or null
                     else null)
                   null
                   candidates;
             in
-              if fromPkgs != null
-              then fromPkgs
-              else fromFlake
+              if fromFlake != null
+              then fromFlake
+              else fromPkgs
             else null;
         };
 
