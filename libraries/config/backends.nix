@@ -19,7 +19,7 @@
   inherit (attrsets) filterAttrs hasAttrByPath listToAttrs asAttrsIf setAttrByPath;
   inherit (lists) filter;
   inherit (strings) concatStringsSep;
-  inherit (lists) findFirst;
+  inherit (lists) findFirst unique;
   inherit (modules) mkIf mkMerge;
   inherit (options) mkRegistryOptions mkEnableOption mkOption;
   inherit (types) enum nullOr nullPkg nullStr str submodule;
@@ -27,14 +27,14 @@
   # Hyprland's bind syntax: "MOD1 MOD2, KEY, exec, ACTION"
   mkHyprlandBinds = entries: let
     valid = filter (e: e.action != null && e.key != null) entries;
-    format = e: "${concatStringsSep " " e.mod}, ${e.key}, exec, ${e.action}";
+    format = e: "${concatStringsSep " " (unique e.mod)}, ${e.key}, exec, ${e.action}";
   in
     map format valid;
 
   # Niri's bind syntax: attrset keyed "Mod+Key" -> { action.spawn = [...]; }
   mkNiriBinds = entries: let
     valid = filter (e: e.action != null && e.key != null) entries;
-    toBindKey = e: concatStringsSep "+" (e.mod ++ [e.key]);
+    toBindKey = e: concatStringsSep "+" (unique e.mod ++ [e.key]);
     toSpawn = action: {action.spawn = ["sh" "-lc" action];};
   in
     filterAttrs (_: v: v != null) (
@@ -199,18 +199,21 @@
         (mkIf (cfg.enable or false) (
           asAttrsIf (hasSub "package") (setAttrByPath (target ++ ["package"]) cfg.package)
         ))
-
-        {
-          programs.uwsm = mkIf ((cfg.enable or false) && (cfg.protocol == "wayland") && (cfg.uwsm.enable or false)) {
-            enable = true;
-            waylandCompositors.${name} = {
-              prettyName = cfg.uwsm.name;
-              comment = cfg.uwsm.description;
-              binPath = cfg.uwsm.binary;
-            };
-          };
-        }
       ]))
+
+      # ╔════════════════════════════════════════════════╗
+      # ╠ UWSM (core-only: no home-manager equivalent)   ╣
+      # ╚════════════════════════════════════════════════╝
+      (asAttrsIf (scope == "core") {
+        programs.uwsm = mkIf ((cfg.enable or false) && (cfg.protocol == "wayland") && (cfg.uwsm.enable or false)) {
+          enable = true;
+          waylandCompositors.${name} = {
+            prettyName = cfg.uwsm.name;
+            comment = cfg.uwsm.description;
+            binPath = cfg.uwsm.binary;
+          };
+        };
+      })
 
       # ╔════════════════════════════════════════════════╗
       # ╠ HOME TIER ADJUSTMENTS                          ╣
@@ -226,16 +229,10 @@
       # ╠ DYNAMIC REGISTRY SWITCHBOARD ROUTERS           ╣
       # ╚════════════════════════════════════════════════╝
       (mkMerge [
-        # --------------------------------------------------
-        # --> Frontend Router
-        # --------------------------------------------------
         (mkIf (cfg.enable or false) (asAttrsIf (registry.frontend != null) {
           ${top}.applications.${registry.frontend}.enable = true;
         }))
 
-        # --------------------------------------------------
-        # --> Greeter Router (core-only: greeters have no home-manager surface)
-        # --------------------------------------------------
         (mkIf (scope == "core" && (cfg.enable or false)) (asAttrsIf (registry.greeter != null) {
           ${top}.applications.${registry.greeter}.enable = true;
         }))

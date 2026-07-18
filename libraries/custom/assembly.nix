@@ -3,6 +3,8 @@
   lists,
   types,
   paths,
+  strings,
+  options,
   ...
 }: let
   exports = {
@@ -55,31 +57,42 @@
     foldl'
     init
     last
+    unique
     uniqueStrings
     ;
+  inherit (strings) concat;
   inherit (types) attrs isAttrs isBool isList isNotEmpty isString;
-  inherit (types) mkOption;
+  inherit (options) mkOption;
 
   # ╔════════════════════════════════════════════════╗
   # ╠ REGISTRY                                       ╣
   # ╚════════════════════════════════════════════════╝
-  # Compiles the environment variables for a single environment entry
-  mkRegistryVariables = entry: let
-    applications = entry.applications or {};
-    bindings = entry.bindings or {};
-    explicit = entry.variables or {};
-  in
-    foldMerge [
-      (optionalAttrs (applications != {}) (mkAppVariables {
-        sets = mapAttrs (_: map (app: app.command)) applications;
-      }))
-      (optionalAttrs (bindings ? modifier) {
-        MOD = bindings.modifier;
-      })
-      explicit
-    ];
+  #> Compile the environment variables for a single environment entry
+  mkRegistryVariables = registry: let
+    commands = let
+      sets =
+        mapAttrs
+        (_: apps: map (app: app.command) apps)
+        (registry.applications or {});
+    in
+      optionalAttrs (sets != {}) (mkAppVariables {inherit sets;});
 
-  # Maps over the registry collection and selectively updates/compiles fields
+    bindings = optionalAttrs (registry ? bindings.modifier) {
+      MOD = let
+        modifier = registry.bindings.modifier;
+      in
+        if isList modifier
+        then
+          concat {
+            delim = " ";
+            parts = unique modifier;
+          }
+        else modifier;
+    };
+  in
+    bindings // commands // (registry.variables or {});
+
+  #> Maps over the registry collection and selectively updates/compiles fields
   mkRegistry = {
     name, #? The module/API name used to fetch shared/common protocols
     extra ? {}, #? Manual/extra definitions to merge on top

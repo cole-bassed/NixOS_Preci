@@ -89,7 +89,7 @@
       mkIf (tier != null && name != null) (mkMerge [
         (setAttrByPath (mkAppEnable name) true)
         (enableComponent (tier.frontend or null))
-        (enableComponent (tier.greeter or null))
+        (mkIf (scope == "core") (enableComponent (tier.greeter or null)))
         (mkIf ((tier.protocol or null) != null)
           (with tier.protocol; (
             if scope == "core"

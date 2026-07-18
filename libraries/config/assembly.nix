@@ -72,6 +72,7 @@
     init
     last
     uniqueStrings
+    unique
     ;
   inherit (types) isAttrs isBool isEnabled isList isString typeOf;
   inherit (strings) concat;
@@ -398,7 +399,16 @@
       optionalAttrs (sets != {}) (mkAppVariables {inherit sets;});
 
     bindings = optionalAttrs (registry ? bindings.modifier) {
-      MOD = registry.bindings.modifier;
+      MOD = let
+        modifier = registry.bindings.modifier;
+      in
+        if isList modifier
+        then
+          concat {
+            delim = " ";
+            parts = unique modifier;
+          }
+        else modifier;
     };
   in
     bindings // commands // (registry.variables or {});
