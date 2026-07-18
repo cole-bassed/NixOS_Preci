@@ -4,6 +4,6 @@
   scopes = ["core" "home"];
   aliases = ["hypr" "hype" "hyprland-wm" "hypr-wm"];
   configType = "lua";
-  greeter = "dank-material-shell";
+  greeter = "dms-greeter";
   frontend = "dank-material-shell";
 }
