@@ -20,7 +20,7 @@
     inherit (mod) get set;
     inherit (get) apiOr cfg name prettyName;
     inherit (set) opt;
-    backend = mkBackendOptions {inherit get set scope options top;};
+    backend = mkBackendOptions {inherit get set scope config options top;};
   in {
     options =
       recursiveUpdate

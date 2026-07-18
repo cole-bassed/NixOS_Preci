@@ -16,7 +16,7 @@
     };
   };
 
-  inherit (attrsets) filterAttrs hasAttrByPath listToAttrs optionalAttrs setAttrByPath;
+  inherit (attrsets) filterAttrs hasAttrByPath listToAttrs asAttrsIf setAttrByPath;
   inherit (lists) filter;
   inherit (strings) concatStringsSep;
   inherit (lists) findFirst;
@@ -153,7 +153,7 @@
           mkEnableOption "xwayland-satellite support for ${prettyName}"
           // {default = registry.needsXwaylandSatellite;};
       }
-      // optionalAttrs (scope == "core") {
+      // asAttrsIf (scope == "core") {
         uwsm = mkOption {
           description = "UWSM configuration for ${prettyName}. Set to `null` to disable UWSM integration.";
           type = submodule {
@@ -187,87 +187,61 @@
   in {
     inherit fields cfgOr;
     options = opt fields;
-    # config =
-    #   if scope == "home"
-    #   then
-    #     optionalAttrs (target != null) (setAttrByPath target (
-    #       optionalAttrs (hasSub "enable") {inherit (cfg) enable;}
-    #       // optionalAttrs (hasSub "package") {inherit (cfg) package;}
-    #     ))
-    #   else
-    #     mkMerge [
-    #       (mkIf (cfg.enable or false) (
-    #         optionalAttrs
-    #         (hasSub "enable")
-    #         (setAttrByPath (target ++ ["enable"]) cfg.enable)
-    #       ))
-    #       (mkIf (cfg.enable or false) (
-    #         optionalAttrs
-    #         (hasSub "package")
-    #         (setAttrByPath (target ++ ["package"]) cfg.package)
-    #       ))
 
-    #       # --- AUTOMATIC SWITCHBOARD ROUTER ---
-    #       (mkIf ((cfg.enable or false) && registry.frontend != null) {
-    #         ${top}.applications.${registry.frontend}.enable = true;
-    #       })
-
-    #       (mkIf ((cfg.enable or false)
-    #         && cfg.protocol == "wayland"
-    #         && (cfg.uwsm.enable or false)) {
-    #         programs.uwsm = {
-    #           enable = true;
-    #           waylandCompositors.${name} = {
-    #             prettyName = cfg.uwsm.name;
-    #             comment = cfg.uwsm.description;
-    #             binPath = cfg.uwsm.binary;
-    #           };
-    #         };
-    #       })
-    #     ];
     config = mkMerge [
-      (
-        if scope == "home"
-        then
-          optionalAttrs (target != null) (setAttrByPath target (
-            optionalAttrs (hasSub "enable") {inherit (cfg) enable;}
-            // optionalAttrs (hasSub "package") {inherit (cfg) package;}
-          ))
-        else
-          mkMerge [
-            (mkIf (cfg.enable or false) (
-              optionalAttrs (hasSub "enable") (setAttrByPath (target ++ ["enable"]) cfg.enable)
-            ))
-            (mkIf (cfg.enable or false) (
-              optionalAttrs (hasSub "package") (setAttrByPath (target ++ ["package"]) cfg.package)
-            ))
-            (mkIf (cfg.enable or false
-              && cfg.protocol == "wayland"
-              && (cfg.uwsm.enable or false)) {
-              programs.uwsm = {
-                enable = true;
-                waylandCompositors.${name} = {
-                  prettyName = cfg.uwsm.name;
-                  comment = cfg.uwsm.description;
-                  binPath = cfg.uwsm.binary;
-                };
-              };
-            })
-          ]
-      )
-      (mkMerge (map (
-        fe:
-          mkIf ((cfg.enable or false) && cfg.frontend == fe && (hasAttrByPath ["applications" fe] options)) {
-            ${top}.applications.${fe}.enable = true;
-          }
-      ) ["dank-material-shell" "dms-greeter"]))
+      # ╔════════════════════════════════════════════════╗
+      # ╠ CORE TIER ADJUSTMENTS                          ╣
+      # ╚════════════════════════════════════════════════╝
+      (mkIf (scope == "core") (mkMerge [
+        (mkIf (cfg.enable or false) (
+          asAttrsIf (hasSub "enable") (setAttrByPath (target ++ ["enable"]) cfg.enable)
+        ))
+        (mkIf (cfg.enable or false) (
+          asAttrsIf (hasSub "package") (setAttrByPath (target ++ ["package"]) cfg.package)
+        ))
 
-      (mkMerge (map (
-        gt:
-          mkIf ((cfg.enable or false) && cfg.greeter == gt && (hasAttrByPath ["applications" gt] options)) {
-            ${top}.applications.${gt}.enable = true;
-          }
-      ) ["dank-material-shell" "dms-greeter"]))
+        {
+          programs.uwsm = mkIf ((cfg.enable or false) && (cfg.protocol == "wayland") && (cfg.uwsm.enable or false)) {
+            enable = true;
+            waylandCompositors.${name} = {
+              prettyName = cfg.uwsm.name;
+              comment = cfg.uwsm.description;
+              binPath = cfg.uwsm.binary;
+            };
+          };
+        }
+      ]))
+
+      # ╔════════════════════════════════════════════════╗
+      # ╠ HOME TIER ADJUSTMENTS                          ╣
+      # ╚════════════════════════════════════════════════╝
+      (mkIf (scope == "home") (mkMerge [
+        (mkIf (cfg.enable or false) (asAttrsIf (hasSub "enable")
+            (setAttrByPath (target ++ ["enable"]) cfg.enable)))
+        (mkIf (cfg.enable or false) (asAttrsIf (hasSub "package")
+            (setAttrByPath (target ++ ["package"]) cfg.package)))
+      ]))
+
+      # ╔════════════════════════════════════════════════╗
+      # ╠ DYNAMIC REGISTRY SWITCHBOARD ROUTERS           ╣
+      # ╚════════════════════════════════════════════════╝
+      (
+        mkMerge [
+          # --------------------------------------------------
+          # --> Frontend Router
+          # --------------------------------------------------
+          (mkIf ((cfg.enable or false) && (registry.frontend == name)) {
+            ${top}.applications.${name}.enable = true;
+          })
+
+          # --------------------------------------------------
+          # --> Greeter Router
+          # --------------------------------------------------
+          (mkIf ((cfg.enable or false) && (registry.greeter == name)) {
+            ${top}.applications.${name}.enable = true;
+          })
+        ]
+      )
     ];
   };
 in
