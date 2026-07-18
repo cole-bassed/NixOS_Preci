@@ -1,5 +1,5 @@
 {
-  category = ["frontend"];
+  category = ["greeter"];
   protocol = "wayland";
   scopes = ["core" "home"];
   package = "dms-shell";
@@ -9,6 +9,6 @@
     "dank"
     "dank-material"
     "dm-shell"
-    # "dms-greeter"
+    "dms-greeter"
   ];
 }

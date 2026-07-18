@@ -235,9 +235,9 @@
     // optionalAttrs (registry ? variables || registry ? applications)
     (mkVarOptions {variables = mkRegistryVariables registry;})
     // optionalAttrs (registry ? bindings)
-    (mkBindOptions {bindings = registry.bindings;})
+    (mkBindOptions {inherit (registry) bindings;})
     // optionalAttrs (registry ? applications)
-    (mkAppOptions {applications = registry.applications;});
+    (mkAppOptions {inherit (registry) applications;});
 
   mkAppOption = {
     name,

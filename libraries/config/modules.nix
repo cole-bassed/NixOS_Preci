@@ -43,13 +43,25 @@
     isNotEmptyAttr
     ;
   inherit (ingestion) collectSpecs;
-  inherit (lists) asList asListIf concatMap elem filter foldl' hasAny head init last optionals;
-  inherit (types) attrs;
+  inherit
+    (lists)
+    asList
+    asListIf
+    concatMap
+    elem
+    filter
+    foldl'
+    hasAny
+    head
+    init
+    last
+    length
+    ;
   inherit (assembly) mkBindings mkRegistryVariables;
   inherit (modules) mkIf mkMerge mkDefault mkForce;
   inherit (options) mkAppOption mkEnable mkOption;
   inherit (strings) concatStringsSep toSentenceCase;
-  inherit (types) isList isNotEmpty isString str;
+  inherit (types) attrs isList isNotEmpty isString;
 
   mkModules = args @ {
     base,
@@ -218,10 +230,10 @@
       program' =
         if program != null
         then program
-        else get.names.name;
+        else get.names.entry.name;
       bin = set.bin {
         module = program';
-        package = get.package;
+        inherit (get) package;
       };
       resolvedCommand =
         if command != null
@@ -349,7 +361,7 @@
           set ?
             asAttrsIf
             (isNotEmpty name && registry ? ${name})
-            (registry.${name}),
+            registry.${name},
         }:
           concatMap
           (key: asListIf (set ? ${key}) set.${key})
@@ -398,24 +410,24 @@
           then head valid
           else head known;
 
-        collectAliases = name:
+        collectAliases = args:
           collect {
-            inherit name;
-            keys = ["alias" "aliases"];
+            name = args.name or canonical;
+            keys = args.keys or ["alias" "aliases"];
           };
-        collectCategories = name:
+        collectCategories = args:
           collect {
-            inherit name;
-            keys = ["category" "categories"];
+            name = args.name or canonical;
+            keys = args.keys or ["category" "categories"];
           };
 
         canonical =
-          if registry ? ${raw}
+          if registry ? ${raw} # TODO: This looks weird
           then raw
           else let
             matchingKeys = filter (name:
               (name == raw)
-              || (elem raw (collectAliases name)))
+              || (elem raw (collectAliases {inherit name;})))
             (namesOf registry);
           in
             if matchingKeys != []
@@ -426,8 +438,8 @@
 
         entry = let
           item = registry.${canonical} or {};
-          categories = collectCategories item;
-          aliases = collectAliases item;
+          aliases = collectAliases {};
+          categories = collectCategories {};
           prefix = collectPrefix {inherit categories;};
         in {
           inherit categories aliases prefix;
@@ -527,14 +539,14 @@
         required = let
           byHost = [(selectFrom host)];
           byUser =
-            optionals
+            asList
             criteria
             (map selectFrom (valuesOf users));
         in {
           core = materialize (byHost ++ byUser);
           home =
             materialize
-            (byHost ++ (optionals criteria [(selectFrom get.user)]));
+            (byHost ++ (asList criteria [(selectFrom get.user)]));
         };
       in
         hasAttr get.name required.${scope};
@@ -547,97 +559,73 @@
         config ? programs.hyprland
         || config ? wayland.windowManager.hyprland;
       hasNiri = config ? programs.niri;
+      # libraries/config/modules.nix
 
       pkg = let
         override = get.apiOr "package";
 
+        # Shared resolver so override and fallback agree on priority: a bare
+        # name is checked against the flake registry FIRST (so a flake input's
+        # own package always wins over a same-named nixpkgs attribute), then
+        # falls back to a plain pkgs lookup.
+        fromFlake = candidate:
+          if isString candidate && flake ? registry.${candidate}
+          then let
+            data = flake.registry.${candidate};
+            system = pkgs.stdenv.hostPlatform.system or "x86_64-linux";
+          in
+            if data ? packages.${system}
+            then let
+              set = data.packages.${system};
+            in
+              set.${candidate} or (set.default or null)
+            else null
+          else null;
+
+        fromPkgs = candidate:
+          if isString candidate
+          then pkgs.${candidate} or null
+          else null;
+
+        resolveCandidate = candidate: let
+          viaFlake = fromFlake candidate;
+        in
+          if viaFlake != null
+          then viaFlake
+          else fromPkgs candidate;
+
         specs = {
+          # Single-segment override ("dms-shell") -> flake-first search.
+          # Multi-segment override (["llm-agents" "claude-code"]) is a nested
+          # pkgs path, not a flake registry name -> straight to attrByPath.
           override =
-            if override == null
+            if override == null || pkgs == null
             then null
-            else attrByPath (asList override) null pkgs;
+            else let
+              path = asList override;
+            in
+              if length path == 1
+              then resolveCandidate (head path)
+              else attrByPath path null pkgs;
 
           fallback =
             if pkgs != null
             then let
               candidates =
-                get.names.aliases
+                get.names.entry.aliases
                 ++ [get.names.raw]
                 ++ (
                   asListIf
                   (get.names.leaf != null && get.names.leaf != get.names.raw)
                   get.names.leaf
                 );
-
-              # fromFlake =
-              #   if fromPkgs != null
-              #   then null
-              #   else
-              #     foldl'
-              #     (found: candidate:
-              #       if found != null
-              #       then found
-              #       else if isString candidate && flake ? registry.${candidate}
-              #       then let
-              #         registryFlake = flake.registry.${candidate};
-              #         system = pkgs.stdenv.hostPlatform.system or "x86_64-linux";
-              #       in
-              #         if registryFlake ? packages.${system}
-              #         then registryFlake.packages.${system}.${candidate} or
-              #           (registryFlake.packages.${system}.default or null)
-              #         else null
-              #       else null)
-              #     null
-              #     candidates;
-
-              # fromPkgs =
-              #   foldl'
-              #   (found: candidate:
-              #     if found != null
-              #     then found
-              #     else if isString candidate
-              #     then pkgs.${candidate} or null
-              #     else null)
-              #   null
-              #     candidates;
-
-              fromFlake =
-                foldl'
-                (found: candidate:
-                  if found != null
-                  then found
-                  else if isString candidate && flake ? registry.${candidate}
-                  then let
-                    data = flake.registry.${candidate};
-                    system = pkgs.stdenv.hostPlatform.system or "x86_64-linux";
-                  in
-                    if data ? packages.${system}
-                    then let
-                      set = data.packages.${system};
-                    in
-                      set.${candidate} or (set.default or null)
-                    else null
-                  else null)
-                null
-                candidates;
-
-              fromPkgs =
-                if fromFlake != null
-                then null
-                else
-                  foldl'
-                  (found: candidate:
-                    if found != null
-                    then found
-                    else if isString candidate
-                    then pkgs.${candidate} or null
-                    else null)
-                  null
-                  candidates;
             in
-              if fromFlake != null
-              then fromFlake
-              else fromPkgs
+              foldl' (found: candidate:
+                if found != null
+                then found
+                else resolveCandidate candidate)
+              null
+              candidates
             else null;
         };
 
@@ -657,12 +645,6 @@
 
       hostEntry = attrByPath hostPath {} host;
       userEntry = attrByPath userPath {} get.user;
-      # Resolved HM option-tree path for this app's entry point (e.g.
-      # ["programs" "dank-material-shell"], or ["wayland" "windowManager"
-      # "hyprland"] for compositor-shaped entries). Prefer this over
-      # hand-rolling ["programs" name] in app modules -- it accounts for
-      # registry-declared entryPoints overrides and the category-based
-      # prefix cascade above.
       entryPath = get.names.entry.path;
       dataEntry = genAttrs targets (
         target: let
@@ -671,15 +653,9 @@
           registry =
             if target == "module"
             then api.${domain}.registry.${name} or {}
-            else if target == "parent"
-            then api.parent.registry or {} # TODO: Not tested
             else if target == "domain"
             then api.${domain}.registry or {}
-            else if target == "custom"
-            then api.custom.registry or {}
-            else if target == "main"
-            then api.main.registry or {}
-            else {};
+            else {}; # "parent"/"custom"/"main" have no api.* analog
         in {
           inherit registry;
           names = namesOf registry;

@@ -37,8 +37,8 @@ in {
   interface = {
     environments = [
       "hyprland"
-      "niri"
-      "mango"
+      # "niri"
+      # "mango"
     ];
   };
 

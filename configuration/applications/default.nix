@@ -1,7 +1,5 @@
 {
   lix,
-  top,
-  host,
   ...
 } @ args: let
   inherit (lix.modules) mkModules;

@@ -98,7 +98,7 @@
     ];
   in
     mapAttrs (
-      envName: env: let
+      _envName: env: let
         #> Load the shared protocol definitions for this module
         shared = import (paths.store.api + "/${name}");
         common = shared.common or {};

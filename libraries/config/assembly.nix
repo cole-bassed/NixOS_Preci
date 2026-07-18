@@ -60,16 +60,18 @@
   inherit (filesystem) mkPaths;
   inherit
     (lists)
-    elem
-    foldl'
-    groupBy
     asList
     asListIf
     concatMap
-    flatten
+    elem
     filter
+    flatten
+    foldl'
+    groupBy
+    hasAny
     init
     last
+    uniqueStrings
     ;
   inherit (types) isAttrs isBool isEnabled isList isString typeOf;
   inherit (strings) concat;
@@ -329,19 +331,62 @@
   # ╔════════════════════════════════════════════════╗
   # ╠ REGISTRY                                       ╣
   # ╚════════════════════════════════════════════════╝
-  mkRegistry = registry:
-    optionalAttrs (registry ? variables || registry ? applications)
-    {variables = mkRegistryVariables registry;}
-    // optionalAttrs (registry ? bindings)
-    {
-      bindings =
-        (mkBindings {
-          inherit (registry) bindings;
-          applications = registry.applications or {};
-        }).options;
-    }
-    // optionalAttrs (registry ? applications)
-    {applications = mkAppBindings {inherit (registry) applications;};};
+  mkRegistry = {
+    name,
+    extra ? {},
+    overrides ? {},
+    api,
+  }: let
+    stripped = removeAttrs (removeAttrs api ["default"]) (namesOf overrides);
+    rawRegistry = foldMerge [stripped extra overrides];
+  in
+    mapAttrs (
+      _envName: env: let
+        isBackend = hasAny ["backend"] (env.category or []);
+
+        shared = import (paths.store.api + "/${name}");
+        common = shared.common or {};
+        baseProtocol = foldMerge [common (shared.${env.protocol or "common"} or {})];
+        protocol = removeAttrs baseProtocol (namesOf overrides);
+
+        applications = let
+          ofProtocol =
+            if overrides ? applications
+            then {}
+            else (protocol.applications or {});
+          ofEnvironment = env.applications or {};
+          allCategories = uniqueStrings (namesOf ofProtocol ++ namesOf ofEnvironment);
+        in
+          genAttrs allCategories (
+            category: (ofProtocol.${category} or []) ++ (ofEnvironment.${category} or [])
+          );
+
+        # Only backends need the catalog + compiled bindings. Frontends and
+        # greeters keep just what their own data file declares.
+        entry =
+          if isBackend
+          then foldMerge [protocol env] // {inherit applications;}
+          else env;
+
+        updates =
+          optionalAttrs (entry ? applications) {
+            applications = mkAppBindings {inherit (entry) applications;};
+          }
+          // optionalAttrs (entry ? bindings) {
+            bindings =
+              (mkBindings {
+                inherit (entry) bindings;
+                applications = entry.applications or {};
+              })
+            .options;
+          }
+          // optionalAttrs (entry ? variables) {
+            variables = mkRegistryVariables entry;
+          };
+      in
+        entry // updates
+    )
+    rawRegistry;
 
   mkRegistryVariables = registry: let
     commands = let

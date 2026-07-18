@@ -42,7 +42,6 @@ _: let
   inherit
     (builtins)
     attrNames
-    concatLists
     concatMap
     elem
     elemAt

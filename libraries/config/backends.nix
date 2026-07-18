@@ -16,7 +16,7 @@
     };
   };
 
-  inherit (attrsets) filterAttrs hasAttrByPath optionalAttrs setAttrByPath;
+  inherit (attrsets) filterAttrs hasAttrByPath listToAttrs optionalAttrs setAttrByPath;
   inherit (lists) filter;
   inherit (strings) concatStringsSep;
   inherit (lists) findFirst;
@@ -38,43 +38,13 @@
     toSpawn = action: {action.spawn = ["sh" "-lc" action];};
   in
     filterAttrs (_: v: v != null) (
-      builtins.listToAttrs (map (e: {
+      listToAttrs (map (e: {
           name = toBindKey e;
           value = toSpawn e.action;
         })
         valid)
     );
 
-  # libraries/config/backend-options.nix
-  #
-  # This is a faithful, behavior-preserving extraction of the closure that
-  # used to live ONLY inside configuration/interface/default.nix's
-  # `extraArgs.mkArgs`. That closure is what actually makes a compositor
-  # module (hyprland/niri/mango) work: protocol/session/uwsm resolution,
-  # HM option-path detection (`programs.X` vs `wayland.windowManager.X`),
-  # frontend auto-enable, and UWSM registration.
-  #
-  # Previously, only configuration/interface/default.nix could construct
-  # this closure (it built it inline and injected it as `mkArgs` for the
-  # modules it loaded itself). That's why hyprland/niri/mango had to be
-  # excluded from configuration/applications/default.nix's generic walk --
-  # loaded from applications/, they'd never receive `mkArgs`.
-  #
-  # mkBackendOptions is the same computation, callable directly by any
-  # application module (self-sufficient, no injection required), so
-  # hyprland/niri/mango can live under configuration/applications/ like
-  # every other app and still get correct backend wiring.
-  #
-  # configuration/interface/default.nix keeps only the orchestration parts
-  # that are genuinely about *choosing between* backends (primary/secondary/
-  # tertiary resolution) -- not about defining any one backend's options.
-
-  # get   :: the `get` record from mkModuleArgs (name, prettyName, cfg,
-  #          cfgOr, apiOr -- see libraries/config/modules.nix)
-  # set   :: the `set` record from mkModuleArgs (opt, bin, ...)
-  # scope :: "core" | "home"
-  # options :: the live module `options` arg (for hasAttrByPath probing)
-  # top   :: the dots top-level namespace (e.g. "dots")
   mkBackendOptions = {
     get,
     set,
@@ -82,6 +52,7 @@
     options,
     top,
     extraArgs ? {},
+    ...
   }: let
     inherit (get) prettyName name cfg cfgOr apiOr;
     inherit (set) opt bin;
@@ -145,6 +116,7 @@
     fields =
       (mkRegistryOptions registry)
       // {
+        # enable = set.enable {default = true;};
         enable = set.enable {default = registry.enable;};
 
         package = mkOption {
@@ -215,44 +187,88 @@
   in {
     inherit fields cfgOr;
     options = opt fields;
-    config =
-      if scope == "home"
-      then
-        optionalAttrs (target != null) (setAttrByPath target (
-          optionalAttrs (hasSub "enable") {inherit (cfg) enable;}
-          // optionalAttrs (hasSub "package") {inherit (cfg) package;}
-        ))
-      else
-        mkMerge [
-          (mkIf (cfg.enable or false) (
-            optionalAttrs
-            (hasSub "enable")
-            (setAttrByPath (target ++ ["enable"]) cfg.enable)
-          ))
-          (mkIf (cfg.enable or false) (
-            optionalAttrs
-            (hasSub "package")
-            (setAttrByPath (target ++ ["package"]) cfg.package)
-          ))
+    # config =
+    #   if scope == "home"
+    #   then
+    #     optionalAttrs (target != null) (setAttrByPath target (
+    #       optionalAttrs (hasSub "enable") {inherit (cfg) enable;}
+    #       // optionalAttrs (hasSub "package") {inherit (cfg) package;}
+    #     ))
+    #   else
+    #     mkMerge [
+    #       (mkIf (cfg.enable or false) (
+    #         optionalAttrs
+    #         (hasSub "enable")
+    #         (setAttrByPath (target ++ ["enable"]) cfg.enable)
+    #       ))
+    #       (mkIf (cfg.enable or false) (
+    #         optionalAttrs
+    #         (hasSub "package")
+    #         (setAttrByPath (target ++ ["package"]) cfg.package)
+    #       ))
 
-          # --- AUTOMATIC SWITCHBOARD ROUTER ---
-          (mkIf ((cfg.enable or false) && registry.frontend != null) {
-            ${top}.applications.${registry.frontend}.enable = true;
-          })
+    #       # --- AUTOMATIC SWITCHBOARD ROUTER ---
+    #       (mkIf ((cfg.enable or false) && registry.frontend != null) {
+    #         ${top}.applications.${registry.frontend}.enable = true;
+    #       })
 
-          (mkIf ((cfg.enable or false)
-            && cfg.protocol == "wayland"
-            && (cfg.uwsm.enable or false)) {
-            programs.uwsm = {
-              enable = true;
-              waylandCompositors.${name} = {
-                prettyName = cfg.uwsm.name;
-                comment = cfg.uwsm.description;
-                binPath = cfg.uwsm.binary;
+    #       (mkIf ((cfg.enable or false)
+    #         && cfg.protocol == "wayland"
+    #         && (cfg.uwsm.enable or false)) {
+    #         programs.uwsm = {
+    #           enable = true;
+    #           waylandCompositors.${name} = {
+    #             prettyName = cfg.uwsm.name;
+    #             comment = cfg.uwsm.description;
+    #             binPath = cfg.uwsm.binary;
+    #           };
+    #         };
+    #       })
+    #     ];
+    config = mkMerge [
+      (
+        if scope == "home"
+        then
+          optionalAttrs (target != null) (setAttrByPath target (
+            optionalAttrs (hasSub "enable") {inherit (cfg) enable;}
+            // optionalAttrs (hasSub "package") {inherit (cfg) package;}
+          ))
+        else
+          mkMerge [
+            (mkIf (cfg.enable or false) (
+              optionalAttrs (hasSub "enable") (setAttrByPath (target ++ ["enable"]) cfg.enable)
+            ))
+            (mkIf (cfg.enable or false) (
+              optionalAttrs (hasSub "package") (setAttrByPath (target ++ ["package"]) cfg.package)
+            ))
+            (mkIf (cfg.enable or false
+              && cfg.protocol == "wayland"
+              && (cfg.uwsm.enable or false)) {
+              programs.uwsm = {
+                enable = true;
+                waylandCompositors.${name} = {
+                  prettyName = cfg.uwsm.name;
+                  comment = cfg.uwsm.description;
+                  binPath = cfg.uwsm.binary;
+                };
               };
-            };
-          })
-        ];
+            })
+          ]
+      )
+      (mkMerge (map (
+        fe:
+          mkIf ((cfg.enable or false) && cfg.frontend == fe && (hasAttrByPath ["applications" fe] options)) {
+            ${top}.applications.${fe}.enable = true;
+          }
+      ) ["dank-material-shell" "dms-greeter"]))
+
+      (mkMerge (map (
+        gt:
+          mkIf ((cfg.enable or false) && cfg.greeter == gt && (hasAttrByPath ["applications" gt] options)) {
+            ${top}.applications.${gt}.enable = true;
+          }
+      ) ["dank-material-shell" "dms-greeter"]))
+    ];
   };
 in
   exports

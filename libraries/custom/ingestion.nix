@@ -4,7 +4,6 @@
   excludes,
   filesystem,
   lists,
-  options,
   paths,
   strings,
   types,
