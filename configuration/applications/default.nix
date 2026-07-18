@@ -21,7 +21,7 @@
       "git"
       "gitui"
       "hermes"
-      "hyprland"
+      # "hyprland"
       "jj"
       "kitty"
       "mango"

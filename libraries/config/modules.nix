@@ -4,6 +4,7 @@
   defaults,
   attrsets,
   ingestion,
+  backends,
   flake,
   lists,
   modules,
@@ -18,6 +19,7 @@
       inherit mkModules mkModuleArgs mkCfg mkCfgIf mkOpt mkIf' mkProgramToggle mkAutostartCollector;
       ingest = mkModules;
       configure = mkModuleArgs;
+      inherit (backends) mkHyprlandBinds mkNiriBinds mkBackendOptions;
     };
     global = {inherit mkModules mkModuleArgs mkCfgIf mkIf' mkProgramToggle mkAutostartCollector;};
   };

@@ -3,16 +3,11 @@
   assembly,
   attrsets,
   lists,
-  # paths,
   types,
   ...
 }: let
   name = "interface";
-  defaults = {
-    host = api.hosts.default;
-    user = defaults.host.users.primary.value or {};
-    api = api.${name};
-  };
+
   exports = {
     scoped = {
       inherit
@@ -52,13 +47,27 @@
   inherit (lists) asList concatMap elem filter foldl' unique;
   inherit (types) isAttrs isString;
 
+  applicationsRegistry = mkApi {
+    api = api.applications;
+    name = "applications";
+  };
+
+  registry =
+    filterAttrs
+    (_: entry: elem "backend" (entry.category or []))
+    applicationsRegistry;
+
   mkRegistry = {
-    api ? defaults.api,
+    api ? api.applications,
     extra ? null,
     overrides ? null,
   }:
-    mkApi {inherit api name extra overrides;};
-  registry = mkRegistry {};
+    filterAttrs
+    (_: entry: elem "backend" (entry.category or []))
+    (mkApi {
+      inherit api extra overrides;
+      name = "applications";
+    });
 
   selectionOf = spec: spec.applications or {};
   normalizeName = name: (normalizeFieldName {inherit registry name;});
@@ -100,15 +109,9 @@
       removeAttrs entry ["name" "session" "enable"]
     );
 
-  # Ordered, filtered, resolved list of active environments: entries
-  # without a resolvable name are dropped, entries with `enable = false`
-  # are dropped, user's own ordering is ranked above host's, duplicate
-  # names (by whichever source ranked first) are collapsed. Each returned
-  # entry is the fully-resolved registry entry with that source's
-  # overrides applied on top.
   resolveTiers = {
-    user ? defaults.user,
-    host ? defaults.host,
+    user ? {},
+    host ? {},
   }: let
     rawOf = spec:
       if spec == null
