@@ -7,7 +7,7 @@
     # "dms-shell"
     # "dms"
     # "dank"
-    # "dank-material"
+    "dank-material-greeter"
     # "dm-shell"
     "dms-greeter"
   ];
