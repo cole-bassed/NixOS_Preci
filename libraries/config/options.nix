@@ -288,6 +288,15 @@
       };
 
       binding = {
+        name = mkOption {
+          type = str;
+          description = "Registry name of the resolved application entry.";
+        };
+        description = mkOption {
+          type = nullOr str;
+          default = null;
+          description = "Human-readable description for the resolved application entry.";
+        };
         command = mkOption {
           type = str;
           description = "The executable/binary command used to trigger it.";

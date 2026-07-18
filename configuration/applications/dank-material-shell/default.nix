@@ -38,18 +38,16 @@ in
     extraHomeConfig = mod: let
       inherit (mod) config cfg get options;
 
-      entryPath = get.names.entry.path;
-      target = entryPath ++ ["niri"];
-      targetExists = hasAttrByPath target options;
+      target = get.names.entry.path ++ ["niri"];
+      targetExists = hasAttrByPath target options.main;
       includesEnable =
         if targetExists
-        then attrByPath (entryPath ++ ["niri" "includes" "enable"]) true config
+        then attrByPath (target ++ ["includes" "enable"]) true config
         else true;
     in
-      asAttrsIf targetExists (
-        setAttrByPath target {
-          enableKeybinds = (cfg.needsNiri or false) && !includesEnable;
-          enableSpawn = cfg.needsNiri or false;
-        }
-      );
+      asAttrsIf targetExists (setAttrByPath target {
+        includes.enable = cfg.needsNiri or false;
+        enableKeybinds = (cfg.needsNiri or false) && !includesEnable;
+        enableSpawn = cfg.needsNiri or false;
+      });
   }

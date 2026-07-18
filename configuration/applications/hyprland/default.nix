@@ -65,10 +65,10 @@
         }
       ))
     ];
-    imports =
-      if scope == "home"
-      then [./addons ./bindings.nix]
-      else [];
+    # imports =
+    # if scope == "home"
+    # then [./addons ./bindings.nix]
+    # else [];
   };
 in {
   core = mk "core";

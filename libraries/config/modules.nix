@@ -231,6 +231,8 @@
         if program != null
         then program
         else get.names.entry.name;
+      programPath = ["programs" program'];
+      programExists = hasAttrByPath programPath options;
       bin = set.bin {
         module = program';
         inherit (get) package;
@@ -250,7 +252,7 @@
       );
 
       config = mkIf cfg.enable (mkMerge [
-        {
+        (asAttrsIf programExists {
           programs.${program'} = {
             enable = mkForce cfg.enable;
             package = mkForce cfg.package;
@@ -259,7 +261,7 @@
               then mkForce cfg.enable
               else mkDefault false;
           };
-        }
+        })
         (extraHomeConfig (mod
           // {
             command = resolvedCommand;
@@ -369,11 +371,10 @@
 
         collectPrefix = {
           name ? canonical,
-          categories ? [],
+          source ? [],
         }: let
-          #? Prioritized cascades of potential prefixes
           known =
-            if hasAny ["greeter" "display-manager"] categories
+            if hasAny ["greeter" "display-manager"] source
             then [["services" "displayManager"] ["services"]]
             else if
               hasAny [
@@ -382,7 +383,7 @@
                 "desktop-manager"
                 "backend"
               ]
-              categories
+              source
             then
               if scope == "home"
               then [
@@ -396,7 +397,7 @@
                 ["services" "xserver" "windowManager"]
                 ["services"]
               ]
-            else if hasAny ["service" "daemon"] categories
+            else if hasAny ["service" "daemon"] source
             then [["services"] ["programs"]]
             else [["programs"] ["services"]];
 
@@ -440,7 +441,7 @@
           item = registry.${canonical} or {};
           aliases = collectAliases {};
           categories = collectCategories {};
-          prefix = collectPrefix {inherit categories;};
+          prefix = collectPrefix {source = categories;};
         in {
           inherit categories aliases prefix;
           raw = item.entryPoints.${scope} or (item.entryPoint or null);
@@ -466,11 +467,16 @@
           inherit base raw leaf entry;
           name = canonical;
           user = host.users.primary.name or null;
-          # user = get.config.custom.users.primary.name or null;
-          # user =
-          #   get.config.main.home.username or (
-          #     get.config.custom.users.primary.name or null
-          #   );
+          # user = let
+          #   cfg = get.config or {};
+          #   isHome = options ? home;
+          # in
+          #   if isHome
+          #   then cfg.main.home.username
+          #   else host.users.primary.name or null;
+          # cfg.main.home.username or ( # TODO: Check if we are in the home config, should we check using options? options ? home.username
+          #   cfg.custom.users.primary.name or null
+          # );
           pretty = set.name {pretty = true;};
           package = get.pkg.name or null;
         };

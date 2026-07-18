@@ -690,7 +690,7 @@ in {
         # uwsm = true; #? All these are defined in the default registry, these are overrides
         # configType = "lua"; #? All these are defined in the default registry, these are overrides
       } #? This would be the default session
-      "mango" #? Mango with all it's registry defaults
+      # "mango" #? Legacy example backend left disabled until the module is migrated
       {
         # name = "niri"
         # session = "niri";

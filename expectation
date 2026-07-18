@@ -1,0 +1,459 @@
+nix-repl> :p nixosConfigurations.default.config.dots.applications.hyprland
+{
+  actions = {
+    closeWindow = {
+      command = null;
+      description = "Close focused window";
+    };
+    editor = {
+      command = "code";
+      description = "Open editor";
+    };
+    fileManager = {
+      command = "xdg-open $HOME";
+      description = "Open file manager";
+    };
+    fullscreen = {
+      command = null;
+      description = "Toggle fullscreen";
+    };
+    lock = {
+      command = "loginctl lock-session";
+      description = "Lock session";
+    };
+    logout = {
+      command = null;
+      description = "Exit compositor session";
+    };
+    primaryBrowser = {
+      command = "zen";
+      description = "Open primary browser";
+    };
+    scratchpadTerminal = {
+      command = "foot --app-id dots-scratchpad";
+      description = "Open scratchpad terminal";
+    };
+    screenshot = {
+      command = "grim -g \"$(slurp)\" - | wl-copy";
+      description = "Take a screenshot";
+    };
+    secondaryBrowser = {
+      command = "chromium";
+      description = "Open secondary browser";
+    };
+    secondaryLauncher = {
+      command = "fuzzel";
+      description = "Open Fuzzel";
+    };
+    showKeybinds = {
+      command = "dots-common-keybinds";
+      description = "Show common keybinds";
+    };
+    terminal = {
+      command = "foot";
+      description = "Open terminal";
+    };
+    visualTools = {
+      command = "vicinae open || fuzzel";
+      description = "Open visual tools";
+    };
+  };
+  applications = {
+    browser = [
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "B"
+          ];
+        };
+        category = [ ];
+        command = "zen-twilight";
+        configType = null;
+        description = "Zen Browser";
+        enable = false;
+        name = "zen-browser";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "C"
+          ];
+        };
+        category = [ ];
+        command = "chromium";
+        configType = null;
+        description = "Chromium";
+        enable = false;
+        name = "chromium";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = { };
+        category = [ ];
+        command = "firefox";
+        configType = null;
+        description = "Firefox";
+        enable = false;
+        name = "firefox";
+        package = null;
+        protocol = null;
+      }
+    ];
+    editor = [
+      {
+        bindings = «repeated»;
+        category = [ ];
+        command = "hx";
+        configType = null;
+        description = "Helix Editor";
+        enable = false;
+        name = "helix";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = «repeated»;
+        category = [ ];
+        command = "nvim";
+        configType = null;
+        description = "NeoVim";
+        enable = false;
+        name = "neovim";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = «repeated»;
+        category = [ ];
+        command = "nano";
+        configType = null;
+        description = "GNU Nano";
+        enable = false;
+        name = "nano";
+        package = null;
+        protocol = null;
+      }
+    ];
+    explorer = [
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "D"
+          ];
+        };
+        category = [ ];
+        command = "doublecmd";
+        configType = null;
+        description = "Double Commander File Manager";
+        enable = false;
+        name = "doublecmd";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "T"
+          ];
+        };
+        category = [ ];
+        command = "thunar";
+        configType = null;
+        description = "Thunar File Manager";
+        enable = false;
+        name = "thunar";
+        package = null;
+        protocol = null;
+      }
+    ];
+    launcher = [
+      {
+        bindings = «repeated»;
+        category = [ ];
+        command = "vicinae open";
+        configType = null;
+        description = "Vicinae Launcher";
+        enable = false;
+        name = "vicinae";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = «repeated»;
+        category = [ ];
+        command = "fuzzel";
+        configType = null;
+        description = "Fuzzel Launcher";
+        enable = false;
+        name = "fuzzel";
+        package = null;
+        protocol = null;
+      }
+    ];
+    terminal = [
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "F"
+          ];
+        };
+        category = [ ];
+        command = "foot";
+        configType = null;
+        description = "Foot Terminal";
+        enable = false;
+        name = "foot";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "K"
+          ];
+        };
+        category = [ ];
+        command = "kitty";
+        configType = null;
+        description = "Kitty Terminal";
+        enable = false;
+        name = "kitty";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "G"
+          ];
+        };
+        category = [ ];
+        command = "ghostty";
+        configType = null;
+        description = "Ghostty Terminal";
+        enable = false;
+        name = "ghostty";
+        package = null;
+        protocol = null;
+      }
+    ];
+    visual = [
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "V"
+          ];
+        };
+        category = [ ];
+        command = "code";
+        configType = null;
+        description = "Visual Studio Code";
+        enable = false;
+        name = "vscode";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "Z"
+          ];
+        };
+        category = [ ];
+        command = "zeditor";
+        configType = null;
+        description = "Zed Editor";
+        enable = false;
+        name = "zed";
+        package = null;
+        protocol = null;
+      }
+      {
+        bindings = {
+          launch = [
+            "SUPER"
+            "ALT"
+            "SUPER"
+            "ALT"
+            "A"
+          ];
+        };
+        category = [ ];
+        command = "antigravity";
+        configType = null;
+        description = "Antigravity IDE";
+        enable = false;
+        name = "antigravity";
+        package = null;
+        protocol = null;
+      }
+    ];
+  };
+  bindings = {
+    browser = [
+      "SUPER"
+      "SUPER"
+      "B"
+    ];
+    editor = [
+      "SUPER"
+      "SUPER"
+      "C"
+    ];
+    explorer = [
+      "SUPER"
+      "SUPER"
+      "E"
+    ];
+    launcher = [
+      "SUPER"
+      "SUPER"
+      "SUPER_L"
+    ];
+    modifier = [ "SUPER" ];
+    swapCapsEscape = false;
+    terminal = [
+      "SUPER"
+      "SUPER"
+      "Grave"
+    ];
+    visual = [
+      "SUPER"
+      "SUPER"
+      "V"
+    ];
+  };
+  configType = "lua";
+  enable = true;
+  enableAddons = true;
+  enableRules = true;
+  frontend = "dank-material-shell";
+  greeter = "dms-greeter";
+  needsXwaylandSatellite = false;
+  package = «derivation /nix/store/f243zmc8cwvsxbdcdnwpqp0idhwq1kyq-hyprland-0.55.4.drv»;
+  protocol = "wayland";
+  semanticKeybinds = true;
+  session = "hyprland";
+  uwsm = {
+    binary = "/run/current-system/sw/bin/hyprland";
+    description = "Hyprland compositor managed by UWSM";
+    enable = false;
+    name = "Hyprland";
+  };
+  variables = {
+    BROWSER = "zen-twilight";
+    BROWSER_SECONDARY = "chromium";
+    BROWSER_TERTIARY = "firefox";
+    EDITOR = "hx";
+    EDITOR_SECONDARY = "nvim";
+    EDITOR_TERTIARY = "nano";
+    EXPLORER = "doublecmd";
+    EXPLORER_SECONDARY = "thunar";
+    EXPLORER_TERTIARY = "thunar";
+    LAUNCHER = "vicinae open";
+    LAUNCHER_SECONDARY = "fuzzel";
+    LAUNCHER_TERTIARY = "fuzzel";
+    MOD = "SUPER";
+    TERMINAL = "foot";
+    TERMINAL_SECONDARY = "kitty";
+    TERMINAL_TERTIARY = "ghostty";
+    VISUAL = "code";
+    VISUAL_SECONDARY = "zeditor";
+    VISUAL_TERTIARY = "antigravity";
+  };
+}
+
+nix-repl> :p nixosConfigurations.default.config.dots.interface.primary
+{
+  frontend = {
+    aliases = [
+      "dms-shell"
+      "dms"
+      "dank"
+      "dank-material"
+      "dm-shell"
+    ];
+    category = [ "frontend" ]; # Remove this key, unless it's multiple
+    configType = null;
+    enable = true;
+    isRequired = false;
+    name = "dank-material-shell";
+    needsNiri = false;
+    package = «derivation /nix/store/0dbrm9f6wqkfqaijk7m5v5hyqwfxvvng-dms-shell-1.5-beta+date=2026-06-29_894efa5.drv»;
+    protocol = "wayland";
+    scopes = [
+      "core"
+      "home"
+    ];
+    tags = [
+      "core"
+      "home"
+    ];
+  };
+  greeter = {
+    aliases = [
+      "dank-material-greeter"
+      "dms-greeter"
+    ];
+    category = [ "greeter" ];
+    configType = null;
+    enable = true;
+    name = "dms-greeter";
+    package = «repeated»;
+    protocol = "wayland";
+    scopes = [
+      "core"
+      "home"
+    ];
+    tags = [
+      "core"
+      "home"
+    ];
+  };
+  protocol = {
+    name = "wayland";
+    packages = [
+      «derivation /nix/store/a0zzacsb0jfwgb74isxfk1c1l6x4090s-wl-clipboard-2.3.0.drv»
+    ];
+  };
+  session = "hyprland";
+}

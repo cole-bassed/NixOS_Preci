@@ -5,5 +5,5 @@
   aliases = ["mango-wc" "mango-wm"];
   configType = "conf";
   greeter = "dank-material-shell";
-  frontend = "caelestia-shell";
+  frontend = "dank-material-shell";
 }

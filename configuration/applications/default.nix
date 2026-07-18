@@ -9,7 +9,7 @@
     base = ./.;
     excludes = [
       "alacritty"
-      # "caelestia"
+      "caelestia"
       "claude"
       "codex"
       # "dank-material"
