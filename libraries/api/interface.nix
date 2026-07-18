@@ -6,7 +6,10 @@
   types,
   ...
 }: let
-  name = "interface";
+  _names = {
+    mod = "interface";
+    app = "applications";
+  };
 
   exports = {
     scoped = {
@@ -23,19 +26,19 @@
         ;
     };
     global = {
-      "${name}Primary" = primaryOf;
-      "${name}Registry" = registry;
-      "${name}Secondary" = secondaryOf;
-      "${name}Tertiary" = tertiaryOf;
-      "mk${name}Environment" = mkEnvironments;
-      "mk${name}Inferred" = inferredOf;
-      "mk${name}Modules" = selectedModules;
-      "mk${name}Registry" = mkRegistry;
-      "mk${name}Selection" = selectionOf;
+      "${_names.mod}Primary" = primaryOf;
+      "${_names.mod}Registry" = registry;
+      "${_names.mod}Secondary" = secondaryOf;
+      "${_names.mod}Tertiary" = tertiaryOf;
+      "mk${_names.mod}Environment" = mkEnvironments;
+      "mk${_names.mod}Inferred" = inferredOf;
+      "mk${_names.mod}Modules" = selectedModules;
+      "mk${_names.mod}Registry" = mkRegistry;
+      "mk${_names.mod}Selection" = selectionOf;
     };
   };
 
-  inherit (assembly) mkApi normalizeFieldName;
+  inherit (assembly) mkApi mkRegistrySlice normalizeFieldName;
   inherit
     (attrsets)
     asAttrs
@@ -47,48 +50,48 @@
   inherit (lists) asList concatMap elem filter foldl' unique;
   inherit (types) isAttrs isString;
 
-  applicationsRegistry = mkApi {
-    api = api.applications;
+  # ╔════════════════════════════════════════════════╗
+  # ╠ REGISTRY                                       ╣
+  # ╚════════════════════════════════════════════════╝
+  applications = mkApi {
+    inherit api;
     name = "applications";
   };
+  backends = mkRegistrySlice {
+    registry = applications;
+    category = "backend";
+  }; # TODO: This is now essentially interface.nix's registry
+  registry = applications; # TODO: Shouldn't interface have it's own registry though?
 
-  registry =
-    filterAttrs
-    (_: entry: elem "backend" (entry.category or []))
-    applicationsRegistry;
-
+  # Optional: convenience function for other slices
   mkRegistry = {
-    api ? api.applications,
-    extra ? null,
-    overrides ? null,
+    category ? null,
+    extra ? {},
+    overrides ? {},
   }:
-    filterAttrs
-    (_: entry: elem "backend" (entry.category or []))
-    (mkApi {
-      inherit api extra overrides;
-      name = "applications";
-    });
+    mkApi {
+      api = api.applications;
+      name = _names.app;
+      inherit category extra overrides;
+    };
 
   selectionOf = spec: spec.applications or {};
-  normalizeName = name: (normalizeFieldName {inherit registry name;});
+  normalizeName = name:
+    normalizeFieldName {
+      inherit name;
+      registry = applications;
+    };
 
   mkEnvironmentsRaw = spec: let
-    api = spec.${name} or {};
+    api = spec.${_names.mod} or {};
   in
     asList (
-      api.environment or (
-        api.environments or (
-          api.backend or (api.backends or [])
-        )
-      )
+      api.environment or (api.environments or (api.backend or (api.backends or [])))
     );
 
   mkEnvironments = spec:
-    unique (
-      map
-      normalizeName
-      (concatMap valuesOf (valuesOf (selectionOf spec)))
-    );
+    unique (map normalizeName (concatMap valuesOf (valuesOf (selectionOf spec))));
+
   inferredOf = spec: asAttrs (mkEnvironmentsRaw spec);
 
   selectedModules = spec: let
@@ -129,21 +132,23 @@
       combined;
 
     deduped =
-      (foldl'
+      (
+        foldl'
         (acc: entry: let
           name = entryName entry;
         in
           if elem name acc.seen
           then acc
           else {
-            seen = acc.seen ++ [name];
-            entries = acc.entries ++ [entry];
+            seen = acc.seen ++ (asList name);
+            entries = acc.entries ++ (asList entry);
           })
         {
           seen = [];
           entries = [];
         }
-        valid)
+        valid
+      )
       .entries;
 
     resolved =

@@ -9,6 +9,7 @@
   names,
   paths,
   strings,
+  ingestion,
   systems,
   types,
   ...
@@ -16,11 +17,11 @@
   exports = {
     scoped = {
       inherit
-        mkRegistry
-        mkRegistryVariables
-        mkAppVariables
-        mkAppBindings
-        mkBindings
+        # mkRegistry
+        # mkRegistryVariables
+        # mkAppVariables
+        # mkAppBindings
+        # mkBindings
         mkConfiguration
         mkConfiguration'
         mkFlake
@@ -60,6 +61,7 @@
   inherit (filesystem) mkPaths;
   inherit
     (lists)
+    any
     asList
     asListIf
     concatMap
@@ -74,9 +76,10 @@
     uniqueStrings
     unique
     ;
-  inherit (types) isAttrs isBool isEnabled isList isString typeOf;
+  inherit (ingestion) collectCategories;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
+  inherit (types) isAttrs isBool isEnabled isList isString typeOf;
   inherit (flake.registry.aggregated) overlays packages;
 
   mkFlakeModules = flake.modules.mkFlakeModules or (flake.modules.mkFlake or (_: []));
@@ -336,19 +339,44 @@
     name,
     extra ? {},
     overrides ? {},
-    api,
+    category ? null,
   }: let
-    stripped = removeAttrs (removeAttrs api ["default"]) (namesOf overrides);
-    rawRegistry = foldMerge [stripped extra overrides];
+    filterByCategory = criterion: set: let
+      getMatches = item:
+        if criterion == null
+        then true
+        else let
+          items = collectCategories {source = item;};
+          criteria = asList criterion;
+        in
+          any (fc: any (ic: ic == fc) items) criteria;
+    in
+      if criterion == null
+      then set
+      else filterAttrs (_: item: getMatches item) set;
+
+    targets = namesOf overrides;
+
+    stripped =
+      removeAttrs (removeAttrs api ["default"]) targets;
+
+    source = filterByCategory category (foldMerge [
+      stripped
+      extra
+      overrides
+    ]);
   in
     mapAttrs (
-      _envName: env: let
-        isBackend = hasAny ["backend"] (env.category or []);
-
+      _: env: let
         shared = import (paths.store.api + "/${name}");
-        common = shared.common or {};
-        baseProtocol = foldMerge [common (shared.${env.protocol or "common"} or {})];
-        protocol = removeAttrs baseProtocol (namesOf overrides);
+
+        protocol =
+          removeAttrs
+          (foldMerge [
+            (shared.common or {})
+            (shared.${env.protocol or "common"} or {})
+          ])
+          targets;
 
         applications = let
           ofProtocol =
@@ -359,15 +387,12 @@
           allCategories = uniqueStrings (namesOf ofProtocol ++ namesOf ofEnvironment);
         in
           genAttrs allCategories (
-            category: (ofProtocol.${category} or []) ++ (ofEnvironment.${category} or [])
+            categoryName:
+              (ofProtocol.${categoryName} or [])
+              ++ (ofEnvironment.${categoryName} or [])
           );
 
-        # Only backends need the catalog + compiled bindings. Frontends and
-        # greeters keep just what their own data file declares.
-        entry =
-          if isBackend
-          then foldMerge [protocol env] // {inherit applications;}
-          else env;
+        entry = foldMerge [protocol env] // {inherit applications;};
 
         updates =
           optionalAttrs (entry ? applications) {
@@ -378,8 +403,7 @@
               (mkBindings {
                 inherit (entry) bindings;
                 applications = entry.applications or {};
-              })
-            .options;
+              }).options;
           }
           // optionalAttrs (entry ? variables) {
             variables = mkRegistryVariables entry;
@@ -387,7 +411,7 @@
       in
         entry // updates
     )
-    rawRegistry;
+    source;
 
   mkRegistryVariables = registry: let
     commands = let

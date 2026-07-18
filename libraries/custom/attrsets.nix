@@ -27,7 +27,7 @@
         removeEmpty
         resolveBySpecs
         toOrdered
-        foldMerge
+        # foldMerge
         mkNamespaced
         extractArgs
         ;
@@ -71,7 +71,7 @@
     listToAttrs
     mapAttrs
     optionalAttrs
-    recursiveUpdate
+    # recursiveUpdate
     ;
   inherit
     (lists)
@@ -324,8 +324,8 @@
     )
     args.sets;
 
-  foldMerge = list:
-    foldl' recursiveUpdate {} (filter isAttrs list);
+  # foldMerge = list:
+  #   foldl' recursiveUpdate {} (filter isAttrs list);
 
   normalize = args: let
     isDescriptor =

@@ -1,5 +1,6 @@
 {
   attrsets,
+  ingestion,
   lists,
   types,
   paths,
@@ -7,6 +8,9 @@
   options,
   ...
 }: let
+  # ╔════════════════════════════════════════════════╗
+  # ╠ EXPORTS                                        ╣
+  # ╚════════════════════════════════════════════════╝
   exports = {
     scoped = {
       inherit
@@ -14,14 +18,17 @@
         mkAppVariables
         mkBindings
         mkRegistry
+        mkRegistrySlice
         mkRegistryModule
         mkRegistryModules
         mkRegistryOption
         mkRegistryVariables
         normalizeField
         normalizeFieldName
+        filterByCategory
         ;
     };
+
     global = {
       inherit mkRegistry;
       mkApi = mkRegistry;
@@ -32,121 +39,85 @@
     };
   };
 
-  inherit
-    (attrsets)
-    coalesce
-    extractArgs
-    foldMerge
-    mapAttrs
-    genAttrs
-    mapParsedOrdered
-    mkNamespaced
-    namesOf
-    optionalAttrs
-    setAttrByPath
-    valuesOf
-    ;
-  inherit
-    (lists)
-    asList
-    asListIf
-    asModule
-    concatMap
-    flatten
-    filter
-    foldl'
-    init
-    last
-    unique
-    uniqueStrings
-    ;
+  # ╔════════════════════════════════════════════════╗
+  # ╠ IMPORTS                                        ╣
+  # ╚════════════════════════════════════════════════╝
+  inherit (attrsets) asAttrsIf coalesce extractArgs filterAttrs foldMerge genAttrs mapAttrs mapParsedOrdered mkNamespaced namesOf optionalAttrs removeAttrs setAttrByPath valuesOf;
+  inherit (ingestion) collectCategories;
+  inherit (lists) any asList asListIf asModule concatMap filter flatten foldl' init last unique;
   inherit (strings) concat;
   inherit (types) attrs isAttrs isBool isList isNotEmpty isString;
   inherit (options) mkOption;
 
   # ╔════════════════════════════════════════════════╗
+  # ╠ UTILITIES                                      ╣
+  # ╚════════════════════════════════════════════════╝
+  filterByCategory = criterion: set:
+    if criterion != null
+    then
+      filterAttrs (
+        _: item: let
+          items = collectCategories {source = item;};
+          criteria = asList criterion;
+        in
+          any (fc: any (ic: ic == fc) items) criteria
+      )
+      set
+    else set;
+
+  # ╔════════════════════════════════════════════════╗
   # ╠ REGISTRY                                       ╣
   # ╚════════════════════════════════════════════════╝
-  #> Compile the environment variables for a single environment entry
-  mkRegistryVariables = registry: let
-    commands = let
-      sets =
-        mapAttrs
-        (_: apps: map (app: app.command) apps)
-        (registry.applications or {});
-    in
-      optionalAttrs (sets != {}) (mkAppVariables {inherit sets;});
-
-    bindings = optionalAttrs (registry ? bindings.modifier) {
-      MOD = let
-        modifier = registry.bindings.modifier;
-      in
-        if isList modifier
-        then
-          concat {
-            delim = " ";
-            parts = unique modifier;
-          }
-        else modifier;
-    };
-  in
-    bindings // commands // (registry.variables or {});
-
-  #> Maps over the registry collection and selectively updates/compiles fields
+  # --------------------------------------------------
+  # --> Builder
+  # --------------------------------------------------
   mkRegistry = {
-    name, #? The module/API name used to fetch shared/common protocols
-    extra ? {}, #? Manual/extra definitions to merge on top
-    overrides ? {}, #? Forced structural overrides (replaces keys in base if found)
-    api, #? Raw input API registry map
+    name, #? module name for shared protocol lookup
+    api ? {}, #? home of registries
+    raw ? api.${name} or {}, #? base registry map
+    extra ? {}, #? additional definitions
+    overrides ? {}, #? forced overrides
+    category ? null, #? optional category filter
+    preProcess ? (x: x), #? run before merging
+    postProcess ? (x: x), #? run after merging but before final output
+    transformEntry ? (entry: entry), #? transform each final environment entry
+    enableProtocol ? true, #? allow protocol check
   }: let
-    #> Pre-process the baseline api to strip out overridden keys.
-    #? If a key exists in overrides, we completely discard it from the base API.
-    stripped = removeAttrs (removeAttrs api ["default"]) (namesOf overrides);
-
-    #> Safely combine the stripped API baseline with extra definitions
-    rawRegistry = foldMerge [
+    registry =
+      if isNotEmpty raw
+      then raw
+      else api.${name} or {};
+    targets = namesOf overrides;
+    stripped = removeAttrs (removeAttrs registry ["default"]) targets;
+    merged = foldMerge [
       stripped
       extra
       overrides
     ];
+    source = filterByCategory category (preProcess merged);
   in
     mapAttrs (
-      _envName: env: let
-        #> Load the shared protocol definitions for this module
+      _: env: let
+        #> Ingest potential shared data
         shared = import (paths.store.api + "/${name}");
-        common = shared.common or {};
 
-        #> Strip overridden keys from protocol baseline so they don't leak back in
-        baseProtocol = foldMerge [
-          common
-          (shared.${env.protocol or "common"} or {})
-        ];
-        protocol = removeAttrs baseProtocol (namesOf overrides);
+        #> Resolve protocol (if necessary)
+        protocol = asAttrsIf enableProtocol (
+          removeAttrs (foldMerge [
+            (shared.common or {})
+            (shared.${env.protocol or "common"} or {})
+          ])
+          targets
+        );
 
-        #> Resolve Applications (Deep merge application lists, respecting key overrides)
-        applications = let
-          #> If applications is overridden, we ignore the protocol's defaults
-          ofProtocol =
-            if overrides ? applications
-            then {}
-            else (protocol.applications or {});
-          ofEnvironment = env.applications or {};
+        #> Apply user-defined transformations to entry
+        rawEntry = foldMerge [protocol env];
+        entry = transformEntry rawEntry;
 
-          allCategories = uniqueStrings (namesOf ofProtocol ++ namesOf ofEnvironment);
-        in
-          genAttrs allCategories (
-            category:
-              (ofProtocol.${category} or []) ++ (ofEnvironment.${category} or [])
-          );
-
-        #> Merge protocol and env safely, with our computed applications resolving last
-        entry = foldMerge [protocol env] // {inherit applications;};
-
-        #> Compile the resolved entry's sub-structures (the compiler phase)
+        #> Make specialized updates (if necessary)
         updates =
           optionalAttrs (entry ? applications) {
-            applications =
-              mkAppBindings {inherit (entry) applications;};
+            applications = mkAppBindings {inherit (entry) applications;};
           }
           // optionalAttrs (entry ? bindings) {
             bindings =
@@ -159,11 +130,19 @@
             variables = mkRegistryVariables entry;
           };
       in
-        entry // updates
+        postProcess (entry // updates)
     )
-    rawRegistry;
+    source;
 
-  # Wraps the compiled registry in a standard, read-only Nix option schema
+  mkRegistrySlice = {
+    registry, # full registry
+    category, # string or list of categories
+    name ? "slice",
+  }:
+    filterByCategory category registry;
+  # --------------------------------------------------
+  # --> WRAPPERS
+  # --------------------------------------------------
   mkRegistryOption = registry:
     mkOption {
       type = attrs;
@@ -171,7 +150,6 @@
       readOnly = true;
     };
 
-  # Generates a single NixOS module structure at a dynamic domain path
   mkRegistryModule = {
     registry,
     top ? null,
@@ -179,46 +157,35 @@
     domain ? null,
     name ? "registry",
   }: let
-    _name = "assembly.mkRegistryModule";
-    parent = asList {
-      value =
-        if isNotEmpty domain
-        then domain
-        else if isNotEmpty top && isNotEmpty path
-        then (asList top) ++ (asList path)
-        else throw "${_name}: Unable to determine the registry domain";
-    };
+    parent =
+      if isNotEmpty domain
+      then asList domain
+      else if isNotEmpty top && isNotEmpty path
+      then (asList top) ++ (asList path)
+      else throw "mkRegistryModule: Unable to determine registry domain";
   in
     optionalAttrs (isNotEmpty registry) {
-      options =
-        setAttrByPath (parent ++ [name])
-        (mkRegistryOption registry);
+      options = setAttrByPath (parent ++ [name]) (mkRegistryOption registry);
     };
 
-  # Safe coercion wrapper returning a list of modules (or empty list)
-  mkRegistryModules = {
-    registry,
-    top ? null,
-    path ? null,
-    domain ? null,
-    name ? "registry",
-  }: let
-    module = mkRegistryModule {
-      inherit domain name path registry top;
-    };
+  mkRegistryModules = args: let
+    module = mkRegistryModule args;
   in
     asListIf (isNotEmpty module) (asModule module);
 
+  # --------------------------------------------------
+  # --> NORMALIZATION
+  # --------------------------------------------------
   normalizeField = {
     registry,
     name,
   }: let
     aliasMap = foldl' (
       acc: entryName: let
-        entry = registry.${entryName};
-        aliasesOf = asList (entry.alias or (entry.aliases or []));
+        entry = registry.${entryName} or {};
+        aliases = asList (entry.alias or entry.aliases or []);
       in
-        acc // (genAttrs aliasesOf (_: entryName))
+        acc // genAttrs aliases (_: entryName)
     ) {} (namesOf registry);
 
     canonical = aliasMap.${name} or name;
@@ -233,9 +200,41 @@
   }:
     (normalizeField {inherit registry name;}).name;
 
+  # --------------------------------------------------
+  # --> VARIABLES
+  # --------------------------------------------------
+  mkRegistryVariables = mkVariables;
+
   # ╔════════════════════════════════════════════════╗
-  # ╠ APPLICATIONS                                   ╣
+  # ╠ VARIABLE GENERATION                            ╣
   # ╚════════════════════════════════════════════════╝
+  mkVariables = registry: let
+    #> Register application commands
+    commands = optionalAttrs (registry ? applications) (
+      mkAppVariables {
+        sets =
+          mapAttrs
+          (_: apps: map (app: app.command) apps)
+          registry.applications;
+      }
+    );
+
+    #> Register modifier binding (e.g. MOD=...)
+    bindings = optionalAttrs (registry ? bindings.modifier) {
+      MOD = let
+        inherit (registry.bindings) modifier;
+      in
+        if isList modifier
+        then
+          concat {
+            delim = " ";
+            parts = unique modifier;
+          }
+        else modifier;
+    };
+  in
+    bindings // commands // (registry.variables or {});
+
   mkAppVariables = payload: let
     args = extractArgs {
       args = payload;
@@ -245,18 +244,13 @@
   in
     mkNamespaced {
       inherit (args) transformation;
-      sets =
-        mapAttrs
-        (
-          _: commands: let
-            secondary = coalesce commands.secondary commands.primary;
-            tertiary = coalesce commands.tertiary secondary;
-          in {
-            "" = commands.primary;
-            inherit secondary tertiary;
-          }
-        )
-        (mapParsedOrdered args.sets);
+      sets = mapAttrs (_: cmds: let
+        secondary = coalesce cmds.secondary cmds.primary;
+        tertiary = coalesce cmds.tertiary secondary;
+      in {
+        inherit secondary tertiary;
+        "" = cmds.primary;
+      }) (mapParsedOrdered args.sets);
     };
 
   mkAppBindings = {

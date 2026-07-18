@@ -24,6 +24,7 @@
     global = {inherit mkModules mkModuleArgs mkCfgIf mkIf' mkProgramToggle mkAutostartCollector;};
   };
 
+  inherit (assembly) mkBindings mkRegistryVariables;
   inherit
     (attrsets)
     asAttrs
@@ -42,22 +43,8 @@
     attrByPath
     isNotEmptyAttr
     ;
-  inherit (ingestion) collectSpecs;
-  inherit
-    (lists)
-    asList
-    asListIf
-    concatMap
-    elem
-    filter
-    foldl'
-    hasAny
-    head
-    init
-    last
-    length
-    ;
-  inherit (assembly) mkBindings mkRegistryVariables;
+  inherit (ingestion) collectSpecs collectAliases collectCategories;
+  inherit (lists) asList asListIf elem filter foldl' hasAny head init last length;
   inherit (modules) mkIf mkMerge mkDefault mkForce;
   inherit (options) mkAppOption mkEnable mkOption;
   inherit (strings) concatStringsSep toSentenceCase;
@@ -271,34 +258,6 @@
     };
   };
 
-  # ---------------------------------------------------------------------
-  # mkAutostartCollector
-  #
-  # Orchestration-level counterpart to mkProgramToggle's `autostart`
-  # option. Meant to be called once from the interface/compositor-backend
-  # layer (e.g. configuration/interface/hyprland or .../niri), not from
-  # individual application modules.
-  #
-  # Given the fully-resolved `dots.applications.*` config tree, walks
-  # every app, keeps the ones with `autostart = true` and `enable =
-  # true` and a resolved `command`, and returns the assembled command
-  # list -- so there is exactly one place that builds the exec-once /
-  # spawn-at-startup list, instead of N independently authored app
-  # modules each appending to it.
-  #
-  # `apps` is expected to be the attrset of per-app config under
-  # whatever top-level namespace your applications live at (e.g.
-  # `config.dots.applications`), where each value may or may not have
-  # `enable`/`autostart`/`command` fields (apps built without
-  # mkProgramToggle, or with supportsAutostart = false, simply won't
-  # match and are skipped).
-  #
-  # Returns just a list of command strings, in `apps` attrset order
-  # (i.e. alphabetical, since Nix attrsets are). If you need explicit
-  # ordering (e.g. bar before notification daemon), that's a reason to
-  # extend this with a priority field later -- not something to solve
-  # by going back to per-app exec-once mutation.
-  # ---------------------------------------------------------------------
   mkAutostartCollector = apps: let
     eligible =
       filter
@@ -357,19 +316,7 @@
           then api.${domain}.registry or {}
           else {};
 
-        collect = {
-          name ? null,
-          keys ? [],
-          set ?
-            asAttrsIf
-            (isNotEmpty name && registry ? ${name})
-            registry.${name},
-        }:
-          concatMap
-          (key: asListIf (set ? ${key}) set.${key})
-          (asList keys);
-
-        collectPrefix = {
+        derivePrefix = {
           name ? canonical,
           source ? [],
         }: let
@@ -411,24 +358,16 @@
           then head valid
           else head known;
 
-        collectAliases = args:
-          collect {
-            name = args.name or canonical;
-            keys = args.keys or ["alias" "aliases"];
-          };
-        collectCategories = args:
-          collect {
-            name = args.name or canonical;
-            keys = args.keys or ["category" "categories"];
-          };
-
         canonical =
           if registry ? ${raw} # TODO: This looks weird
           then raw
           else let
             matchingKeys = filter (name:
               (name == raw)
-              || (elem raw (collectAliases {inherit name;})))
+              || (elem raw (collectAliases {
+                source = registry;
+                inherit name;
+              })))
             (namesOf registry);
           in
             if matchingKeys != []
@@ -438,21 +377,23 @@
         leaf = api.${domain}.aliases.${canonical} or canonical;
 
         entry = let
+          source = registry;
+          name = canonical;
           item = registry.${canonical} or {};
-          aliases = collectAliases {};
-          categories = collectCategories {};
-          prefix = collectPrefix {source = categories;};
+          aliases = collectAliases {inherit source name;};
+          categories = collectCategories {inherit source name;};
+          prefix = derivePrefix {source = categories;};
         in {
           inherit categories aliases prefix;
           raw = item.entryPoints.${scope} or (item.entryPoint or null);
           path =
             if entry.raw != null
             then asList entry.raw
-            else prefix ++ [canonical];
+            else prefix ++ [name];
           name =
             if entry.path != []
             then last entry.path
-            else canonical;
+            else name;
         };
       in
         genAttrs targets (
@@ -467,16 +408,6 @@
           inherit base raw leaf entry;
           name = canonical;
           user = host.users.primary.name or null;
-          # user = let
-          #   cfg = get.config or {};
-          #   isHome = options ? home;
-          # in
-          #   if isHome
-          #   then cfg.main.home.username
-          #   else host.users.primary.name or null;
-          # cfg.main.home.username or ( # TODO: Check if we are in the home config, should we check using options? options ? home.username
-          #   cfg.custom.users.primary.name or null
-          # );
           pretty = set.name {pretty = true;};
           package = get.pkg.name or null;
         };

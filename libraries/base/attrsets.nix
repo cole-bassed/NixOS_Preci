@@ -25,6 +25,7 @@
         valuesOf
         namesOf
         coalesce
+        foldMerge
         ;
       optionalAttrs = asIf;
       defaultOrAll = preferDefault;
@@ -68,6 +69,7 @@
       inspectAttrs = inspect;
       orEmptyAttrs = orEmpty;
       recursiveUpdate = merge;
+      recursiveUpdateFold = foldMerge;
       recursiveAttrs = merge;
       removeAttrPaths = removePaths;
       removeAttrPath = removePath;
@@ -546,6 +548,9 @@
         })
         (unique (attrNames lhs ++ attrNames rhs)))
     else rhs;
+
+  foldMerge = list:
+    foldl' merge {} (filter isAttrs list);
 
   /**
   Normalize a value to a non-empty attrset.

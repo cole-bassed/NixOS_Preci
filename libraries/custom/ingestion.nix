@@ -17,6 +17,7 @@
       collectNamed = collectNamedSpecs;
       importAttrs = readDirAttrs;
       resolve = resolveEntrypoint;
+      inherit collectFields collectAliases collectCategories;
     };
     global = {
       inherit
@@ -33,15 +34,16 @@
   inherit
     (attrsets)
     attrNames
+    attrByPath
     filterAttrs
     genAttrs
     mapAttrs
     mapAttrs'
     ;
   inherit (filesystem) pathExists readDir entrypoint entrypoints;
-  inherit (lists) asModuleList any concatMap elem findFirst optionals;
+  inherit (lists) asListIf asModuleList any concatMap elem findFirst asList;
   inherit (strings) hasSuffix removeSuffix;
-  inherit (types) isFunction;
+  inherit (types) isFunction isNotEmpty;
 
   candidates = entrypoints.nix.candidates or ["default.nix"];
 
@@ -205,9 +207,9 @@
           };
 
           children =
-            optionals
+            asListIf
             (type == "directory" && !(hasEntrypointDir base name) && recurse)
-            (collect path' (base + "/${name}"));
+            name;
         in
           [(wrap module)] ++ children
       ) (attrNames entries);
@@ -295,67 +297,36 @@
     imports = specs.core or [];
     home-manager.sharedModules = specs.home or [];
   };
-  # importModules = args @ {
-  #   base,
-  #   lib ? {},
-  #   api ? args.api or (lib.api or {}),
-  #   data ? (
-  #     let
-  #       domain =
-  #         if path != []
-  #         then (last path)
-  #         else null;
-  #     in
-  #       args.extraArgs.registry or (
-  #         optionalAttrs
-  #         (domain != null && api ? ${domain}.registry)
-  #         api.${domain}.registry
-  #       )
-  #   ),
-  #   excludes ? null,
-  #   extraArgs ? {},
-  #   includeFiles ? true,
-  #   includes ? [],
-  #   path ? [],
-  #   childPath ? path,
-  #   recurse ? true,
-  #   tags ? defaults.tags,
-  #   top,
-  #   declareRegistry ? isNotEmptyAttr data,
-  #   ...
-  # }: let
-  #   hasData = isNotEmptyAttr data && declareRegistry;
-  #   specs = collectSpecs {
-  #     inherit args base excludes includes tags includeFiles recurse;
-  #     path = childPath;
-  #     extraArgs =
-  #       recursiveUpdate (args.extraArgs or {}) extraArgs
-  #       // optionalAttrs hasData {registry = data;};
-  #   };
-  #   registryModule = {
-  #     options = setAttrByPath ([top] ++ path ++ ["registry"]) (mkOption {
-  #       type = attrs;
-  #       default =
-  #         data
-  #         // optionalAttrs (data ? variables || data ? applications)
-  #         {variables = mkRegistryVariables data;}
-  #         // optionalAttrs (data ? bindings)
-  #         {
-  #           bindings =
-  #             (mkBindings {
-  #               inherit (data) bindings;
-  #               applications = data.applications or {};
-  #             }).options;
-  #         }
-  #         // optionalAttrs (data ? applications)
-  #         {applications = mkAppBindings {inherit (data) applications;};};
-  #       readOnly = true;
-  #     });
-  #   };
-  #   registryModules = optionals hasData [registryModule];
-  # in {
-  #   imports = (specs.core or []) ++ registryModules;
-  #   home-manager.sharedModules = (specs.home or []) ++ registryModules;
-  # };
+
+  # Collect values for multiple keys from a (possibly nested) attribute set
+  collectFields = {
+    source ? null,
+    name ? null,
+    keys ? [],
+  }: let
+    target =
+      if isNotEmpty name
+      then attrByPath (asList name) null source
+      else source;
+  in
+    asListIf (isNotEmpty target) (
+      concatMap
+      (key: asList (target.${key} or null))
+      (asList keys)
+    );
+
+  collectAliases = args:
+    collectFields {
+      source = args.source or null;
+      name = args.name or null;
+      keys = (args.keys or []) ++ ["alias" "aliases"];
+    };
+
+  collectCategories = args:
+    collectFields {
+      source = args.source or null;
+      name = args.name or null;
+      keys = (args.keys or []) ++ ["category" "categories"];
+    };
 in
   exports
