@@ -225,23 +225,21 @@
       # ╔════════════════════════════════════════════════╗
       # ╠ DYNAMIC REGISTRY SWITCHBOARD ROUTERS           ╣
       # ╚════════════════════════════════════════════════╝
-      (
-        mkMerge [
-          # --------------------------------------------------
-          # --> Frontend Router
-          # --------------------------------------------------
-          (mkIf ((cfg.enable or false) && (registry.frontend == name)) {
-            ${top}.applications.${name}.enable = true;
-          })
+      (mkMerge [
+        # --------------------------------------------------
+        # --> Frontend Router
+        # --------------------------------------------------
+        (mkIf (cfg.enable or false) (asAttrsIf (registry.frontend != null) {
+          ${top}.applications.${registry.frontend}.enable = true;
+        }))
 
-          # --------------------------------------------------
-          # --> Greeter Router
-          # --------------------------------------------------
-          (mkIf ((cfg.enable or false) && (registry.greeter == name)) {
-            ${top}.applications.${name}.enable = true;
-          })
-        ]
-      )
+        # --------------------------------------------------
+        # --> Greeter Router (core-only: greeters have no home-manager surface)
+        # --------------------------------------------------
+        (mkIf (scope == "core" && (cfg.enable or false)) (asAttrsIf (registry.greeter != null) {
+          ${top}.applications.${registry.greeter}.enable = true;
+        }))
+      ])
     ];
   };
 in

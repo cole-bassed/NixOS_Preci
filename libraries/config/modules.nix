@@ -465,10 +465,12 @@
         // {
           inherit base raw leaf entry;
           name = canonical;
-          user =
-            get.config.main.home.username or (
-              get.config.custom.users.primary.name or null
-            );
+          user = host.users.primary.name or null;
+          # user = get.config.custom.users.primary.name or null;
+          # user =
+          #   get.config.main.home.username or (
+          #     get.config.custom.users.primary.name or null
+          #   );
           pretty = set.name {pretty = true;};
           package = get.pkg.name or null;
         };
