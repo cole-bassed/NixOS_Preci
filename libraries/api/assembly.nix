@@ -24,6 +24,8 @@
         mkRegistryModules
         mkRegistryOption
         mkRegistryVariables
+        mkHyprlandBindings
+        mkNiriBinds
         normalizeField
         normalizeFieldName
         filterByCategory
@@ -43,9 +45,9 @@
   # ╔════════════════════════════════════════════════╗
   # ╠ IMPORTS                                        ╣
   # ╚════════════════════════════════════════════════╝
-  inherit (attrsets) asAttrsIf coalesce extractArgs filterAttrs foldMerge genAttrs mapAttrs mapParsedOrdered mkNamespaced namesOf optionalAttrs removeAttrs setAttrByPath valuesOf;
+  inherit (attrsets) asAttrsIf coalesce extractArgs filterAttrs foldMerge genAttrs listToAttrs mapAttrs mapParsedOrdered mkNamespaced namesOf optionalAttrs removeAttrs setAttrByPath valuesOf;
   inherit (ingestion) collectCategories;
-  inherit (lists) any asList asListIf asModule concatMap filter flatten foldl' init last unique;
+  inherit (lists) any asList asListIf asUnique asModule concatMap filter flatten foldl' init last unique;
   inherit (strings) concat;
   inherit (types) attrs isAttrs isBool isList isNotEmpty isString;
   inherit (options) mkOption;
@@ -344,5 +346,58 @@
     options = mapAttrs (_: resolve) registry;
     entries = apps ++ groups;
   };
+
+  # Hyprland's bind syntax: "MOD1 MOD2, KEY, exec, ACTION"
+  mkHyprlandBindings = entries: let
+    valid =
+      filter
+      (entry: with entry; isNotEmpty action && isNotEmpty key)
+      entries;
+    format = entry:
+      concat {
+        delim = ", ";
+        parts = with entry; [
+          (concat " " (unique (asList modifier)))
+          trigger
+          "exec"
+          action
+        ];
+      };
+  in
+    map format valid;
+
+  # Niri's bind syntax: attrset keyed "Mod+Key" -> { action.spawn = [...]; }
+  mkNiriBinds = entries: let
+    valid =
+      filter
+      (entry: with entry; isNotEmpty action && isNotEmpty key)
+      entries;
+    format = entry: let
+      var = concat {
+        delim = "+";
+        parts = map asUnique (with entry; [modifier trigger]);
+      };
+      val = concat " " (asUnique entry.action);
+    in {
+      # concat {
+      #   delim = ", ";
+      #   parts = with entry; [
+      #     (concat " " (unique (asList modifier)))
+      #     key
+      #     "exec"
+      #     action
+      #   ];
+      # };
+    };
+    toBindKey = entry: concat "+" (unique entry.mod ++ [entry.key]);
+    toSpawn = action: {action.spawn = ["sh" "-lc" action];};
+  in
+    filterAttrs (_: value: value != null) (
+      listToAttrs (map (entry: {
+          name = toBindKey entry;
+          value = toSpawn entry.action;
+        })
+        valid)
+    );
 in
   exports

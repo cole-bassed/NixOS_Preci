@@ -9,6 +9,7 @@
         as
         asEnabled
         asIf
+        extractArgs
         firstOf
         gets
         gets'
@@ -24,7 +25,6 @@
         select
         valuesOf
         namesOf
-        coalesce
         foldMerge
         ;
       optionalAttrs = asIf;
@@ -55,7 +55,7 @@
         mapAttrs
         zipAttrsWith
         ;
-      coalesceAttrs = coalesce;
+      inherit extractArgs;
       defaultOrAllAttrs = preferDefault;
       defaultOrAllValues = preferDefaultValues;
       asAttrs = as;
@@ -78,9 +78,11 @@
 
   inherit
     (builtins)
+    all
     attrNames
     attrValues
     concatMap
+    elem
     filter
     foldl'
     getAttr
@@ -721,10 +723,35 @@
     then attrNames value
     else [];
 
-  # Returns a if it's not null, otherwise returns b
-  coalesce = a: b:
-    if a != null
-    then a
-    else b;
+  extractArgs = {
+    args ? null,
+    payload ? null,
+    required ? [],
+    optional ? allowed,
+    defaults ? {},
+    # Using custom logic for 'allowed' keys
+    allowed ? required ++ (attrNames defaults),
+    legacyMapKey ? (head required),
+  }: let
+    # 1. Standardize access to the input
+    value =
+      if args != null
+      then args
+      else if payload != null
+      then payload
+      else throw "extractArgs: no args or payload provided";
+
+    # 2. Use your library's 'unique' for validation keys
+    # 'unique' is sufficient here and aligns with your library design
+    allAllowed = unique (allowed ++ optional);
+
+    check =
+      (isAttrs value)
+      && (all (req: hasAttr req value) required)
+      && (all (key: elem key allAllowed) (attrNames value));
+  in
+    if check
+    then defaults // value
+    else defaults // {"${legacyMapKey}" = value;};
 in
   exports

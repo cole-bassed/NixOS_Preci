@@ -1,4 +1,9 @@
-_: let
+{
+  attrsets,
+  trivial,
+  lists,
+  ...
+}: let
   exports = {
     scoped = {
       inherit
@@ -48,6 +53,7 @@ _: let
 
   inherit
     (builtins)
+    all
     concatStringsSep
     elem
     elemAt
@@ -63,6 +69,25 @@ _: let
     typeOf
     ;
 
+  inherit (attrsets) namesOf valuesOf;
+  inherit (lists) asList lastOf;
+  inherit (trivial) makeHybrid readHybrid;
+
+  defaults.modes = let
+    set = {
+      start = "start";
+      contains = "contains";
+      end = "end";
+      both = "both";
+      all = "all";
+    };
+  in
+    set
+    // {
+      names = namesOf set;
+      values = valuesOf set;
+    };
+
   /**
   Concatenate a list of strings with an optional delimiter, safely filtering out null values.
 
@@ -75,54 +100,105 @@ _: let
   concat :: AttrSet -> String
   concat :: String -> List String -> String
   concat :: List String -> String
+  ```
 
   # Dependencies
-  ```nix
   - builtins.concatStringsSep
   - builtins.filter
   - builtins.isAttrs
   - builtins.isString
   - builtins.isList
-  ```
 
   # Arguments
   arg
   : An configuration attribute set { delim ?, parts }, a delimiter string, or a direct list of string parts.
 
   # Examples
-  Nix
-  # Pattern 1: Explicit Attribute Set Configuration
-  concat { delim = "-"; parts = [ "foo" "bar" ]; }
-  # => "foo-bar"
+  - __Pattern 1__: _Explicit Attribute Set Configuration_
 
-  # Pattern 2: Curried Positional (Delimiter then Parts)
-  concat "/" [ "usr" "local" "bin" ]
-  # => "usr/local/bin"
+  > concat { delim = "-"; parts = [ "foo" "bar" ]; }
+  => "foo-bar"
 
-  # Pattern 3: Shorthand List (Omits Delimiter)
-  concat [ "a" "b" "c" ]
-  # => "abc"
+  - __Pattern 2__: _Curried Positional (Delimiter then Parts)_
 
-  # Built-in Null Safety
-  concat { delim = "_"; parts = [ "core" null "system" ]; }
-  # => "core_system"
+  > concat "/" [ "usr" "local" "bin" ]
+  => "usr/local/bin"
+
+  - __Pattern 3__: _Shorthand List (Omits Delimiter)_
+
+  > concat [ "a" "b" "c" ]
+  => "abc"
+
+  - __Built-in Null Safety__
+
+  > concat { delim = "_"; parts = [ "core" null "system" ]; }
+  => "core_system"
   */
   concat = arg: let
-    exec = delim: parts:
-      concatStringsSep delim (filter (part: part != null) parts);
+    positional = ["delim" "parts"];
+    primary = lastOf positional;
+    function =
+      makeHybrid {
+        inherit positional primary;
+        fallback = isList;
+      } (
+        payload: let
+          args = readHybrid {
+            inherit payload;
+            required = [primary];
+            defaults.delim = "";
+          };
+        in
+          concatStringsSep
+          args.delim
+          (filter (part: part != null) (asList args.parts))
+      );
   in
-    if isAttrs arg
-    then exec (arg.delim or "") arg.parts
-    else if isString arg
-    then parts: exec arg parts
-    else if isList arg
-    then exec "" arg
-    else exec "" [];
+    function arg;
+  # concat = arg: let
+  #   required = ["delim" "parts"];
+  #   priority = lastOf required;
+  # in
+  #   (
+  #     makeHybrid {
+  #       positional = required;
+  #       primary = priority;
+  #       fallback = isList;
+  #     } (payload: let
+  #       args = readHybrid {
+  #         inherit payload;
+  #         required = asList priority;
+  #         defaults = {delim = "";};
+  #       };
+  #     in
+  #       concatStringsSep
+  #       args.delim
+  #       (filter (part: part != null) (asList args.parts)))
+  #   )
+  #   arg;
+
+  # concat = let
+  #   required = ["delim" "parts"];
+  #   priority = lastOf required;
+  # in
+  #   makeHybrid {
+  #     positional = required;
+  #     primary = priority;
+  #     fallback = isList;
+  #   } (payload: let
+  #     args = readHybrid {
+  #       inherit payload;
+  #       required = asList priority;
+  #       defaults = {delim = "";};
+  #     };
+  #   in
+  #     concatStringsSep
+  #     args.delim
+  #     (filter (part: part != null) (asList args.parts)));
 
   has = arg: let
     _name = "string::has";
-    modes = ["start" "contains" "end"];
-
+    modes = defaults.modes.names;
     assertString = _arg: input:
       if isString input
       then input
@@ -171,61 +247,86 @@ _: let
     if isAttrs arg
     then exec arg.mode arg.check arg.value
     else check: value: exec arg check value;
+
   hasPrefix = has "start";
   hasInfix = has "contains";
   hasSuffix = has "end";
 
-  trim = arg: let
-    _name = "string::trim";
-    modes = ["start" "end" "both" "all"];
-
-    assertString = _arg: input:
-      if isString input
-      then input
-      else throw "${_name}: ${_arg} must be a string, got ${typeOf input}";
-
-    exec = mode: pattern: value: let
-      mode' = let
-        string = assertString "mode" mode;
-        isValid = elem string modes;
-      in {inherit string isValid;};
-
-      value' = let
-        string = assertString "value" value;
-      in {inherit string;};
-
-      pattern' =
-        if isString pattern && pattern != ""
-        then pattern
-        else "[[:space:]]";
-
-      trimmedStart =
-        if mode'.string == "start" || mode'.string == "both" || mode'.string == "all"
-        then let
-          result = match "^(${pattern'})*(.*)$" value'.string;
-        in
-          if result == null
-          then value'.string
-          else elemAt result 1
-        else value'.string;
-
-      trimmedEnd =
-        if mode'.string == "end" || mode'.string == "both" || mode'.string == "all"
-        then let
-          result = match "^(.*)(${pattern'})*$" trimmedStart;
-        in
-          if result == null
-          then trimmedStart
-          else elemAt result 0
-        else trimmedStart;
-    in
-      if mode'.isValid
-      then trimmedEnd
-      else throw "${_name}: mode must be one of ${concat ", " (map quote modes)}";
+  trim = let
+    _name = "strings.trim";
+    required = ["mode" "pattern" "value"];
+    priority = lastOf required;
+    inherit (defaults) modes;
   in
-    if isAttrs arg
-    then exec (arg.mode or "both") (arg.pattern or "[[:space:]]") arg.value
-    else pattern: value: exec arg pattern value;
+    makeHybrid {
+      positional = required;
+      primary = priority;
+    } (
+      payload: let
+        #> Explode and validate arguments using the unified infrastructure
+        args = readHybrid {
+          inherit payload;
+          required = asList priority;
+          defaults = {
+            mode = "both";
+            pattern = "[[:space:]]";
+          };
+        };
+
+        #> Strict type compliance checks
+        check = let
+          is_string = all isString (with args; [mode pattern value]);
+          is_mode = elem args.mode modes.names;
+          is_pattern = args.pattern != "";
+        in
+          if !is_string
+          then throw "${_name}: parameters (mode, pattern, value) must all be strings"
+          else if !is_mode
+          then throw "${_name}: mode must be one of ${concat ", " (map quote modes.names)}"
+          else if !is_pattern
+          then throw "${_name}: pattern cannot be an empty string"
+          else true;
+
+        #> 3. Functional trimming phases
+        process = assert check; {
+          start = value: let
+            matches = match "^(${args.pattern})*(.*)$" value;
+          in
+            if matches == null
+            then value
+            else elemAt matches 1;
+
+          end = value: let
+            #> Capture everything up to the last non-matching character
+            matches = match "^(.*[^${args.pattern}]+)(${args.pattern})*$" value;
+          in
+            #? Fallback: if it's null, the string is either empty or entirely spaces
+            if matches == null
+            then ""
+            else elemAt matches 0;
+
+          all = value: let
+            #> For 'all', completely remove the pattern globally using split
+            parts = split args.pattern value;
+          in
+            #> Filter out matching lists and recombine the non-matching string segments
+            concat (filter isString parts);
+        };
+
+        #> Determine application mapping
+        result =
+          if args.mode == modes.start
+          then process.start args.value
+          else if args.mode == modes.end
+          then process.end args.value
+          else if args.mode == modes.both
+          then process.end (process.start args.value)
+          else if args.mode == modes.all
+          then process.all args.value
+          else args.value;
+      in
+        result
+    );
 
   trimStart = trim "start";
   trimEnd = trim "end";

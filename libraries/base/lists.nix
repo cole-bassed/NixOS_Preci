@@ -16,7 +16,20 @@ _: let
         tail
         zipAttrsWith
         ;
-      inherit as asIf asModule foldl orEmpty unique concatUnique concat;
+      inherit
+        as
+        asIf
+        lastOf
+        firstOf
+        asModule
+        asUnique
+        foldl
+        orEmpty
+        unique
+        unique'
+        concatUnique
+        concat
+        ;
       maps = concatMap;
       at = elemAt;
       first = head;
@@ -32,10 +45,15 @@ _: let
       asModuleList = asModule;
       asList = as;
       asListIf = asIf;
+      asUniqueList = asUnique;
       orEmptyList = orEmpty;
       uniqueList = unique;
+      uniqueListUnordered = unique';
+      uniqueListOfStrings = unique';
       listLength = length;
-      inherit (builtins) concatLists concatMap genList isList;
+      concatLists' = concat;
+      concatUniqueLists = concatUnique;
+      inherit (builtins) concatMap genList isList;
     };
   };
 
@@ -47,6 +65,7 @@ _: let
     elemAt
     filter
     genList
+    groupBy
     head
     isAttrs
     isFunction
@@ -270,6 +289,8 @@ _: let
         else [x] ++ exec (seen ++ [x]) xs;
   in
     exec [] list;
+  unique' = list: attrNames (groupBy (x: x) list);
+  asUnique = list: unique (as list);
 
   /**
   Flatten, coerce, and filter out nulls/invalids from a list of inputs.
@@ -281,19 +302,65 @@ _: let
   ```nix
   concat :: [ any ] -> [ any ]
   */
-  concat = list:
-    concatMap (
-      value:
-        filter (item: item != null) (
-          if isList value
-          then map (item: asModule {value = item;}) value
-          else asModule {inherit value;}
-        )
-    ) (orEmpty list);
+  # In your lists.nix
+  concat = arg: let
+    # Define the core logic
+    exec = {
+      list,
+      includes ? null,
+      excludes ? [],
+    }: let
+      defaultIncludes = ["string" "list" "int" "float" "bool" "path"];
+      allowed =
+        if includes != null
+        then includes
+        else defaultIncludes;
+
+      isAllowed = value: let
+        t = typeOf value;
+      in
+        (elem t allowed) && !(elem t excludes);
+
+      flatten = value:
+        if isList value
+        then concatMap flatten value
+        else if value == null
+        then []
+        else if isAllowed value
+        then [value]
+        else [];
+    in
+      unique (flatten list);
+  in
+    #? Pattern 1: Explicit AttrSet
+    if isAttrs arg && (arg ? list)
+    then exec arg
+    #? Pattern 2: Curried (Includes List) -> (List)
+    else if isList arg
+    then
+      list:
+        exec {
+          inherit list;
+          includes = arg;
+        }
+    #? Pattern 3: Simple List (Default Policy)
+    else if isList arg
+    then exec {list = arg;}
+    #? Fallback
+    else exec {list = [];};
 
   /**
   Performs concat and deduplicates the final output.
   */
   concatUnique = list: unique (concat list);
+
+  lastOf = list:
+    if isList list
+    then elemAt list ((length list) - 1)
+    else null;
+  firstOf = list:
+    if isList list
+    then head list
+    else null;
 in
   exports
