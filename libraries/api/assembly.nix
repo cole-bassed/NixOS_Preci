@@ -1,4 +1,5 @@
 {
+  api,
   attrsets,
   ingestion,
   lists,
@@ -73,7 +74,6 @@
   # --------------------------------------------------
   mkRegistry = {
     name, #? module name for shared protocol lookup
-    api ? {}, #? home of registries
     raw ? api.${name} or {}, #? base registry map
     extra ? {}, #? additional definitions
     overrides ? {}, #? forced overrides
@@ -137,7 +137,6 @@
   mkRegistrySlice = {
     registry, # full registry
     category, # string or list of categories
-    name ? "slice",
   }:
     filterByCategory category registry;
   # --------------------------------------------------

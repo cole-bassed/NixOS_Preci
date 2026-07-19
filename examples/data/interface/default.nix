@@ -1,4 +1,6 @@
 {
-  input = import ./input;
-  output = import ./output;
+  registry = import ./registry.nix;
+  hyprland = import ./hyprland.nix;
+  mango = import ./mango.nix;
+  niri = import ./niri.nix;
 }

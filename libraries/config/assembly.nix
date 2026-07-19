@@ -9,7 +9,6 @@
   names,
   paths,
   strings,
-  ingestion,
   systems,
   types,
   ...
@@ -17,11 +16,6 @@
   exports = {
     scoped = {
       inherit
-        # mkRegistry
-        # mkRegistryVariables
-        # mkAppVariables
-        # mkAppBindings
-        # mkBindings
         mkConfiguration
         mkConfiguration'
         mkFlake
@@ -36,50 +30,14 @@
 
   hosts = api.hosts.registry or api.hosts;
   getHostScopes = api.getHostScopes or api.hosts.getScopes;
-  inherit
-    (attrsets)
-    attrNames
-    filterAttrs
-    genAttrs
-    hasAttr
-    foldMerge
-    mapAttrs
-    mapAttrsToList
-    mergeAttrsList
-    mkNamespaced
-    optionalAttrs
-    recursiveUpdate
-    removeAttrs
-    coalesce
-    mapParsedOrdered
-    extractArgs
-    namesOf
-    valuesOf
-    ;
+  inherit (attrsets) attrNames filterAttrs genAttrs hasAttr foldMerge mapAttrs mapAttrsToList mergeAttrsList optionalAttrs recursiveUpdate removeAttrs;
   inherit (debug) withContext expect;
   inherit (environment) mkSrc;
   inherit (filesystem) mkPaths;
-  inherit
-    (lists)
-    any
-    asList
-    asListIf
-    concatMap
-    elem
-    filter
-    flatten
-    foldl'
-    groupBy
-    hasAny
-    init
-    last
-    uniqueStrings
-    unique
-    ;
-  inherit (ingestion) collectCategories;
+  inherit (lists) asList elem foldl' groupBy;
   inherit (strings) concat;
   inherit (systems) getClassification getBuilder systemOf;
-  inherit (types) isAttrs isBool isEnabled isList isString typeOf;
+  inherit (types) isAttrs isBool isEnabled isString typeOf;
   inherit (flake.registry.aggregated) overlays packages;
 
   mkFlakeModules = flake.modules.mkFlakeModules or (flake.modules.mkFlake or (_: []));
@@ -331,221 +289,5 @@
     in
       core ++ [home];
   in {inherit class pkgs specialArgs modules;};
-
-  # ╔════════════════════════════════════════════════╗
-  # ╠ REGISTRY                                       ╣
-  # ╚════════════════════════════════════════════════╝
-  mkRegistry = {
-    name,
-    extra ? {},
-    overrides ? {},
-    category ? null,
-  }: let
-    filterByCategory = criterion: set: let
-      getMatches = item:
-        if criterion == null
-        then true
-        else let
-          items = collectCategories {source = item;};
-          criteria = asList criterion;
-        in
-          any (fc: any (ic: ic == fc) items) criteria;
-    in
-      if criterion == null
-      then set
-      else filterAttrs (_: item: getMatches item) set;
-
-    targets = namesOf overrides;
-
-    stripped =
-      removeAttrs (removeAttrs api ["default"]) targets;
-
-    source = filterByCategory category (foldMerge [
-      stripped
-      extra
-      overrides
-    ]);
-  in
-    mapAttrs (
-      _: env: let
-        shared = import (paths.store.api + "/${name}");
-
-        protocol =
-          removeAttrs
-          (foldMerge [
-            (shared.common or {})
-            (shared.${env.protocol or "common"} or {})
-          ])
-          targets;
-
-        applications = let
-          ofProtocol =
-            if overrides ? applications
-            then {}
-            else (protocol.applications or {});
-          ofEnvironment = env.applications or {};
-          allCategories = uniqueStrings (namesOf ofProtocol ++ namesOf ofEnvironment);
-        in
-          genAttrs allCategories (
-            categoryName:
-              (ofProtocol.${categoryName} or [])
-              ++ (ofEnvironment.${categoryName} or [])
-          );
-
-        entry = foldMerge [protocol env] // {inherit applications;};
-
-        updates =
-          optionalAttrs (entry ? applications) {
-            applications = mkAppBindings {inherit (entry) applications;};
-          }
-          // optionalAttrs (entry ? bindings) {
-            bindings =
-              (mkBindings {
-                inherit (entry) bindings;
-                applications = entry.applications or {};
-              }).options;
-          }
-          // optionalAttrs (entry ? variables) {
-            variables = mkRegistryVariables entry;
-          };
-      in
-        entry // updates
-    )
-    source;
-
-  mkRegistryVariables = registry: let
-    commands = let
-      sets =
-        mapAttrs
-        (_: apps: map (app: app.command) apps)
-        (registry.applications or {});
-    in
-      optionalAttrs (sets != {}) (mkAppVariables {inherit sets;});
-
-    bindings = optionalAttrs (registry ? bindings.modifier) {
-      MOD = let
-        modifier = registry.bindings.modifier;
-      in
-        if isList modifier
-        then
-          concat {
-            delim = " ";
-            parts = unique modifier;
-          }
-        else modifier;
-    };
-  in
-    bindings // commands // (registry.variables or {});
-
-  mkAppVariables = payload: let
-    args = extractArgs {
-      args = payload;
-      required = ["sets"];
-      defaults = {transformation = "POSIX";};
-    };
-  in
-    mkNamespaced {
-      inherit (args) transformation;
-      sets =
-        mapAttrs
-        (
-          _: commands: let
-            secondary = coalesce commands.secondary commands.primary;
-            tertiary = coalesce commands.tertiary secondary;
-          in {
-            "" = commands.primary;
-            inherit secondary tertiary;
-          }
-        )
-        (mapParsedOrdered args.sets);
-    };
-
-  mkAppBindings = {
-    applications,
-    modifier ? "SUPER",
-  }: let
-    format = name: value:
-      asList modifier
-      ++ (asListIf (name == "launch") ["ALT"])
-      ++ asList value;
-
-    resolve = app:
-      if app ? bindings && isAttrs app.bindings
-      then app // {bindings = mapAttrs format app.bindings;}
-      else app;
-  in
-    mapAttrs
-    (
-      _: value:
-        if isList value
-        then map resolve value
-        else value
-    )
-    applications;
-
-  mkBindings = {
-    bindings,
-    applications ? {},
-    modifier ? bindings.modifier or "SUPER",
-  }: let
-    mod = asList modifier;
-
-    assemble = name: key:
-      if name == "modifier"
-      then mod
-      else if isBool key
-      then key
-      else if isString key
-      then {inherit key mod;}
-      else if isList key
-      then {
-        mod = mod ++ init key;
-        key = last key;
-      }
-      else null;
-
-    resolve = entry:
-      if isBool entry || isList entry
-      then entry
-      else entry.mod ++ [entry.key];
-
-    registry = mapAttrs assemble bindings;
-
-    apps =
-      map (app: {
-        key = app.bindings.launch;
-        mod = mod ++ ["SHIFT" "ALT"];
-        action = app.command;
-      })
-      (
-        filter
-        (app: app ? bindings.launch && app.bindings.launch != null)
-        (flatten (valuesOf applications))
-      );
-
-    groups = let
-      validated =
-        filter
-        (name: applications ? ${name} && isString bindings.${name})
-        (namesOf bindings);
-
-      tiers = name: let
-        apps = mkAppVariables {sets = applications;};
-        mk = extraMod: field: {
-          key = registry.${name}.key;
-          mod = registry.${name}.mod ++ extraMod;
-          action = apps.${name}.${field}.command;
-        };
-      in [
-        (mk [] "")
-        (mk ["SHIFT"] "secondary")
-        (mk ["ALT"] "tertiary")
-      ];
-    in
-      concatMap tiers validated;
-  in {
-    options = mapAttrs (_: resolve) registry;
-    entries = apps ++ groups;
-  };
 in
   exports
