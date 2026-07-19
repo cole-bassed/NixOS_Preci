@@ -17,27 +17,23 @@
   exports = {
     scoped = {
       inherit
-        # mkModules
-        # mkModuleArgs
-        mkCfg
-        mkCfgIf
-        mkOpt
-        mkIf'
+        mkModules
+        mkModuleArgs
         # mkProgramToggle
         # mkAutostartCollector
         ;
-      # ingest = mkModules;
-      # configure = mkModuleArgs;
+      ingest = mkModules;
+      configure = mkModuleArgs;
       # inherit (backends) mkHyprlandBinds mkNiriBinds mkBackendOptions;
     };
     global = {
+      mkApiModules = mkModules;
       inherit
-        # mkModules
-        # mkModuleArgs
+        mkModuleArgs
         mkCfgIf
         mkIf'
-        # mkProgramToggle
-        # mkAutostartCollector
+        mkProgramToggle
+        mkAutostartCollector
         ;
     };
   };

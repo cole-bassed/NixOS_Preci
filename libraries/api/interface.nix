@@ -53,10 +53,7 @@
   # ╔════════════════════════════════════════════════╗
   # ╠ REGISTRY                                       ╣
   # ╚════════════════════════════════════════════════╝
-  applications = mkApi {
-    inherit api;
-    name = "applications";
-  };
+  applications = mkApi {name = "applications";};
   backends = mkRegistrySlice {
     registry = applications;
     category = "backend";
@@ -66,13 +63,13 @@
   # Optional: convenience function for other slices
   mkRegistry = {
     category ? null,
+    raw ? null,
     extra ? {},
     overrides ? {},
   }:
     mkApi {
-      api = api.applications;
       name = _names.app;
-      inherit category extra overrides;
+      inherit raw category extra overrides;
     };
 
   selectionOf = spec: spec.applications or {};

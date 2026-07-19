@@ -39,11 +39,11 @@
   inherit (lists) asList concatMap elem foldl' unique;
 
   mkRegistry = {
-    api ? defaults.api,
+    raw ? null,
     extra ? null,
     overrides ? null,
   }:
-    mkApi {inherit api name extra overrides;};
+    mkApi {inherit raw name extra overrides;};
   registry = mkRegistry {};
 
   entryCategories = entry: asList (entry.category or []);
