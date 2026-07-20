@@ -1,56 +1,45 @@
 {
   strings,
+  attrsets,
   trivial,
   lists,
   ...
 }: let
   exports = {
-    scoped = {
-      inherit
-        coalesce
-        orDefault
-        orDefaultIf
-        isEmpty
-        isNotEmpty
-        ;
+    scoped =
+      {
+        inherit
+          coalesce
+          orDefault
+          orDefaultIf
+          isEmpty
+          isNotEmpty
+          registry
+          isFunction'
+          ;
 
-      inherit
-        (builtins)
-        isAttrs
-        isFunction
-        isList
-        isPath
-        isString
-        typeOf
-        ;
+        from = with builtins; {
+          json = fromJSON;
+          toml = fromTOML;
+        };
 
-      type = typeOf;
-
-      from = with builtins; {
-        json = fromJSON;
-        toml = fromTOML;
-      };
-
-      to = with builtins; {
-        json = toJSON;
-        xml = toXML;
-        file = toFile;
-        string = toString;
-        path = toPath;
-      };
-    };
+        to = with builtins; {
+          json = toJSON;
+          xml = toXML;
+          file = toFile;
+          string = toString;
+          path = toPath;
+        };
+      }
+      // registry;
 
     global = {
-      inherit
-        coalesce
-        orDefault
-        isEmpty
-        isNotEmpty
-        ;
-
+      typesRegistry = registry;
+      inherit coalesce orDefault orDefaultIf isEmpty isNotEmpty;
       inherit
         (builtins)
         fromJSON
+        isFunction
         fromTOML
         toFile
         toJSON
@@ -61,22 +50,83 @@
     };
   };
 
-  inherit (builtins) isString stringLength typeOf;
+  inherit
+    (builtins)
+    attrNames
+    isAttrs
+    isBool
+    isFloat
+    isFunction
+    isInt
+    isList
+    isPath
+    isString
+    mapAttrs
+    stringLength
+    typeOf
+    ;
+  inherit (attrsets) recursiveUpdate;
+  inherit (lists) all lastOf;
   inherit (strings) trim';
-  inherit (lists) lastOf;
   inherit (trivial) makeHybrid readHybrid;
 
-  defaults.types = {
-    bool = false;
-    float = 0.0;
-    int = 0;
-    lambda = _: null;
-    list = [];
-    null = null;
-    path = /.;
-    set = {};
-    string = "";
-  };
+  registry = let
+    schema = {
+      bool = {
+        default = false;
+        is = isBool;
+      };
+      float = {
+        default = 0.0;
+        is = isFloat;
+      };
+      int = {
+        default = 0;
+        is = isInt;
+      };
+      lambda = {
+        default = x: x;
+        is = isFunction;
+      };
+      list = {
+        default = [];
+        is = isList;
+      };
+      null = {
+        default = null;
+        is = isNull;
+      };
+      path = {
+        default = ./.;
+        is = isPath;
+      };
+      set = {
+        default = {};
+        is = isAttrs;
+      };
+      string = {
+        default = "";
+        is = isString;
+      };
+    };
+    defaults = mapAttrs (name: val: val.default) schema;
+    mkMock = overrides: recursiveUpdate defaults overrides;
+    validate = config:
+      all (
+        name:
+          schema.${name}.is
+          config.${name}
+      )
+      (attrNames config);
+  in {inherit schema defaults typeOf mkMock validate;};
+  inherit (registry) defaults;
+
+  /**
+  Strict check for callables, safely handling standard primitive functions
+  and Nix attribute set functors without accidentally evaluating them.
+  */
+  isFunction' = value:
+    isFunction value || (isAttrs value && value ? __functor && isFunction value.__functor);
 
   /**
   Check whether a value is considered empty for defaulting purposes.
@@ -136,7 +186,7 @@
     else if type == "string"
     then stringLength (trim' value) == 0
     else if type == "list" || type == "set"
-    then value == defaults.types.${type}
+    then value == defaults.${type}
     else false;
   /**
   Check whether a value is not empty according to `isEmpty`.
@@ -177,36 +227,76 @@
   /**
   Return the first value when it is not `null`; otherwise return the fallback.
 
-  Unlike `orFallback`, this function only treats `null` as absent. Empty strings,
+  Unlike `orDefault`, this function only treats `null` as absent. Empty strings,
   lists, and attribute sets are returned unchanged.
+
+  Supports the standard hybrid invocation patterns: an explicit configuration
+  attribute set, or curried positional arguments (value, then default).
 
   # Type
   ```nix
+  coalesce :: AttrSet -> a
   coalesce :: a -> a -> a
   ```
 
-  # Arguments
-  value
-  : The preferred value.
+  # Dependencies
+  - trivial.makeHybrid
+  - trivial.readHybrid
+  - types.orDefaultIf
 
-  fallback
-  : The value returned when `value` is `null`.
+  # Arguments
+  arg
+  : A configuration attribute set { value, default }, or the preferred value
+  for curried positional invocation.
 
   # Examples
-  > coalesce "hello" "fallback"
+  - __Pattern 1__: _Explicit Attribute Set Configuration_
+
+  > coalesce { value = "hello"; default = "fallback"; }
   => "hello"
+
+  > coalesce { value = null; default = "fallback"; }
+  => "fallback"
+
+  - __Pattern 2__: _Curried Positional (Value then Default)_
 
   > coalesce "" "fallback"
   => ""
 
   > coalesce null "fallback"
   => "fallback"
+
+  > coalesce [] [ "a" ]
+  => []
+
+  - __Partial application__ (currying binds `value` first, then `default`)
+
+  > nullOrFallback = coalesce null;
+  > nullOrFallback "anonymous"
+  => "anonymous"
+
+  > helloOrFallback = coalesce "hello";
+  > helloOrFallback "anonymous"
+  => "hello"
   */
-  coalesce = value: default:
-    orDefaultIf {
-      condition = value != null;
-      inherit default value;
-    };
+  coalesce = arg: let
+    positional = ["value" "default"];
+    primary = lastOf positional;
+
+    function = makeHybrid {inherit positional primary;} (
+      payload: let
+        args = readHybrid {
+          inherit payload;
+          required = positional;
+        };
+      in
+        orDefaultIf {
+          condition = args.value != null;
+          inherit (args) default value;
+        }
+    );
+  in
+    function arg;
 
   /**
   Return a value when it has the requested Nix type; otherwise return that
@@ -240,10 +330,16 @@
   * trivial.readHybrid
 
   # Arguments
+  default
+  : The fallback value. In positional invocations, a registered type name is
+  resolved to that type's default value.
 
-  arg
-  : A configuration attribute set `{ type, value }` or the first positional
-  argument representing the requested type.
+  type
+  : The registered Nix type whose default should be returned. Used only in
+  explicit attribute-set invocations.
+
+  value
+  : The value to return when it is not empty.
 
   # Examples
 
@@ -301,7 +397,7 @@
         default =
           if hasDefault
           then args.default
-          else defaults.types.${args.type}
+          else defaults.${args.type}
           or (throw "orDefault: Unknown type kind '${args.type}'");
       in
         assert check;
@@ -319,7 +415,7 @@
   default for the requested type.
 
   This generalizes `optionalAttrs` and `optionals` by selecting the empty/default
-  value from `defaults.types`.
+  value from `defaults`.
 
   # Type
 
@@ -380,12 +476,43 @@
   > orDefaultIf false "string" "enabled"
   => ""
 
-  Equivalent to:
+  _Equivalent to:_
 
   > optionals true [ "git" "curl" ]
   => [ "git" "curl" ]
 
   > optionals false [ "git" "curl" ]
+  => []
+
+  - __Explicit Attribute Set Configuration__
+
+  > orDefaultIf { condition = true; type = "list"; value = [ "git" ]; }
+  => [ "git" ]
+
+  > orDefaultIf { condition = false; type = "list"; value = [ "git" ]; }
+  => []
+
+  - __Explicit `default` override (bypasses the `defaults` registry)__
+
+  > orDefaultIf { condition = false; default = "n/a"; value = "enabled"; }
+  => "n/a"
+
+  - __Curried positional third slot (`fallback`) is dual-purpose__: if it names a
+  key in the type registry it is resolved as a type name, otherwise it is used
+  literally as the default value.
+
+  > orDefaultIf false "list" [ 1 2 3 ]
+  => []
+
+  > orDefaultIf false "n/a" "hello"
+  => "n/a"
+
+  - __No `type`, `default`, or `fallback` given: falls back to the type of `value` itself__
+
+  > orDefaultIf { condition = false; value = "hello"; }
+  => ""
+
+  > orDefaultIf { condition = false; value = [ 1 2 3 ]; }
   => []
   */
   orDefaultIf = arg: let
@@ -419,13 +546,13 @@
           then
             if !isString args.type
             then throw "${_name}: type must be a string"
-            else defaults.types.${args.type}
+            else defaults.${args.type}
             or (throw "${_name}: Unknown type kind '${args.type}'")
-          else if hasFallback && isString args.fallback && defaults.types ? ${args.fallback}
-          then defaults.types.${args.fallback}
+          else if hasFallback && isString args.fallback && defaults ? ${args.fallback}
+          then defaults.${args.fallback}
           else if hasFallback
           then args.fallback
-          else defaults.types.${typeOf args.value};
+          else defaults.${typeOf args.value};
       in
         assert check;
           if args.condition

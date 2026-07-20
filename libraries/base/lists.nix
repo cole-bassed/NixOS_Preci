@@ -3,6 +3,8 @@ _: let
     scoped = {
       inherit
         (builtins)
+        all
+        any
         elem
         elemAt
         filter

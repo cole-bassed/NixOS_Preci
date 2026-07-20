@@ -1,10 +1,11 @@
 {
-  attrsets ? {},
-  lists ? {},
-  defaults ? {},
-  flake ? {},
-  names ? {},
-  types ? {},
+  attrsets,
+  lists,
+  defaults,
+  flake,
+  names,
+  strings,
+  types,
   ...
 }: let
   exports =
@@ -53,8 +54,9 @@
     flake.imports or (mapAttrs unwrapRegistryEntry registryEntries);
 
   inherit (attrsets) attrNames getAttr hasAttr listToAttrs isAttrs maps mapAttrs orEmpty attrValues;
-  inherit (lists) concatLists elem filter head length unique;
-  inherit (types) concatStringsSep isString;
+  inherit (lists) concatLists' elem filter head length unique;
+  inherit (strings) concat;
+  inherit (types) validate;
 
   filterAttrs =
     attrsets.filterAttrs or (predicate: set:
@@ -129,7 +131,7 @@
     else
       throw ''
         flakes.collectModules: ${name}.${type} exposes multiple module keys with no 'default'.
-        Available keys: ${concatStringsSep ", " (attrNames set)}
+        Available keys: ${concat ", " (attrNames set)}
         Fix: add a 'default' key to the input's module set, or declare explicit
         module keys in the flake.nix inputs' registry entry for '${name}'.
       '';
@@ -161,14 +163,14 @@
       then pickModules type name (getAttr legacy input)
       else [];
   in
-    concatLists (attrValues (maps get inputs));
+    concatLists' (attrValues (maps get inputs));
 
   flattenRegistryModules = modules:
-    concatLists (
+    concatLists' (
       map
       (value:
         if isAttrs value
-        then concatLists (attrValues value)
+        then concatLists' (attrValues value)
         else value)
       (attrValues modules)
     );
@@ -241,12 +243,12 @@
     nixpkgs =
       if flake ? nixpkgs
       then
-        if isString (flake.nixpkgs or {})
+        if validate {string = flake.nixpkgs or {};}
         then let name = flake.nixpkgs; in inputs.${name} // {inherit name;}
         else flake.nixpkgs
       else if defaults ? nixpkgs
       then
-        if isString defaults.nixpkgs
+        if validate {string = defaults.nixpkgs;}
         then let name = defaults.nixpkgs; in inputs.${name} // {inherit name;}
         else defaults.nixpkgs
       else firstOf classified.nixpkgs;
