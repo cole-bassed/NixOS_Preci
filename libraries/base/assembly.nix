@@ -109,6 +109,7 @@
     excluded = excludes;
   };
 
+  #: TODO: create a detailed doc to in my style
   mkFunction = {
     #~@ Dependencies
     name,
@@ -148,24 +149,26 @@
     #> or an attrset { validate :: input -> validatedValue; options ? [...]; type ? "..."; }
     #> that also documents what's valid for that field. Normalize either
     #> shape to a callable, and separately expose whatever metadata was given.
-    validatorFn = field: let
-      entry = validation.${field} or (v: v);
-    in
-      if isAttrs entry
-      then entry.validate
-      else entry;
+    validator = {
+      fn = field: let
+        entry = validation.${field} or (v: v);
+      in
+        if isAttrs entry
+        then entry.validate
+        else entry;
 
-    validatorMeta = field: let
-      entry = validation.${field} or null;
-    in
-      if isAttrs entry
-      then removeAttrs entry ["validate"]
-      else {};
+      meta = field: let
+        entry = validation.${field} or null;
+      in
+        if isAttrs entry
+        then removeAttrs entry ["validate"]
+        else {};
+    };
 
     resolve = arguments: let
       fields = required ++ optional;
       merged = defaults // arguments;
-      validateField = field: (validatorFn field) merged.${field};
+      validateField = field: (validator.fn field) merged.${field};
     in
       listToAttrs (map (field: {
           name = field;
@@ -187,7 +190,7 @@
     #> A `throws = true;` entry expects invocation to fail (tryWith.success == false).
     #> An entry that throws when it wasn't supposed to is reported via
     #> warnWith (non-fatal) rather than crashing evaluation of __tests.
-    runSimulation = self: let
+    simulate = self: let
       runOne = entry: let
         expectThrow = entry.throws or false;
         attempt = tryWith (invoke self entry.args).result;
@@ -209,7 +212,7 @@
               inherit name;
               assertion = !unexpectedFailure;
               message = "simulation entry threw unexpectedly for args: ${toJSON entry.args}";
-              context = "runSimulation";
+              context = "simulate";
             } (
               if unexpectedFailure
               then "<threw unexpectedly>"
@@ -243,20 +246,21 @@
           ;
         arity = length (attrNames explicit);
         #> Per-field validator metadata (e.g. options/type), where the
-        #> validator declared any - see validatorMeta above.
+        #> validator declared any - see validator.meta above.
         validationInfo = listToAttrs (map (field: {
             name = field;
-            value = validatorMeta field;
+            value = validator.meta field;
           })
           (required ++ optional));
       };
       __args = {inherit explicit implicit;};
       __trace = history;
+      __final = true;
       __functor = self: nextRaw:
         if isAttrs nextRaw
         then exec history (explicit // nextRaw)
         else throw "${_name}: too many positional arguments";
-      __tests = runSimulation wrapper;
+      __tests = simulate wrapper;
       result = execution implicit;
     };
 
@@ -299,6 +303,7 @@
       else if fallback payload
       then exec [] {${primary} = payload;}
       else accumulate {} positional [] payload;
+
     #> If positional args are declared, a primary field must be resolvable
     #> (either given explicitly or derivable as head required) - otherwise
     #> the bare-value fallback path in `wrapper` has no key to assign into.
@@ -308,7 +313,17 @@
       message = "positional is non-empty but primary could not be resolved (check required)";
       context = "buildFunction setup";
     };
+
+    view = accessor: let
+      project = out:
+        if out ? __final
+        then accessor out
+        else out // {__functor = self: nextRaw: project (out.__functor self nextRaw);};
+    in {__functor = self: raw: project (wrapper raw);};
   in
-    assert guard; wrapper;
+    assert guard; {
+      fn = view (out: out.result);
+      debug = view (out: removeAttrs out ["result" "__functor"]);
+    };
 in
   exports

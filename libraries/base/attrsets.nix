@@ -203,7 +203,8 @@
             scope:
               map (
                 item:
-                  split "." (
+                  split "."
+                  (
                     if scope == ""
                     then item
                     else "${scope}.${item}"

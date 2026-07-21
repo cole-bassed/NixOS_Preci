@@ -1,6 +1,7 @@
 {
   attrsets,
   trivial,
+  assembly,
   lists,
   ...
 }: let
@@ -73,9 +74,10 @@
     substring
     typeOf
     ;
+  inherit (assembly) mkFn;
   inherit (attrsets) namesOf valuesOf;
   inherit (lists) asList lastOf;
-  inherit (trivial) makeHybrid readHybrid buildFunction;
+  inherit (trivial) makeHybrid readHybrid;
 
   _defaults.modes = let
     name = "modes";
@@ -115,6 +117,7 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - builtins.concatStringsSep
   - builtins.filter
   - builtins.isAttrs
@@ -146,13 +149,13 @@
   > concat { delim = "_"; parts = [ "core" null "system" ]; }
   => "core_system"
   */
-  concat = buildFunction {
+  concat = mkFn {
     name = "strings.concat";
     positional = ["delim" "parts"];
     required = ["parts"];
     optional = ["delim"];
     defaults = {delim = "";};
-    fallback = isList; #> a bare list argument is treated as `parts` directly
+    fallback = isList; #? a bare list argument is treated as `parts` directly
 
     validation = {};
 
@@ -187,61 +190,70 @@
       (filter (part: part != null) (asList args.parts));
   };
 
-  # TODO: Arguments should show mode, check, and value though. how will they caller know the accepted args?
   /**
-  Test whether a string satisfies a positional match against a check string,
+  Test whether a string satisfies a positional match against a pattern string,
   according to a mode: `"start"` (prefix), `"contains"` (infix), or `"end"` (suffix).
 
   Supports the standard hybrid invocation patterns: an explicit configuration
-  attribute set, or curried positional arguments (mode, then check, then value).
+  attribute set, or curried positional arguments (value, then pattern, then mode).
+  The mode defaults to `"contains"`.
 
   # Type
   ```nix
   has :: AttrSet -> Bool
+  has :: String -> String -> Bool
   has :: String -> String -> String -> Bool
   ```
 
   # Dependencies
+  - assembly.mkFn
   - builtins.elem
   - builtins.match
   - builtins.replaceStrings
   - builtins.stringLength
   - builtins.substring
   - builtins.typeOf
-  - trivial.makeHybrid
-  - trivial.readHybrid
 
   # Arguments
-  arg
-  : A configuration attribute set { mode, check, value }, or the mode string
-  ("start" | "contains" | "end") for curried positional invocation.
+  value
+  : The string to test. For explicit configuration, pass this as the `value`
+  attribute.
+
+  pattern
+  : The string to match against `value`. For explicit configuration, pass this
+  as the `pattern` attribute.
+
+  mode
+  : The positional match mode: `"start"`, `"contains"`, or `"end"`. For
+  explicit configuration, pass this as the optional `mode` attribute. Defaults
+  to `"contains"`.
 
   # Examples
   - __Explicit Attribute Set Configuration__
 
-  > has { mode = "start"; check = "foo"; value = "foobar"; }
+  > has { mode = "start"; pattern = "foo"; value = "foobar"; }
   => true
 
-  > has { mode = "contains"; check = "oob"; value = "foobar"; }
+  > has { mode = "contains"; pattern = "oob"; value = "foobar"; }
   => true
 
-  > has { mode = "end"; check = "bar"; value = "foobar"; }
+  > has { mode = "end"; pattern = "bar"; value = "foobar"; }
   => true
 
-  - __Curried Positional (_Mode_, _Check_, _Value_)__
+  - __Curried Positional (_Value_, _Pattern_, optional _Mode_)__
 
-  > has "start" "foo" "foobar"
+  > has "foobar" "foo" "start"
   => true
 
-  > has "end" "bar" "foobar"
+  > has "foobar" "bar" "end"
   => true
 
-  > has "contains" "xyz" "foobar"
+  > has "foobar" "xyz"
   => false
 
   - __Partial application__
 
-  > startsWithFoo = has "start" "foo";
+  > startsWithFoo = value: has value "foo" "start";
   > startsWithFoo "foobar"
   => true
 
@@ -250,70 +262,108 @@
 
   - __Invalid mode throws__
 
-  > has "sideways" "foo" "foobar"
+  > has "foobar" "foo" "sideways"
   => error: string::has: mode must be one of "start", "contains", "end", "both", "all"
   */
-  has = arg: let
+  has = let
     _name = "strings.has";
-    positional = ["mode" "check" "value"];
-    primary = lastOf positional;
+  in
+    mkFn {
+      name = _name;
+      positional = ["value" "pattern" "mode"];
+      required = ["value" "pattern"];
+      optional = ["mode"];
+      defaults = {mode = "contains";};
 
-    inherit (_defaults) modes;
+      validation = {
+        mode = {
+          validate = input:
+            if !isString input
+            then throw "${_name}: mode must be a string, got ${typeOf input}"
+            else if !elem input _defaults.modes.names
+            then throw "${_name}: mode must be one of ${concat ", " (map quote _defaults.modes.names)}"
+            else input;
+          options = _defaults.modes.names;
+          type = "enum";
+        };
+        pattern = input:
+          if isString input
+          then input
+          else throw "${_name}: pattern must be a string, got ${typeOf input}";
+        value = input:
+          if isString input
+          then input
+          else throw "${_name}: value must be a string, got ${typeOf input}";
+      };
 
-    assertString = _arg: input:
-      if isString input
-      then input
-      else throw "${_name}: ${_arg} must be a string, got ${typeOf input}";
+      simulation = [
+        {
+          args = {
+            mode = "start";
+            pattern = "foo";
+            value = "foobar";
+          };
+          desired = true;
+        }
+        {
+          args = {
+            mode = "contains";
+            pattern = "oob";
+            value = "foobar";
+          };
+          desired = true;
+        }
+        {
+          args = {
+            mode = "end";
+            pattern = "bar";
+            value = "foobar";
+          };
+          desired = true;
+        }
+        {
+          args = ["foobar" "foo" "start"];
+          desired = true;
+        }
+        {
+          args = ["foobar" "bar" "end"];
+          desired = true;
+        }
+        {
+          args = ["foobar" "xyz"];
+          desired = false;
+        }
+        #> invalid mode throws
+        {
+          args = ["foobar" "foo" "sideways"];
+          throws = true;
+        }
+      ];
 
-    exec = mode: check: value: let
-      mode' = let
-        string = assertString "mode" mode;
-        isValid = elem string modes.names;
-      in {inherit string isValid;};
+      execution = args: let
+        inherit (_defaults) modes;
+        inherit (args) mode pattern value;
 
-      value' = let
-        string = assertString "value" value;
-        length = stringLength string;
-      in {inherit string length;};
-
-      check' = let
-        string = assertString "check" check;
-        length = stringLength string;
+        valueLength = stringLength value;
+        patternLength = stringLength pattern;
+        # TODO: This needs to be lifted out, it is reusable. We should probable add the data part to _debaults
         escaped =
           replaceStrings
           ["\\" "." "+" "*" "?" "^" "$" "(" ")" "[" "]" "{" "}" "|"]
           ["\\\\" "\\." "\\+" "\\*" "\\?" "\\^" "\\$" "\\(" "\\)" "\\[" "\\]" "\\{" "\\}" "\\|"]
-          string;
-        contains = ".*${escaped}.*";
-      in {inherit contains escaped string length;};
-    in
-      if mode'.isValid
-      then
-        if mode'.string == modes.start
-        then substring 0 check'.length value'.string == check'.string
-        else if mode'.string == modes.contains
-        then match check'.contains value'.string != null
-        else let
-          suffix =
-            substring
-            (value'.length - check'.length)
-            check'.length
-            value'.string;
-        in
-          value'.length >= check'.length && suffix == check'.string
-      else throw "${_name}: mode must be one of ${concat ", " (map quote modes.names)}";
-
-    required = positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {inherit payload required;};
+          pattern;
+        containsPattern = ".*${escaped}.*";
       in
-        exec args.mode args.check args.value
-    );
-  in
-    function arg;
+        if mode == modes.start
+        then substring 0 patternLength value == pattern
+        else if mode == modes.contains
+        then match containsPattern value != null
+        else let
+          suffix = substring (valueLength - patternLength) patternLength value;
+        in
+          valueLength >= patternLength && suffix == pattern;
+    };
 
-  # TODO: Arguments should show check, and value though. how will they caller know the accepted args?
   /**
   Test whether a string starts with a given prefix. A hybrid partial application
   of `has` with `mode` pre-bound to `"start"`.
@@ -328,47 +378,84 @@
   - strings.has
 
   # Arguments
-  arg
-  : A configuration attribute set { check, value }, or the check (prefix) string
-  for curried positional invocation.
+  value
+  : The string to inspect, or a configuration attribute set { value, check }.
+
+  check
+  : The prefix string to check for.
 
   # Examples
   - __Explicit Attribute Set Configuration__
 
-  > hasPrefix { check = "foo"; value = "foobar"; }
+  > __hasPrefix__ { `check` = _"foo"_; `value` = _"foobar"_; }
   => true
 
-  > hasPrefix { check = "bar"; value = "foobar"; }
+  > __hasPrefix__ { `check` = _"bar"_; `value` = _"foobar"_; }
   => false
 
-  - __Curried Positional (Check then Value)__
+  - __Curried Positional (Value then Check)__
 
-  > hasPrefix "foo" "foobar"
+  > __hasPrefix__ _"foobar"_ _"foo"_
   => true
 
   - __Partial application__
 
-  > startsWithFoo = hasPrefix "foo";
-  > startsWithFoo "foobar"
+  > hasPrefixOfFoobar = __hasPrefix__ _"foobar"_;
+  > __hasPrefixOfFoobar__ _"foo"_
   => true
 
-  > startsWithFoo "barfoo"
+  > __hasPrefixOfFoobar__ _"bar"_
   => false
   */
-  hasPrefix = arg: let
-    positional = ["check" "value"];
-    primary = lastOf positional;
-    required = positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {inherit payload required;};
-      in
-        has "start" args.check args.value
-    );
+  hasPrefix = let
+    _name = "strings.hasPrefix";
+    required = ["value" "check"];
+    positional = required;
   in
-    function arg;
+    mkFn {
+      name = _name;
+      inherit required positional;
 
-  # TODO: Arguments should show check, and value though. how will they caller know the accepted args?
+      validation = {
+        check = input:
+          if isString input
+          then input
+          else throw "${_name}: check must be a string, got ${typeOf input}";
+        value = input:
+          if isString input
+          then input
+          else throw "${_name}: value must be a string, got ${typeOf input}";
+      };
+
+      simulation = [
+        {
+          args = {
+            check = "foo";
+            value = "foobar";
+          };
+          desired = true;
+        }
+        {
+          args = {
+            check = "bar";
+            value = "foobar";
+          };
+          desired = false;
+        }
+        {
+          args = ["foobar" "foo"];
+          desired = true;
+        }
+      ];
+
+      execution = args:
+        has {
+          mode = "start";
+          pattern = args.check;
+          value = args.value;
+        };
+    };
+
   /**
   Test whether a string contains a given infix. A hybrid partial application
   of `has` with `mode` pre-bound to `"contains"`.
@@ -383,47 +470,84 @@
   - strings.has
 
   # Arguments
-  arg
-  : A configuration attribute set { check, value }, or the check (infix) string
-  for curried positional invocation.
+  value
+  : The string to inspect, or a configuration attribute set { value, check }.
+
+  check
+  : The infix string to check for.
 
   # Examples
   - __Explicit Attribute Set Configuration__
 
-  > hasInfix { check = "oob"; value = "foobar"; }
+  > __hasInfix__ { `check` = _"oob"_; `value` = _"foobar"_; }
   => true
 
-  > hasInfix { check = "xyz"; value = "foobar"; }
+  > __hasInfix__ { `check` = _"xyz"_; `value` = _"foobar"_; }
   => false
 
-  - __Curried Positional (_Check_ then _Value_)__
+  - __Curried Positional (Value then Check)__
 
-  > hasInfix "oob" "foobar"
+  > __hasInfix__ _"foobar"_ _"oob"_
   => true
 
   - __Partial application__
 
-  > containsOob = hasInfix "oob";
-  > containsOob "foobar"
+  > hasInfixOfFoobar = __hasInfix__ _"foobar"_;
+  > __hasInfixOfFoobar__ _"oob"_
   => true
 
-  > containsOob "hello"
+  > __hasInfixOfFoobar__ _"xyz"_
   => false
   */
-  hasInfix = arg: let
-    positional = ["check" "value"];
-    primary = lastOf positional;
-    required = positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {inherit payload required;};
-      in
-        has "contains" args.check args.value
-    );
+  hasInfix = let
+    _name = "strings.hasInfix";
+    required = ["value" "check"];
+    positional = required;
   in
-    function arg;
+    mkFn {
+      name = _name;
+      inherit required positional;
 
-  # TODO: Arguments should show check, and value though. how will they caller know the accepted args?
+      validation = {
+        check = input:
+          if isString input
+          then input
+          else throw "${_name}: check must be a string, got ${typeOf input}";
+        value = input:
+          if isString input
+          then input
+          else throw "${_name}: value must be a string, got ${typeOf input}";
+      };
+
+      simulation = [
+        {
+          args = {
+            check = "oob";
+            value = "foobar";
+          };
+          desired = true;
+        }
+        {
+          args = {
+            check = "xyz";
+            value = "foobar";
+          };
+          desired = false;
+        }
+        {
+          args = ["foobar" "oob"];
+          desired = true;
+        }
+      ];
+
+      execution = args:
+        has {
+          mode = "contains";
+          pattern = args.check;
+          value = args.value;
+        };
+    };
+
   /**
   Test whether a string ends with a given suffix. A hybrid partial application
   of `has` with `mode` pre-bound to `"end"`.
@@ -438,45 +562,83 @@
   - strings.has
 
   # Arguments
-  arg
-  : A configuration attribute set { `check`, `value` }, or the check (suffix) string
-  for curried positional invocation.
+  value
+  : The string to inspect, or a configuration attribute set { value, check }.
+
+  check
+  : The suffix string to check for.
 
   # Examples
   - __Explicit Attribute Set Configuration__
 
-  > hasSuffix { check = "bar"; value = "foobar"; }
+  > __hasSuffix__ { `check` = _"bar"_; `value` = _"foobar"_; }
   => true
 
-  > hasSuffix { check = "foo"; value = "foobar"; }
+  > __hasSuffix__ { `check` = _"foo"_; `value` = _"foobar"_; }
   => false
 
-  - __Curried Positional (Check then Value)__
+  - __Curried Positional (Value then Check)__
 
-  > hasSuffix "bar" "foobar"
+  > __hasSuffix__ _"foobar"_ _"bar"_
   => true
 
   - __Partial application__
 
-  > endsWithBar = hasSuffix "bar";
-  > endsWithBar "foobar"
+  > hasSuffixOfFoobar = __hasSuffix__ _"foobar"_;
+  > __hasSuffixOfFoobar__ _"bar"_
   => true
 
-  > endsWithBar "barfoo"
+  > __hasSuffixOfFoobar__ _"foo"_
   => false
   */
-  hasSuffix = arg: let
-    positional = ["check" "value"];
-    primary = lastOf positional;
-    required = positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {inherit payload required;};
-      in
-        has "end" args.check args.value
-    );
+  hasSuffix = let
+    _name = "strings.hasSuffix";
+    required = ["value" "check"];
+    positional = required;
   in
-    function arg;
+    mkFn {
+      name = _name;
+      inherit required positional;
+
+      validation = {
+        check = input:
+          if isString input
+          then input
+          else throw "${_name}: check must be a string, got ${typeOf input}";
+        value = input:
+          if isString input
+          then input
+          else throw "${_name}: value must be a string, got ${typeOf input}";
+      };
+
+      simulation = [
+        {
+          args = {
+            check = "bar";
+            value = "foobar";
+          };
+          desired = true;
+        }
+        {
+          args = {
+            check = "foo";
+            value = "foobar";
+          };
+          desired = false;
+        }
+        {
+          args = ["foobar" "bar"];
+          desired = true;
+        }
+      ];
+
+      execution = args:
+        has {
+          mode = "end";
+          pattern = args.check;
+          value = args.value;
+        };
+    };
 
   /**
   Trim characters matching a pattern from a string, according to a mode:
@@ -539,7 +701,7 @@
     _name = "strings.trim";
     _modes = _defaults.modes;
   in
-    buildFunction {
+    mkFn {
       name = _name;
       positional = ["value" "pattern" "mode"];
       required = ["value"];
