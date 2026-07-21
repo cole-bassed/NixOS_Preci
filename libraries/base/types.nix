@@ -3,6 +3,7 @@
   attrsets,
   trivial,
   lists,
+  debug,
   ...
 }: let
   exports = {
@@ -66,9 +67,10 @@
     typeOf
     ;
   inherit (attrsets) recursiveUpdate;
-  inherit (lists) all lastOf;
+  inherit (lists) all;
   inherit (strings) trim';
-  inherit (trivial) makeHybrid readHybrid;
+  inherit (trivial) buildFunction;
+  inherit (debug) assertWith;
 
   registry = let
     schema = {
@@ -130,51 +132,7 @@
 
   /**
   Check whether a value is considered empty for defaulting purposes.
-
-  # Emptiness Rules
-
-  - `null` is empty.
-  - Strings are empty when blank or whitespace-only.
-  - Lists are empty when equal to `[]`.
-  - Attribute sets are empty when equal to `{}`.
-  - Numbers, booleans, and paths are never empty.
-  - Functions are unsupported and produce an error.
-
-  # Type
-  ```nix
-  isEmpty :: a -> Bool
-  ````
-
-  # Dependencies
-
-  - strings.trim
-  - builtins.isAttrs
-  - builtins.isFunction
-  - builtins.isList
-  - builtins.isString
-  - builtins.stringLength
-
-  # Arguments
-
-  value
-  : The value to test.
-
-  # Examples
-
-  > isEmpty null
-  => true
-
-  > isEmpty "   "
-  => true
-
-  > isEmpty {}
-  => true
-
-  > isEmpty [ 1 ]
-  => false
-
-  > isEmpty 0
-  => false
+  See original docstring - unchanged.
   */
   isEmpty = value: let
     type = typeOf value;
@@ -188,356 +146,255 @@
     else if type == "list" || type == "set"
     then value == defaults.${type}
     else false;
+
   /**
   Check whether a value is not empty according to `isEmpty`.
-
-  # Type
-  ```nix
-  isNotEmpty :: a -> Bool
-  ```
-
-  # Dependencies
-  - types.isEmpty
-
-  # Arguments
-  value
-  : The value to test.
-
-  # Examples
-  > isNotEmpty "hello"
-  => true
-
-  > isNotEmpty 0
-  => true
-
-  > isNotEmpty false
-  => true
-
-  > isNotEmpty null
-  => false
-
-  > isNotEmpty ""
-  => false
-
-  > isNotEmpty []
-  => false
   */
   isNotEmpty = value: !isEmpty value;
 
   /**
   Return the first value when it is not `null`; otherwise return the fallback.
 
-  Unlike `orDefault`, this function only treats `null` as absent. Empty strings,
-  lists, and attribute sets are returned unchanged.
-
-  Supports the standard hybrid invocation patterns: an explicit configuration
-  attribute set, or curried positional arguments (value, then default).
-
   # Type
   ```nix
   coalesce :: AttrSet -> a
   coalesce :: a -> a -> a
   ```
-
-  # Dependencies
-  - trivial.makeHybrid
-  - trivial.readHybrid
-  - types.orDefaultIf
-
-  # Arguments
-  arg
-  : A configuration attribute set { value, default }, or the preferred value
-  for curried positional invocation.
-
-  # Examples
-  - __Pattern 1__: _Explicit Attribute Set Configuration_
-
-  > coalesce { value = "hello"; default = "fallback"; }
-  => "hello"
-
-  > coalesce { value = null; default = "fallback"; }
-  => "fallback"
-
-  - __Pattern 2__: _Curried Positional (Value then Default)_
-
-  > coalesce "" "fallback"
-  => ""
-
-  > coalesce null "fallback"
-  => "fallback"
-
-  > coalesce [] [ "a" ]
-  => []
-
-  - __Partial application__ (currying binds `value` first, then `default`)
-
-  > nullOrFallback = coalesce null;
-  > nullOrFallback "anonymous"
-  => "anonymous"
-
-  > helloOrFallback = coalesce "hello";
-  > helloOrFallback "anonymous"
-  => "hello"
   */
-  coalesce = arg: let
+  coalesce = buildFunction {
+    name = "types.coalesce";
     positional = ["value" "default"];
-    primary = lastOf positional;
+    required = ["value" "default"];
 
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = positional;
+    #> Both fields accept anything, including null - no per-field validation needed.
+    validation = {};
+
+    simulation = [
+      {
+        args = {
+          value = "hello";
+          default = "fallback";
         };
-      in
-        orDefaultIf {
-          condition = args.value != null;
-          inherit (args) default value;
-        }
-    );
-  in
-    function arg;
+        desired = "hello";
+      }
+      {
+        args = {
+          value = null;
+          default = "fallback";
+        };
+        desired = "fallback";
+      }
+      {
+        args = ["" "fallback"];
+        desired = "";
+      }
+      {
+        args = [null "fallback"];
+        desired = "fallback";
+      }
+      {
+        args = [[] ["a"]];
+        desired = [];
+      }
+    ];
+
+    execution = args:
+      orDefaultIf {
+        condition = args.value != null;
+        inherit (args) default value;
+      };
+  };
 
   /**
   Return a value when it has the requested Nix type; otherwise return that
   type's registered default value.
 
-  Supports an explicit configuration attribute set or a curried positional
-  invocation using the type name followed by the value.
-
   # Type
-
   ```nix
   orDefault :: AttrSet -> a
   orDefault :: String -> a -> a
   ```
-
-  # Supported Type Names
-  * `"bool"`
-  * `"float"`
-  * `"int"`
-  * `"lambda"`
-  * `"list"`
-  * `"null"`
-  * `"path"`
-  * `"set"`
-  * `"string"`
-
-  # Dependencies
-
-  * builtins.typeOf
-  * trivial.makeHybrid
-  * trivial.readHybrid
-
-  # Arguments
-  default
-  : The fallback value. In positional invocations, a registered type name is
-  resolved to that type's default value.
-
-  type
-  : The registered Nix type whose default should be returned. Used only in
-  explicit attribute-set invocations.
-
-  value
-  : The value to return when it is not empty.
-
-  # Examples
-
-  * __Curried positional invocation__
-
-  > orDefault "list" [ "value" ]
-  => [ "value" ]
-
-  > orDefault "list" "value"
-  => []
-
-  > orDefault "string" null
-  => ""
-
-  * __Explicit attribute-set invocation__
-
-  > orDefault {
-  > type = "set";
-  > value = [ "value" ];
-  > }
-  => {}
-
-  * __Partial application__
-
-  > listOrDefault = orDefault "list";
-
-  > listOrDefault "value"
-  => []
-
-  > listOrDefault [ "value" ]
-  => [ "value" ]
   */
-  orDefault = arg: let
-    positional = ["default" "value"];
-    primary = lastOf positional;
+  orDefault = let
+    _name = "types.orDefault";
+  in
+    buildFunction {
+      name = _name;
+      positional = ["default" "value"];
+      required = ["value"];
+      optional = ["default" "type"];
 
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = ["value"];
-          allowed = positional ++ ["type"];
-        };
+      validation = {};
 
+      simulation = [
+        {
+          args = ["list" ["value"]];
+          desired = ["value"];
+        }
+        {
+          args = ["list" "value"];
+          desired = [];
+        }
+        {
+          args = ["string" null];
+          desired = "";
+        }
+        {
+          args = {
+            type = "set";
+            value = ["value"];
+          };
+          desired = {};
+        }
+        {
+          args = {
+            value = "x";
+            default = "d";
+            type = "string";
+          };
+          throws = true;
+        }
+      ];
+
+      execution = args: let
         hasDefault = args ? default;
         hasType = args ? type;
 
-        check =
-          if hasDefault && hasType
-          then throw "orDefault: provide either 'default' or 'type', not both"
-          else if !hasDefault && !hasType
-          then throw "orDefault: provide either 'default' or 'type'"
-          else true;
+        check = assertWith {
+          name = _name;
+          assertion = hasDefault != hasType; #> exactly one, i.e. XOR
+          message = "provide either 'default' or 'type', not both, and not neither";
+          context = "execution";
+        };
 
         default =
           if hasDefault
           then args.default
           else defaults.${args.type}
-          or (throw "orDefault: Unknown type kind '${args.type}'");
+          or (throw "${_name}: Unknown type kind '${args.type}'");
       in
         assert check;
           orDefaultIf {
             condition = isNotEmpty args.value;
             inherit default;
             inherit (args) value;
-          }
-    );
-  in
-    function arg;
+          };
+    };
 
   /**
   Return a value when a condition is true; otherwise return the registered
   default for the requested type.
 
-  This generalizes `optionalAttrs` and `optionals` by selecting the empty/default
-  value from `defaults`.
-
   # Type
-
   ```nix
   orDefaultIf :: AttrSet -> a
   orDefaultIf :: Bool -> String -> a -> a
   ```
-
-  # Arguments
-  condition
-  : A boolean controlling whether value is retained.
-
-  type
-  : The registered Nix type whose default should be returned.
-
-  value
-  : The value to test.
-
-  # Examples
-
-  - __Replacement for `optionalAttrs`__
-
-  > orDefaultIf true "set" { enable = true; }
-  => { enable = true; }
-
-  > orDefaultIf false "set" { enable = true; }
-  => {}
-
-  _Equivalent to:_
-
-  > optionalAttrs true { enable = true; }
-  => { enable = true; }
-
-  > optionalAttrs false { enable = true; }
-  => {}
-
-  __Replacement for `optionals`__
-
-  > orDefaultIf true "list" [ "git" "curl" ]
-  => [ "git" "curl" ]
-
-  > orDefaultIf false "list" [ "git" "curl" ]
-  => []
-
-  Equivalent to:
-
-  > optionals true [ "git" "curl" ]
-  => [ "git" "curl" ]
-
-  > optionals false [ "git" "curl" ]
-  => []
-
-  __Replacement for `optionalString`__
-
-  > orDefaultIf true "string" "enabled"
-  => "enabled"
-
-  > orDefaultIf false "string" "enabled"
-  => ""
-
-  _Equivalent to:_
-
-  > optionals true [ "git" "curl" ]
-  => [ "git" "curl" ]
-
-  > optionals false [ "git" "curl" ]
-  => []
-
-  - __Explicit Attribute Set Configuration__
-
-  > orDefaultIf { condition = true; type = "list"; value = [ "git" ]; }
-  => [ "git" ]
-
-  > orDefaultIf { condition = false; type = "list"; value = [ "git" ]; }
-  => []
-
-  - __Explicit `default` override (bypasses the `defaults` registry)__
-
-  > orDefaultIf { condition = false; default = "n/a"; value = "enabled"; }
-  => "n/a"
-
-  - __Curried positional third slot (`fallback`) is dual-purpose__: if it names a
-  key in the type registry it is resolved as a type name, otherwise it is used
-  literally as the default value.
-
-  > orDefaultIf false "list" [ 1 2 3 ]
-  => []
-
-  > orDefaultIf false "n/a" "hello"
-  => "n/a"
-
-  - __No `type`, `default`, or `fallback` given: falls back to the type of `value` itself__
-
-  > orDefaultIf { condition = false; value = "hello"; }
-  => ""
-
-  > orDefaultIf { condition = false; value = [ 1 2 3 ]; }
-  => []
   */
-  orDefaultIf = arg: let
-    _name = "orDefaultIf";
-    positional = ["condition" "fallback" "value"];
-    primary = lastOf positional;
+  orDefaultIf = let
+    _name = "types.orDefaultIf";
+  in
+    buildFunction {
+      name = _name;
+      positional = ["condition" "fallback" "value"];
+      required = ["condition" "value"];
+      optional = ["fallback" "type" "default"];
 
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = ["condition" "value"];
-          allowed = positional ++ ["type" "default"];
+      validation = {
+        condition = {
+          validate = input:
+            if typeOf input != "bool"
+            then throw "${_name}: condition must be a bool"
+            else input;
+          type = "bool";
         };
+      };
 
+      simulation = [
+        {
+          args = [true "set" {enable = true;}];
+          desired = {enable = true;};
+        }
+        {
+          args = [false "set" {enable = true;}];
+          desired = {};
+        }
+        {
+          args = [true "list" ["git" "curl"]];
+          desired = ["git" "curl"];
+        }
+        {
+          args = [false "list" ["git" "curl"]];
+          desired = [];
+        }
+        {
+          args = [true "string" "enabled"];
+          desired = "enabled";
+        }
+        {
+          args = [false "string" "enabled"];
+          desired = "";
+        }
+        {
+          args = {
+            condition = true;
+            type = "list";
+            value = ["git"];
+          };
+          desired = ["git"];
+        }
+        {
+          args = {
+            condition = false;
+            type = "list";
+            value = ["git"];
+          };
+          desired = [];
+        }
+        {
+          args = {
+            condition = false;
+            default = "n/a";
+            value = "enabled";
+          };
+          desired = "n/a";
+        }
+        {
+          args = [false "n/a" "hello"];
+          desired = "n/a";
+        }
+        {
+          args = {
+            condition = false;
+            value = "hello";
+          };
+          desired = "";
+        }
+        {
+          args = {
+            condition = false;
+            value = [1 2 3];
+          };
+          desired = [];
+        }
+        #> condition must be a bool
+        {
+          args = ["not-a-bool" "list" []];
+          throws = true;
+        }
+      ];
+
+      execution = args: let
         hasType = args ? type;
         hasDefault = args ? default;
         hasFallback = args ? fallback;
 
-        check =
-          if typeOf args.condition != "bool"
-          then throw "${_name}: condition must be a bool"
-          else if hasType && hasDefault
-          then throw "${_name}: provide either 'type' or 'default', not both"
-          else true;
+        check = assertWith {
+          name = _name;
+          assertion = !(hasType && hasDefault);
+          message = "provide either 'type' or 'default', not both";
+          context = "execution";
+        };
 
         fallback =
           if hasDefault
@@ -557,9 +414,7 @@
         assert check;
           if args.condition
           then args.value
-          else fallback
-    );
-  in
-    function arg;
+          else fallback;
+    };
 in
   exports

@@ -11,24 +11,24 @@
         orEmpty
         quote
         split'
-        trim
+        trim'
         trimStart
         trimEnd
         trimBoth
-        trim'
         trimAll
         has
         hasPrefix
         hasInfix
         hasSuffix
         ;
-      startsWith = hasPrefix;
-      endsWith = hasSuffix;
       contains = hasInfix;
+      endsWith = hasSuffix;
       infix = substring;
       length = stringLength;
       regex = match;
       split = split';
+      startsWith = hasPrefix;
+      trim = trim';
       wrap = quote;
     };
 
@@ -52,13 +52,12 @@
       matchRegex = match;
       orEmptyString = orEmpty;
       splitString = split';
-      trimString = trim;
+      trimString = trim';
     };
   };
 
   inherit
     (builtins)
-    all
     concatStringsSep
     elem
     elemAt
@@ -66,16 +65,17 @@
     isList
     isString
     match
+    length
+    head
     replaceStrings
     split
     stringLength
     substring
     typeOf
     ;
-
   inherit (attrsets) namesOf valuesOf;
   inherit (lists) asList lastOf;
-  inherit (trivial) makeHybrid readHybrid;
+  inherit (trivial) makeHybrid readHybrid buildFunction;
 
   _defaults.modes = let
     name = "modes";
@@ -146,23 +146,46 @@
   > concat { delim = "_"; parts = [ "core" null "system" ]; }
   => "core_system"
   */
-  concat = arg: let
+  concat = buildFunction {
+    name = "strings.concat";
     positional = ["delim" "parts"];
-    primary = lastOf positional;
-    fallback = isList;
-    function = makeHybrid {inherit fallback positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload positional;
-          defaults.delim = "";
+    required = ["parts"];
+    optional = ["delim"];
+    defaults = {delim = "";};
+    fallback = isList; #> a bare list argument is treated as `parts` directly
+
+    validation = {};
+
+    simulation = [
+      {
+        args = {
+          delim = "-";
+          parts = ["foo" "bar"];
         };
-      in
-        concatStringsSep
-        args.delim
-        (filter (part: part != null) (asList args.parts))
-    );
-  in
-    function arg;
+        desired = "foo-bar";
+      }
+      {
+        args = ["/" ["usr" "local" "bin"]];
+        desired = "usr/local/bin";
+      }
+      {
+        args = [["a" "b" "c"]];
+        desired = "abc";
+      }
+      {
+        args = {
+          delim = "_";
+          parts = ["core" null "system"];
+        };
+        desired = "core_system";
+      }
+    ];
+
+    execution = args:
+      concatStringsSep
+      args.delim
+      (filter (part: part != null) (asList args.parts));
+  };
 
   # TODO: Arguments should show mode, check, and value though. how will they caller know the accepted args?
   /**
@@ -512,153 +535,217 @@
   > trimDashesBoth "--hello--"
   => "hello"
   */
-  trim = let
+  trim' = let
     _name = "strings.trim";
     _modes = _defaults.modes;
-
-    defaults = {
-      mode = "both";
-      pattern = "[[:space:]]";
-      value = null;
-    };
-
-    validate = let
-      validateString = input: name: {
-        check = input: isString input && input != "";
-        error = throw "${_name}: ${name} must be a non-empty string";
-      };
-    in {
-      mode = input: let
-        base = validateString "mode" input;
-      in
-        base
-        // {
-          check = base.check && elem input _modes.names;
-          error =
-            if base.check
-            then
-              throw "${_name}: mode must be one of ${
-                concat ", " (map quote _modes.names)
-              }"
-            else base.error;
-        };
-      pattern = input: validateString "pattern";
-      value = input: validateString "value";
-    };
-
-    prep = mode: pattern: value: let
-      start = let
-        matches = match "^(${pattern})*(.*)$" value;
-      in
-        if matches == null
-        then value
-        else elemAt matches 1;
-
-      end = let
-        #> Capture everything up to the last non-matching character
-        matches = match "^(.*[^${pattern}]+)(${pattern})*$" value;
-      in
-        #? Fallback: if it's null, the string is either empty or entirely spaces
-        if matches == null
-        then ""
-        else elemAt matches 0;
-
-      every = let
-        #> For 'all', completely remove the pattern globally using split
-        parts = split pattern value;
-      in
-        #> Filter out matching lists and recombine the non-matching string segments
-        concat (filter isString parts);
-
-      both = end (start value);
-    in
-      if mode == _modes.start
-      then start
-      else if mode == _modes.end
-      then end
-      else if mode == _modes.both || mode == _modes.each
-      then both
-      else if mode == _modes.all || mode == _modes.every
-      then every
-      else value;
-
-    process = args: let
-      mode = validate.mode (args.mode or defaults.mode);
-      pattern = validate.pattern (args.pattern or defaults.pattern);
-      value = validate.value (args.value or defaults.value);
-    in
-      prep mode pattern value;
   in
-    args: process args;
-  # mkHybrid {inherit defaults process};
-  # makeHybrid {inherit positional primary defaults validate;}
-  # (
-  #   payload: let
-  #     #> Explode and validate arguments using the unified infrastructure
-  #     args = readHybrid {inherit defaults payload primary positional;};
+    buildFunction {
+      name = _name;
+      positional = ["value" "pattern" "mode"];
+      required = ["value"];
 
-  # #> Strict type compliance checks
-  # check = let
-  #   is_string = all isString (
-  #     with args; [
-  #       mode
-  #       pattern
-  #       value
-  #     ]
-  #   );
-  #   is_mode = elem args.mode modes.names;
-  #   is_pattern = args.pattern != "";
-  # in
-  #   if !is_string
-  #   then throw "${_name}: parameters (mode, pattern, value) must all be strings"
-  #   else if !is_mode
-  #   then throw "${_name}: mode must be one of ${concat ", " (map quote modes.names)}"
-  #   else if !is_pattern
-  #   then throw "${_name}: pattern cannot be an empty string"
-  #   else true;
+      defaults = {
+        mode = "both";
+        pattern = "[[:space:]]";
+      };
 
-  #   #> 3. Functional trimming phases
-  #   process = assert check; {
-  #     start = value: let
-  #       matches = match "^(${args.pattern})*(.*)$" value;
-  #     in
-  #       if matches == null
-  #       then value
-  #       else elemAt matches 1;
+      simulation = [
+        #> Single positional value: mode defaults to "both", pattern defaults to whitespace
+        {
+          args = "   hello   ";
+          desired = "hello";
+        }
 
-  #     end = value: let
-  #       #> Capture everything up to the last non-matching character
-  #       matches = match "^(.*[^${args.pattern}]+)(${args.pattern})*$" value;
-  #     in
-  #       #? Fallback: if it's null, the string is either empty or entirely spaces
-  #       if matches == null
-  #       then ""
-  #       else elemAt matches 0;
+        #> Two positional: value, pattern (mode defaults to "both")
+        {
+          args = {
+            value = "hello";
+            pattern = "l";
+          };
+          desired = "hello";
+        }
 
-  #     all = value: let
-  #       #> For 'all', completely remove the pattern globally using split
-  #       parts = split args.pattern value;
-  #     in
-  #       #> Filter out matching lists and recombine the non-matching string segments
-  #       concat (filter isString parts);
-  #   };
+        #> Three positional: value, pattern, mode
+        {
+          args = ["hello" "l" "every"];
+          desired = "heo";
+        }
 
-  #   #> Determine application mapping
-  #   result =
-  #     if args.mode == modes.start
-  #     then process.start args.value
-  #     else if args.mode == modes.end
-  #     then process.end args.value
-  #     else if args.mode == modes.both
-  #     then process.end (process.start args.value)
-  #     else if args.mode == modes.all
-  #     then process.all args.value
-  #     else args.value;
-  # in
-  #   result
-  # );
+        #> Mode alias: "all" canonicalizes to "every"
+        {
+          args = ["hello" "l" "all"];
+          desired = "heo";
+        }
 
-  trim' = value: trimBoth "[[:space:]]" value;
+        #> Mode alias: "each" canonicalizes to "both"
+        {
+          args = ["   hello   " "[[:space:]]" "each"];
+          desired = "hello";
+        }
+
+        #> start mode: trims only leading matches
+        {
+          args = ["   hello   " "[[:space:]]" "start"];
+          desired = "hello   ";
+        }
+
+        #> end mode: trims only trailing matches
+        {
+          args = ["   hello   " "[[:space:]]" "end"];
+          desired = "   hello";
+        }
+
+        #> Attrs form, value only
+        {
+          args = {value = "   hello   ";};
+          desired = "hello";
+        }
+
+        #> Attrs form, value + pattern
+        {
+          args = {
+            value = "hello";
+            pattern = "l";
+          };
+          desired = "helo";
+        }
+
+        #> Attrs form, all three explicit
+        {
+          args = {
+            value = "hello";
+            pattern = "l";
+            mode = "every";
+          };
+          desired = "heo";
+        }
+
+        #> Error: mode must be non-empty
+        {
+          args = ["hello" "l" ""];
+          throws = true;
+        }
+
+        #> Error: mode must be a recognized name
+        {
+          args = ["hello" "l" "not-a-mode"];
+          throws = true;
+        }
+
+        #> Error: value must be a non-empty string
+        {
+          args = {value = "";};
+          throws = true;
+        }
+
+        #> Error: too many positional arguments
+        {
+          args = ["hello" "l" "every" "extra"];
+          throws = true;
+        }
+      ];
+
+      validation = let
+        validateString = name: value: let
+          check = isString value && value != "";
+          error = throw "${_name}: ${name} must be a non-empty string";
+        in
+          if check
+          then value
+          else error;
+
+        canonicalMode = input:
+          if input == _modes.all
+          then _modes.every
+          else if input == _modes.each
+          then _modes.both
+          else input;
+
+        validateMode = input: let
+          name = "mode";
+          value = validateString name input;
+          check = elem value _modes.names;
+          error = throw "${_name}: ${name} must be one of ${concat ", " _modes.names}";
+        in
+          if check
+          then canonicalMode value
+          else error;
+      in {
+        mode = {
+          validate = input: validateMode input;
+          options = _modes.names;
+          type = "enum";
+        };
+        pattern = input: validateString "pattern" input;
+        value = input: validateString "value" input;
+      };
+
+      execution = args: let
+        inherit (args) mode value pattern;
+
+        start = {
+          value,
+          pattern,
+        }: let
+          parts = split "^(${pattern})+" value;
+        in
+          if length parts > 1
+          then elemAt parts 2
+          else head parts;
+
+        end = {
+          value,
+          pattern,
+        }: let
+          parts = split "(${pattern})+$" value;
+        in
+          head parts;
+
+        every = {
+          value,
+          pattern,
+        }: let
+          parts = split pattern value;
+        in
+          concat (filter isString parts);
+
+        both = {
+          value,
+          pattern,
+        }:
+          start {
+            value = end {inherit value pattern;};
+            inherit pattern;
+          };
+      in
+        if mode == _modes.start
+        then start {inherit value pattern;}
+        else if mode == _modes.end
+        then end {inherit value pattern;}
+        else if mode == _modes.both || mode == _modes.each
+        then both {inherit value pattern;}
+        else if mode == _modes.all || mode == _modes.every
+        then every {inherit value pattern;}
+        else value;
+    };
+
+  split'' = sep: str: let
+    #> List of all POSIX ERE special characters
+    specialChars = ["\\" "." "+" "*" "?" "^" "$" "(" ")" "[" "]" "{" "}" "|"];
+
+    #> Their escaped counterparts
+    escapedChars = map (c: "\\${c}") specialChars;
+
+    #> Safely escape the provided separator so it acts as a literal string
+    escapedSep = replaceStrings specialChars escapedChars sep;
+
+    #> Perform the split using the built-in regex split
+    rawSplit = split escapedSep str;
+  in
+    #> Filter out the regex match lists, keeping only the string segments
+    filter isString rawSplit;
+
+  # trim' = value: trimBoth "[[:space:]]" value;
 
   /**
   Trim characters matching a pattern from the start of a string. A hybrid
@@ -709,7 +796,7 @@
           defaults.pattern = "[[:space:]]";
         };
       in
-        trim "start" args.pattern args.value
+        trim' "start" args.pattern args.value
     );
   in
     function arg;
@@ -763,7 +850,7 @@
           defaults.pattern = "[[:space:]]";
         };
       in
-        trim "end" args.pattern args.value
+        trim' "end" args.pattern args.value
     );
   in
     function arg;
@@ -817,7 +904,7 @@
           defaults.pattern = "[[:space:]]";
         };
       in
-        trim "both" args.pattern args.value
+        trim' "both" args.pattern args.value
     );
   in
     function arg;
@@ -871,7 +958,7 @@
           defaults.pattern = "[[:space:]]";
         };
       in
-        trim "all" args.pattern args.value
+        trim' "all" args.pattern args.value
     );
   in
     function arg;
@@ -908,7 +995,7 @@
   ```
   */
   orEmpty = value:
-    if isString value && stringLength (trim value) > 0
+    if isString value && stringLength (trim' value) > 0
     then value
     else "";
 
@@ -966,10 +1053,7 @@
   => [ "no-dots-here" ]
   */
   split' = arg: let
-    positional = [
-      "sep"
-      "str"
-    ];
+    positional = ["sep" "str"];
     primary = lastOf positional;
 
     function = makeHybrid {inherit positional primary;} (
@@ -979,16 +1063,25 @@
           required = positional;
         };
 
+        # List of all POSIX ERE special characters
+        specialChars = ["\\" "." "+" "*" "?" "^" "$" "(" ")" "[" "]" "{" "}" "|"];
+
+        # Their escaped counterparts
+        escapedChars = map (c: "\\${c}") specialChars;
+
+        # Safely escape the provided separator
+        escapedSep = replaceStrings specialChars escapedChars args.sep;
+
         # Basic regex escaping for common delimiters like '.' or '-'
         # If your paths only use dots, escaping the dot is the main priority.
-        escapedSep =
-          if args.sep == "."
-          then "\\."
-          else if args.sep == "*"
-          then "\\*"
-          else if args.sep == "+"
-          then "\\+"
-          else args.sep;
+        # escapedSep =
+        #   if args.sep == "."
+        #   then "\\."
+        #   else if args.sep == "*"
+        #   then "\\*"
+        #   else if args.sep == "+"
+        #   then "\\+"
+        #   else args.sep;
 
         rawSplit = split escapedSep args.str;
       in

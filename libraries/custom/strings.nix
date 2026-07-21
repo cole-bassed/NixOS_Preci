@@ -25,12 +25,12 @@
         toSnake
         toTitle
         toUpper'
-        trim'
+        # trim'
         trimEnd
         trimStart
         wrap
         ;
-      trim = trim';
+      # trim = trim';
       isEmpty = isEmpty';
       isNotEmpty = isNotEmpty';
     };
@@ -47,9 +47,9 @@
         toSnake
         toTitle
         toUpper'
-        trim'
-        trimEnd
-        trimStart
+        # trim'
+        # trimEnd
+        # trimStart
         wrap
         ;
       capitalizeString = capitalize;
@@ -69,9 +69,9 @@
       toSnakeCase = toSnake;
       toTitleCase = toTitle;
       toUpperCase = toUpper';
-      trimString = trim';
-      trimStringEnd = trimEnd;
-      trimStringStart = trimStart;
+      # trimString = trim';
+      # trimStringEnd = trimEnd;
+      # trimStringStart = trimStart;
     };
   };
 
