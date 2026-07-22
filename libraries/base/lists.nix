@@ -88,13 +88,11 @@ _: let
   - Paths are wrapped as singleton lists
 
   # Type
-
   ```nix
   asList :: [ a ] | String | AttrSet | Path -> [ a ]
   ```
 
   # Dependencies
-
   None
 
   # Arguments
@@ -103,17 +101,14 @@ _: let
   : The value to coerce.
 
   # Examples
+  > asList "pop"
+  => [ "pop" ]
 
-  ```nix
-  asList "pop"
-  # => [ "pop" ]
+  > asList { a = 1; b = 2; }
+  => [ "a" "b" ]
 
-  asList { a = 1; b = 2; }
-  # => [ "a" "b" ]
-
-  asList ./file.nix
-  # => [ ./file.nix ]
-  ```
+  > asList ./file.nix
+  => [ ./file.nix ]
   */
   as = args: let
     isConfig =
@@ -184,13 +179,11 @@ _: let
 
   # Examples
 
-  ```nix
-  asIf true "debug"
-  # => [ "debug" ]
+  > asIf true "debug"
+  => [ "debug" ]
 
-  asIf false "debug"
-  # => []
-  ```
+  > asIf false "debug"
+  => []
   */
   asIf = predicate: value:
     if predicate
@@ -199,38 +192,33 @@ _: let
 
   /**
   Returns the original value only when:
-    - the value is a list
-    - the list is not empty
+  - the value is a list
+  - the list is not empty
 
   Otherwise returns `[]`.
 
-    # Type
+  # Type
+  ```nix
+  orEmpty :: a -> [ b ]
+  ```
 
-    ```nix
-    orEmpty :: a -> [ b ]
-    ```
+  # Dependencies
+  - types.isNotEmpty
 
-    # Dependencies
+  # Arguments
+  value
+  : The value to normalize.
 
-    - types.isNotEmpty
+  # Examples
+  > orEmpty [ 1 2 ]
+  => [ 1 2 ]
 
-    # Arguments
+  > orEmpty []
+  => []
 
-    value
-    : The value to normalize.
-
-    # Examples
-
-    ```nix
-    orEmpty [ 1 2 ]
-    # => [ 1 2 ]
-
-    orEmpty []
-    # => []
-
-    orEmpty null
-    # => []
-    ```
+  > orEmpty null
+  => []
+  ```
   */
   orEmpty = value:
     if isList value && value != []
@@ -257,13 +245,11 @@ _: let
   Deduplicate a list while preserving first occurrence order.
 
   # Type
-
   ```nix
   unique :: [ a ] -> [ a ]
   ```
 
   # Dependencies
-
   - lists.unique
 
   # Arguments
@@ -272,11 +258,8 @@ _: let
   : The list to deduplicate.
 
   # Examples
-
-  ```nix
-  unique [ 1 2 1 3 ]
-  # => [ 1 2 3 ]
-  ```
+  > unique [ 1 2 1 3 ]
+  => [ 1 2 3 ]
   */
   unique = list: let
     exec = seen: rest:
@@ -303,10 +286,21 @@ _: let
   # Type
   ```nix
   concat :: [ any ] -> [ any ]
+  ```
+
+  # Supports:
+  - Explicit AttrSet: { list; includes ?; excludes ?; }
+  - Curried (Includes List) -> (List): a bare list of allowed type names,
+    returning a function awaiting the actual data list.
+  - Simple List (Default Policy): a bare data list, using default includes.
+
+  NOTE: patterns 2 and 3 both begin with a plain list and are not
+  structurally distinguishable, so a bare-list argument is always treated
+  as pattern 2 (an `includes` filter awaiting the data list next). Callers
+  wanting pattern 3 semantics should use the explicit attrset form
+  (`concat { list = [...]; }`) instead of passing a bare list directly.
   */
-  # In your lists.nix
   concat = arg: let
-    # Define the core logic
     exec = {
       list,
       includes ? null,
@@ -345,9 +339,6 @@ _: let
           inherit list;
           includes = arg;
         }
-    #? Pattern 3: Simple List (Default Policy)
-    else if isList arg
-    then exec {list = arg;}
     #? Fallback
     else exec {list = [];};
 

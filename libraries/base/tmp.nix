@@ -1,554 +1,379 @@
-{
-  attrsets,
-  strings,
-  ...
-}: let
+_: let
   exports = {
     scoped = {
       inherit
-        stem
-        nest
-        getSpecs
-        isNixFile
-        isDirectory
-        isFile
-        isNixPath
-        ;
-      cat = readFile;
-      ls = readDir;
-      type = readFileType;
-      inherit
         (builtins)
-        filterSource
-        findFile
-        storeDir
-        storePath
-        toPath
-        baseNameOf
-        dirOf
-        path
-        pathExists
-        readDir
-        readFile
-        readFileType
+        all
+        any
+        elem
+        elemAt
+        filter
+        foldl'
+        head
+        length
+        map
+        optionalList
+        partition
+        sort
+        tail
+        zipAttrsWith
         ;
-    };
-    global = {
       inherit
-        mkPaths
-        mkPaths'
-        resolveDefaultNix
+        as
+        asIf
+        lastOf
+        firstOf
+        asModule
+        asUnique
+        foldl
+        orEmpty
+        unique
+        unique'
+        concatUnique
+        concat
         ;
+      maps = concatMap;
+      at = elemAt;
+      first = head;
+      initial = head;
+      remaining = tail;
+      isIn = elem;
+      select = filter;
+      generate = genList;
+    };
+
+    global = {
+      optionalList = asIf;
+      asModuleList = asModule;
+      asList = as;
+      asListIf = asIf;
+      asUniqueList = asUnique;
+      orEmptyList = orEmpty;
+      uniqueList = unique;
+      uniqueListUnordered = unique';
+      uniqueListOfStrings = unique';
+      listLength = length;
+      concatLists' = concat;
+      concatUniqueLists = concatUnique;
+      inherit (builtins) concatMap genList isList;
     };
   };
 
   inherit
     (builtins)
     attrNames
-    concatLists
     concatMap
     elem
     elemAt
-    foldl'
+    filter
+    genList
+    groupBy
     head
     isAttrs
-    isPath
+    isFunction
+    isList
     isString
-    mapAttrs
-    match
-    path
-    pathExists
-    readDir
-    readFile
-    readFileType
-    stringLength
-    substring
+    length
     tail
+    typeOf
     ;
-  inherit (strings) hasString matchRegex;
-  inherit (attrsets) filterAttrs recursiveUpdate;
 
   /**
-    Build a normalized pair of path sets — one for the Nix store, one for the
-    local filesystem — from an optional source-tree configuration.
+    Coerce a value into a list.
 
-    Project-relative paths (those within the project root) appear in both
-    `store` and `local`. Absolute paths outside the project root (e.g. home
-    directory folders) appear in `local` only — they have no meaningful store
-    representation.
+    Supported inputs:
+    - Lists are returned unchanged
+    - Strings are wrapped as singleton lists
+    - Attrsets become `attrNames value`
+    - Paths are wrapped as singleton lists
 
     # Type
+
   ```nix
-    mkPaths :: {
-      paths ? :: {
-        store ? :: Path | { src :: Path; [name :: Path] };
-        local ? :: String | { src :: String; [name :: Path | String] };
-      };
-      store ? :: Path | { src :: Path; [name :: Path] };
-      local ? :: String | null;
-    } -> {
-      store :: { src :: StorePath; [name :: StorePath] };
-      local :: { src :: String;    [name :: String]    };
-    }
+    asList :: [ a ] | String | AttrSet | Path -> [ a ]
   ```
-
-    # Arguments
-
-    paths
-    : Attribute set with optional `store` and `local` sub-attributes used as
-      fallbacks when `store` and `local` are not passed directly. Defaults to
-      `{ src = ./../../../.; }`.
-
-    store
-    : Either a path literal (the Nix store root of the project) or an attribute
-      set whose `src` key is a path literal and whose remaining keys are
-      project-relative paths to track. Falls back to `paths.store or paths`.
-      Only project-relative paths are copied into the `store` output.
-
-    local
-    : String representing the local checkout root shown in headers. Falls back
-      to `paths.local.src`, then `paths.local`, then `null` — in which case
-      `toString store` is used. Extra keys in `paths.local` beyond `src` are
-      treated as absolute local-only paths and merged into the `local` output.
 
     # Dependencies
 
-    Builtins
-    : `isAttrs`, `isPath`, `mapAttrs`, `path`, `removeAttrs`,
-      `stringLength`, `substring`, `toString`
+    None
 
-    attrsets
-    : `filterAttrs`
+    # Arguments
 
-    strings
-    : `hasPrefix`
+    value
+    : The value to coerce.
 
     # Examples
+
   ```nix
-    # Minimal — derive everything from a single path
-    mkPaths { paths.src = ./.; }
+    asList "pop"
+    # => [ "pop" ]
 
-    # Separate store and local roots
-    mkPaths {
-      store = ./src;
-      local = "/home/user/project";
-    }
+    asList { a = 1; b = 2; }
+    # => [ "a" "b" ]
 
-    # Project-relative stems — appear in both store and local
-    mkPaths {
-      store = {
-        src        = ./.;
-        libraries  = ./libraries;
-        templates  = ./templates;
-      };
-      local = "/etc/nixos";
-    }
-    # => {
-    #   store = { src = /nix/store/…-source; libraries = /nix/store/…-source/libraries; … };
-    #   local = { src = "/etc/nixos"; libraries = "/etc/nixos/libraries"; … };
-    # }
-
-    # Absolute local-only paths — appear in local only, absent from store
-    mkPaths {
-      store = { src = ./.; libraries = ./libraries; };
-      local = {
-        src       = "/etc/nixos";
-        pictures  = /home/user/Pictures;
-        downloads = /home/user/Downloads;
-      };
-    }
-    # => {
-    #   store = { src = /nix/store/…-source; libraries = /nix/store/…-source/libraries; };
-    #   local = { src = "/etc/nixos"; libraries = "/etc/nixos/libraries";
-    #             pictures = "/home/user/Pictures"; downloads = "/home/user/Downloads"; };
-    # }
+    asList ./file.nix
+    # => [ ./file.nix ]
   ```
   */
-  mkPaths = {
-    paths ? {src = ./../../../.;},
-    store ? paths.store or paths,
-    local ? paths.local.src or paths.local or null,
-  }: let
-    _name = "filesystem::mkPaths";
-    root = {
-      path = store.src or store;
-      asStr = toString root.path;
-    };
-
-    src = {
-      store = path {
-        inherit (root) path;
-        name = "source";
-      };
-      local =
-        if local == null
-        then toString root.path
-        else toString local;
-    };
-
-    files = let
-      raw =
-        if isAttrs store
-        then removeAttrs store ["src"]
-        else {};
-
-      localExtras =
-        if isAttrs (paths.local or null)
-        then removeAttrs paths.local ["src"]
-        else {};
-
-      absolute =
-        filterAttrs (_: value: (!hasString {
-          mode = "start";
-          pattern = root.asStr;
-          value = toString value;
-        }))
-        raw;
-
-      relative =
-        filterAttrs (_: value: (hasString {
-          mode = "start";
-          pattern = root.asStr;
-          value = toString value;
-        }))
-        raw;
-
-      stems =
-        mapAttrs (
-          _: value:
-            substring (stringLength root.asStr) (-1) (toString value)
-        )
-        relative;
-    in {
-      store = mapAttrs (_: stem: src.store + stem) stems;
-      local =
-        mapAttrs (_: stem: src.local + stem) stems
-        // mapAttrs (_: toString) absolute
-        // mapAttrs (_: toString) localExtras;
-    };
-  in
-    assert if isAttrs paths
-    then true
-    else throw "${_name}: 'paths' argument must be an attribute set.";
-    assert if (isPath store || isAttrs store)
-    then true
-    else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
-    assert !isAttrs store
-    || (store ? src && isPath store.src)
-    || throw "${_name}: 'store' set is missing a valid path for 'src'.";
-      mapAttrs (name: _: {src = src.${name};} // files.${name}) {
-        store = null;
-        local = null;
-      };
-
-  stem = path: let
-    name = baseNameOf (toString path);
-    groups = matchRegex "^(.*)\\.nix$" name;
-  in
-    if groups == null
-    then name
-    else head groups;
-
-  nest = path: value:
-    if path == []
-    then value
-    else {${head path} = nest (tail path) value;};
-
-  pathType = path:
-    if pathExists path
-    then let
-      matches = match "^(.*)/([^/]+)$" (toString path);
-    in
-      if matches == null
-      then "unknown"
-      else let
-        parentPath = /. + (elemAt matches 0);
-        baseName = elemAt matches 1;
-        entries = readDir parentPath;
-      in
-        entries.${baseName} or "unknown"
-    else null;
-
-  isDirectory = path:
-    pathType path == "directory";
-
-  isFile = path:
-    pathType path == "regular";
-
-  isNixFile = path:
-    hasString {
-      mode = "end";
-      pattern = ".nix";
-      value = toString path;
-    };
-
-  resolveDefaultNix = path:
-    if isDirectory path
-    then path + "/default.nix"
-    else if
-      isString path
-      && hasString {
-        mode = "end";
-        pattern = "/";
-        value = path;
-      }
-    then path + "default.nix"
-    else path;
-
-  isNixPath = path: let
-    resolvedPath = resolveDefaultNix path;
-  in
-    isFile resolvedPath && isNixFile resolvedPath;
-
-  # getSpecs = {
-  #   base,
-  #   excludes ? ["default"],
-  # }: let
-  #   _name = "filesystem::getSpecs";
-  #   names = attrNames (readDir base);
-
-  #   normalize = name:
-  #     if hasSuffix ".nix" name
-  #     then
-  #       trim {
-  #         mode = "end";
-  #         pattern = ".nix";
-  #         value = name;
-  #       }
-  #     else name;
-
-  #   isExcluded = name:
-  #     elem (normalize name) excludes;
-
-  #   toCandidate = name:
-  #     base + "/${name}";
-  # in
-  #   if isDirectory base
-  #   then
-  #     map
-  #     (name: {
-  #       name = normalize name;
-  #       input = resolveDefaultNix (toCandidate name);
-  #     })
-  #     (
-  #       filter
-  #       (name: (isExcluded name == false) && isNixPath (toCandidate name))
-  #       names
-  #     )
-  #   else throw "${_name}: expected a directory path, got ${toString base}";
-
-  # getSpecs = {
-  #   base,
-  #   excludes ? ["default"],
-  #   depth ? 2,
-  # }: let
-  #   # _name = "filesystem::getSpecsRecursive";
-  #   scan = dir: d: let
-  #     names = attrNames (readDir dir);
-  #     normalizeName = name: let
-  #       suffix = ".nix";
-  #       nameLen = stringLength name;
-  #       suffixLen = stringLength suffix;
-  #     in
-  #       if hasSuffix suffix name
-  #       then substring 0 (nameLen - suffixLen) name
-  #       else name;
-  #     isIncluded = name: !(elem (normalizeName name) excludes);
-  #     toCandidate = name: dir + "/${name}";
-  #   in
-  #     if d == 0
-  #     then []
-  #     else
-  #       concatLists (map (
-  #           name:
-  #             if isIncluded name && isNixPath (toCandidate name)
-  #             then [
-  #               {
-  #                 name = normalizeName name;
-  #                 input = resolveDefaultNix (toCandidate name);
-  #               }
-  #             ]
-  #             else if isDirectory (toCandidate name)
-  #             then scan (toCandidate name) (d - 1)
-  #             else []
-  #         )
-  #         names);
-  # in
-  #   scan base depth;
-  getSpecs = {
-    base,
-    excludes ? ["default"],
-    depth ? 2,
-  }: let
-    normalizeName = name: let
-      suffix = ".nix";
-      nameLen = stringLength name;
-      suffixLen = stringLength suffix;
-    in
-      if
-        hasString {
-          mode = "end";
-          pattern = suffix;
-          value = name;
-        }
-      then substring 0 (nameLen - suffixLen) name
-      else name;
-
-    normalizedExcludes = map normalizeName excludes;
-    isIncluded = name: !(elem (normalizeName name) normalizedExcludes);
-    toCandidate = dir: name: dir + "/${name}";
-
-    scan = dir: d: let
-      names = attrNames (readDir dir);
-    in
-      if d == 0
-      then []
-      else
-        concatLists (
-          map (
-            name: let
-              candidate = toCandidate dir name;
-            in
-              if !isIncluded name
-              then []
-              else if isNixPath candidate
-              then [
-                {
-                  name = normalizeName name;
-                  input = resolveDefaultNix candidate;
-                }
-              ]
-              else if isDirectory candidate
-              then scan candidate (d - 1)
-              else []
-          )
-          names
-        );
-  in
-    scan base depth;
-
-  mkPaths' = {
-    paths ? {src = ./../../../.;},
-    store ? paths.store or paths,
-    local ? paths.local.src or paths.local or null,
-  }: let
-    _name = "filesystem::mkPaths";
-
-    hasPrefix = pre: str: let
-      preLen = stringLength pre;
-    in
-      preLen <= stringLength str && substring 0 preLen str == pre;
-
-    nest = path: value:
-      if path == []
+  as = args: let
+    isConfig =
+      isAttrs args && args ? value;
+    value =
+      if isConfig
+      then args.value
+      else args;
+    default =
+      if isConfig && args ? default
+      then args.default
+      else [];
+    fatal =
+      if isConfig && args ? fatal
+      then args.fatal
+      else false;
+    result =
+      if isList value
       then value
-      else {${head path} = nest (tail path) value;};
-
-    # Walk an arbitrarily nested attrset of paths/strings into a flat list
-    # of { path :: [String]; value :: Path|String; } leaf entries. A node
-    # is a leaf if its value isn't an attrset; an attrset's own `src` key
-    # (if present) is also captured as a leaf at that branch's path.
-    walk = prefix: node:
-      if isAttrs node
-      then concatMap (name: walk (prefix ++ [name]) node.${name}) (attrNames node)
-      else [
-        {
-          path = prefix;
-          value = node;
-        }
-      ];
-
-    unwrapLocalSrc = l:
-      if l == null
-      then null
-      else if isAttrs l
-      then l.src or null
-      else l;
-
-    root = {
-      path = store.src or store;
-      asStr = toString root.path;
-    };
-
-    localRoot = let
-      unwrapped = unwrapLocalSrc local;
-    in
-      if unwrapped == null
-      then toString root.path
-      else toString unwrapped;
-
-    storeLeaves = walk [] store;
-
-    # local-only extras (no `store` counterpart) can arrive nested under
-    # `paths.local`, or directly via the `local` parameter when callers
-    # pass `store`/`local` independently. Merge both if present.
-    localExtrasRaw =
-      (
-        if isAttrs (paths.local or null)
-        then removeAttrs paths.local ["src"]
-        else {}
-      )
-      // (
-        if isAttrs local
-        then removeAttrs local ["src"]
-        else {}
-      );
-    localExtraLeaves = walk [] localExtrasRaw;
-
-    # Every store path is relative to the single top-level root, so the
-    # stem is computed once, here, against that one root — no per-level
-    # root-tracking needed. A value with no root prefix (absolute path
-    # outside the project) has no stem and passes through unchanged.
-    toStem = value: let
-      str = toString value;
-    in
-      if hasPrefix root.asStr str
-      then substring (stringLength root.asStr) (-1) str
+      else if isString value
+      then [value]
+      else if isFunction value
+      then [value]
+      else if isAttrs value
+      then
+        if (args.wrapAttrs or false)
+        then [value]
+        else attrNames value
+      else if typeOf value == "path"
+      then [value]
       else null;
-
-    storeTree =
-      foldl' (acc: leaf: recursiveUpdate acc (nest leaf.path leaf.value)) {} storeLeaves;
-
-    localTree = let
-      fromStore =
-        foldl'
-        (
-          acc: leaf: let
-            stem = toStem leaf.value;
-            localValue =
-              if stem == null
-              then toString leaf.value
-              else localRoot + stem;
-          in
-            recursiveUpdate acc (nest leaf.path localValue)
-        )
-        {}
-        storeLeaves;
-
-      fromExtras =
-        foldl'
-        (
-          acc: leaf:
-            recursiveUpdate
-            acc
-            (nest leaf.path (toString leaf.value))
-        )
-        {}
-        localExtraLeaves;
-    in
-      recursiveUpdate fromStore fromExtras;
   in
-    assert if isAttrs paths
-    then true
-    else throw "${_name}: 'paths' argument must be an attribute set.";
-    assert if (isPath store || isAttrs store)
-    then true
-    else throw "${_name}: 'store' must be a path literal or an attribute set containing file mappings.";
-    assert !isAttrs store
-    || (store ? src && isPath store.src)
-    || throw "${_name}: 'store' set is missing a valid path for 'src'."; {
-      store = storeTree;
-      local = localTree;
+    if result != null
+    then result
+    else if fatal
+    then throw "lists.as: unsupported type: ${typeOf value}"
+    else default;
+
+  asModule = value:
+    as {
+      inherit value;
+      default = [];
+      wrapAttrs = true;
     };
+
+  /**
+  Conditionally coerce a value into a list.
+
+  Returns `as value` when `predicate` is true, otherwise `[]`.
+
+  # Type
+
+  ```nix
+    asIf :: Bool -> a -> [ b ]
+  ```
+
+    # Dependencies
+
+    - lists.as
+
+    # Arguments
+
+    predicate
+    : Whether coercion should happen.
+
+    value
+    : The value to coerce when enabled.
+
+    # Examples
+
+  ```nix
+    asIf true "debug"
+    # => [ "debug" ]
+
+    asIf false "debug"
+    # => []
+  ```
+  */
+  asIf = predicate: value:
+    if predicate
+    then as value
+    else [];
+
+  /**
+    Returns the original value only when:
+      - the value is a list
+      - the list is not empty
+
+    Otherwise returns `[]`.
+
+      # Type
+
+  ```nix
+      orEmpty :: a -> [ b ]
+  ```
+
+      # Dependencies
+
+      - types.isNotEmpty
+
+      # Arguments
+
+      value
+      : The value to normalize.
+
+      # Examples
+
+  ```nix
+      orEmpty [ 1 2 ]
+      # => [ 1 2 ]
+
+      orEmpty []
+      # => []
+
+      orEmpty null
+      # => []
+  ```
+  */
+  orEmpty = value:
+    if isList value && value != []
+    then value
+    else [];
+
+  foldl = input: let
+    exec = fn: initial: list: let
+      recurse = accumulated: remaining:
+        if remaining == []
+        then accumulated
+        else let
+          item = head remaining;
+        in
+          recurse (fn accumulated item) (tail remaining);
+    in
+      recurse initial list;
+  in
+    if isAttrs input
+    then exec input.fn input.initial input.list
+    else fn: initial: list: exec fn initial list;
+
+  /**
+    Deduplicate a list while preserving first occurrence order.
+
+    # Type
+
+  ```nix
+    unique :: [ a ] -> [ a ]
+  ```
+
+    # Dependencies
+
+    - lists.unique
+
+    # Arguments
+
+    list
+    : The list to deduplicate.
+
+    # Examples
+
+  ```nix
+    unique [ 1 2 1 3 ]
+    # => [ 1 2 3 ]
+  ```
+  */
+  unique = list: let
+    exec = seen: rest:
+      if rest == []
+      then []
+      else let
+        x = head rest;
+        xs = tail rest;
+      in
+        if elem x seen
+        then exec seen xs
+        else [x] ++ exec (seen ++ [x]) xs;
+  in
+    exec [] list;
+  unique' = list: attrNames (groupBy (x: x) list);
+  asUnique = list: unique (as list);
+
+  /**
+    Flatten, coerce, and filter out nulls/invalids from a list of inputs.
+    Each input can be a raw value or a nested list. They are all safely
+    passed through `as` to coerce them to lists, and invalid types/nulls
+    are quietly dropped.
+
+    # Type
+  ```nix
+    concat :: [ any ] -> [ any ]
+
+    Supports:
+      - Explicit AttrSet: { list; includes ?; excludes ?; }
+      - Curried (Includes List) -> (List): a bare list of allowed type names,
+        returning a function awaiting the actual data list.
+      - Simple List (Default Policy): a bare data list, using default includes.
+
+    NOTE: patterns 2 and 3 both begin with a plain list and are not
+    structurally distinguishable, so a bare-list argument is always treated
+    as pattern 2 (an `includes` filter awaiting the data list next). Callers
+    wanting pattern 3 semantics should use the explicit attrset form
+    (`concat { list = [...]; }`) instead of passing a bare list directly.
+  */
+  concat = arg: let
+    # Define the core logic
+    exec = {
+      list,
+      includes ? null,
+      excludes ? [],
+    }: let
+      defaultIncludes = ["string" "list" "int" "float" "bool" "path"];
+      allowed =
+        if includes != null
+        then includes
+        else defaultIncludes;
+
+      isAllowed = value: let
+        t = typeOf value;
+      in
+        (elem t allowed) && !(elem t excludes);
+
+      flatten = value:
+        if isList value
+        then concatMap flatten value
+        else if value == null
+        then []
+        else if isAllowed value
+        then [value]
+        else [];
+    in
+      unique (flatten list);
+  in
+    #? Pattern 1: Explicit AttrSet
+    if isAttrs arg && (arg ? list)
+    then exec arg
+    #? Pattern 2: Curried (Includes List) -> (List)
+    #~@ NOTE: this branch also catches bare data lists (former "Pattern 3"),
+    #~@ since a plain list can't be told apart from an includes-list. See
+    #~@ docstring above.
+    else if isList arg
+    then
+      list:
+        exec {
+          inherit list;
+          includes = arg;
+        }
+    #? Fallback
+    else exec {list = [];};
+
+  /**
+  Performs concat and deduplicates the final output.
+  */
+  concatUnique = list: unique (concat list);
+
+  lastOf = list:
+    if isList list
+    then elemAt list ((length list) - 1)
+    else null;
+  firstOf = list:
+    if isList list
+    then head list
+    else null;
 in
   exports

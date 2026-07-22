@@ -46,8 +46,10 @@
     (builtins)
     attrNames
     concatLists
+    concatMap
     elem
     elemAt
+    foldl'
     head
     isAttrs
     isPath
@@ -63,103 +65,103 @@
     substring
     tail
     ;
-  inherit (strings) hasPrefix hasSuffix matchRegex;
+  inherit (strings) hasString matchRegex;
   inherit (attrsets) filterAttrs recursiveUpdate;
 
   /**
-  Build a normalized pair of path sets — one for the Nix store, one for the
-  local filesystem — from an optional source-tree configuration.
+    Build a normalized pair of path sets — one for the Nix store, one for the
+    local filesystem — from an optional source-tree configuration.
 
-  Project-relative paths (those within the project root) appear in both
-  `store` and `local`. Absolute paths outside the project root (e.g. home
-  directory folders) appear in `local` only — they have no meaningful store
-  representation.
+    Project-relative paths (those within the project root) appear in both
+    `store` and `local`. Absolute paths outside the project root (e.g. home
+    directory folders) appear in `local` only — they have no meaningful store
+    representation.
 
-  # Type
+    # Type
   ```nix
-  mkPaths :: {
-    paths ? :: {
+    mkPaths :: {
+      paths ? :: {
+        store ? :: Path | { src :: Path; [name :: Path] };
+        local ? :: String | { src :: String; [name :: Path | String] };
+      };
       store ? :: Path | { src :: Path; [name :: Path] };
-      local ? :: String | { src :: String; [name :: Path | String] };
-    };
-    store ? :: Path | { src :: Path; [name :: Path] };
-    local ? :: String | null;
-  } -> {
-    store :: { src :: StorePath; [name :: StorePath] };
-    local :: { src :: String;    [name :: String]    };
-  }
+      local ? :: String | null;
+    } -> {
+      store :: { src :: StorePath; [name :: StorePath] };
+      local :: { src :: String;    [name :: String]    };
+    }
   ```
 
-  # Arguments
+    # Arguments
 
-  paths
-  : Attribute set with optional `store` and `local` sub-attributes used as
-    fallbacks when `store` and `local` are not passed directly. Defaults to
-    `{ src = ./../../../.; }`.
+    paths
+    : Attribute set with optional `store` and `local` sub-attributes used as
+      fallbacks when `store` and `local` are not passed directly. Defaults to
+      `{ src = ./../../../.; }`.
 
-  store
-  : Either a path literal (the Nix store root of the project) or an attribute
-    set whose `src` key is a path literal and whose remaining keys are
-    project-relative paths to track. Falls back to `paths.store or paths`.
-    Only project-relative paths are copied into the `store` output.
+    store
+    : Either a path literal (the Nix store root of the project) or an attribute
+      set whose `src` key is a path literal and whose remaining keys are
+      project-relative paths to track. Falls back to `paths.store or paths`.
+      Only project-relative paths are copied into the `store` output.
 
-  local
-  : String representing the local checkout root shown in headers. Falls back
-    to `paths.local.src`, then `paths.local`, then `null` — in which case
-    `toString store` is used. Extra keys in `paths.local` beyond `src` are
-    treated as absolute local-only paths and merged into the `local` output.
+    local
+    : String representing the local checkout root shown in headers. Falls back
+      to `paths.local.src`, then `paths.local`, then `null` — in which case
+      `toString store` is used. Extra keys in `paths.local` beyond `src` are
+      treated as absolute local-only paths and merged into the `local` output.
 
-  # Dependencies
+    # Dependencies
 
-  Builtins
-  : `isAttrs`, `isPath`, `mapAttrs`, `path`, `removeAttrs`,
-    `stringLength`, `substring`, `toString`
+    Builtins
+    : `isAttrs`, `isPath`, `mapAttrs`, `path`, `removeAttrs`,
+      `stringLength`, `substring`, `toString`
 
-  attrsets
-  : `filterAttrs`
+    attrsets
+    : `filterAttrs`
 
-  strings
-  : `hasPrefix`
+    strings
+    : `hasPrefix`
 
-  # Examples
+    # Examples
   ```nix
-  # Minimal — derive everything from a single path
-  mkPaths { paths.src = ./.; }
+    # Minimal — derive everything from a single path
+    mkPaths { paths.src = ./.; }
 
-  # Separate store and local roots
-  mkPaths {
-    store = ./src;
-    local = "/home/user/project";
-  }
+    # Separate store and local roots
+    mkPaths {
+      store = ./src;
+      local = "/home/user/project";
+    }
 
-  # Project-relative stems — appear in both store and local
-  mkPaths {
-    store = {
-      src        = ./.;
-      libraries  = ./libraries;
-      templates  = ./templates;
-    };
-    local = "/etc/nixos";
-  }
-  # => {
-  #   store = { src = /nix/store/…-source; libraries = /nix/store/…-source/libraries; … };
-  #   local = { src = "/etc/nixos"; libraries = "/etc/nixos/libraries"; … };
-  # }
+    # Project-relative stems — appear in both store and local
+    mkPaths {
+      store = {
+        src        = ./.;
+        libraries  = ./libraries;
+        templates  = ./templates;
+      };
+      local = "/etc/nixos";
+    }
+    # => {
+    #   store = { src = /nix/store/…-source; libraries = /nix/store/…-source/libraries; … };
+    #   local = { src = "/etc/nixos"; libraries = "/etc/nixos/libraries"; … };
+    # }
 
-  # Absolute local-only paths — appear in local only, absent from store
-  mkPaths {
-    store = { src = ./.; libraries = ./libraries; };
-    local = {
-      src       = "/etc/nixos";
-      pictures  = /home/user/Pictures;
-      downloads = /home/user/Downloads;
-    };
-  }
-  # => {
-  #   store = { src = /nix/store/…-source; libraries = /nix/store/…-source/libraries; };
-  #   local = { src = "/etc/nixos"; libraries = "/etc/nixos/libraries";
-  #             pictures = "/home/user/Pictures"; downloads = "/home/user/Downloads"; };
-  # }
+    # Absolute local-only paths — appear in local only, absent from store
+    mkPaths {
+      store = { src = ./.; libraries = ./libraries; };
+      local = {
+        src       = "/etc/nixos";
+        pictures  = /home/user/Pictures;
+        downloads = /home/user/Downloads;
+      };
+    }
+    # => {
+    #   store = { src = /nix/store/…-source; libraries = /nix/store/…-source/libraries; };
+    #   local = { src = "/etc/nixos"; libraries = "/etc/nixos/libraries";
+    #             pictures = "/home/user/Pictures"; downloads = "/home/user/Downloads"; };
+    # }
   ```
   */
   mkPaths = {
@@ -196,17 +198,19 @@
         else {};
 
       absolute =
-        filterAttrs (
-          _: value:
-            ! hasPrefix root.asStr (toString value)
-        )
+        filterAttrs (_: value: (!hasString {
+          mode = "start";
+          pattern = root.asStr;
+          value = toString value;
+        }))
         raw;
 
       relative =
-        filterAttrs (
-          _: value:
-            hasPrefix root.asStr (toString value)
-        )
+        filterAttrs (_: value: (hasString {
+          mode = "start";
+          pattern = root.asStr;
+          value = toString value;
+        }))
         raw;
 
       stems =
@@ -271,15 +275,23 @@
   isFile = path:
     pathType path == "regular";
 
-  isNixFile = path: let
-    pathString = toString path;
-  in
-    hasSuffix ".nix" pathString;
+  isNixFile = path:
+    hasString {
+      mode = "end";
+      pattern = ".nix";
+      value = toString path;
+    };
 
   resolveDefaultNix = path:
     if isDirectory path
     then path + "/default.nix"
-    else if isString path && hasSuffix "/" path
+    else if
+      isString path
+      && hasString {
+        mode = "end";
+        pattern = "/";
+        value = path;
+      }
     then path + "default.nix"
     else path;
 
@@ -374,8 +386,9 @@
       suffixLen = stringLength suffix;
     in
       if
-        hasSuffix {
-          check = suffix;
+        hasString {
+          mode = "end";
+          pattern = suffix;
           value = name;
         }
       then substring 0 (nameLen - suffixLen) name
@@ -420,8 +433,6 @@
     local ? paths.local.src or paths.local or null,
   }: let
     _name = "filesystem::mkPaths";
-
-    inherit (builtins) attrNames concatMap foldl' head isAttrs isPath stringLength substring tail;
 
     hasPrefix = pre: str: let
       preLen = stringLength pre;
