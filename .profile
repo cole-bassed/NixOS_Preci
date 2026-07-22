@@ -116,7 +116,7 @@ configure() {
 		monitor_sec_width="1600"
 		monitor_sec_height="900"
 		monitor_sec_rate="60"
-		monitor_sec_pos="top"
+		monitor_sec_pos="left"
 
 		monitor_ter_name=""
 		monitor_ter_width="1920"
