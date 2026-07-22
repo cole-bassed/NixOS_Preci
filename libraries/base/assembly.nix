@@ -2,6 +2,7 @@
   debug ? {},
   attrsets ? {},
   trivial ? {},
+  # lists ? {},
   filesystem ? {},
   names ? {},
   ...
@@ -29,15 +30,20 @@
     attrNames
     attrValues
     elem
+    elemAt
+    filter
     foldl'
-    groupBy
     hasAttr
     head
     isAttrs
     isList
+    isString
     length
     listToAttrs
     mapAttrs
+    split
+    stringLength
+    substring
     tail
     toJSON
     ;
@@ -109,7 +115,134 @@
     excluded = excludes;
   };
 
-  #: TODO: create a detailed doc to in my style
+  /**
+  Build a standardized Nix function with hybrid invocation, validation, inline
+  simulation, and debugging metadata.
+
+  The generated function accepts either an explicit attribute set or curried
+  positional arguments. Defaults are resolved before validation, and an isolated
+  debug view is exposed alongside the callable function.
+
+  # Type
+  ```nix
+  mkFunction :: AttrSet -> AttrSet
+  ```
+
+  # Dependencies
+  - builtins.all
+  - builtins.attrNames
+  - builtins.elem
+  - builtins.elemAt
+  - builtins.filter
+  - builtins.foldl'
+  - builtins.hasAttr
+  - builtins.head
+  - builtins.isAttrs
+  - builtins.isList
+  - builtins.isString
+  - builtins.length
+  - builtins.listToAttrs
+  - builtins.split
+  - builtins.stringLength
+  - builtins.substring
+  - builtins.tail
+  - builtins.toJSON
+  - debug.assertWith
+  - debug.traceWith
+  - debug.tryWith
+  - debug.warnWith
+
+  # Arguments
+  name
+  : The fully qualified function name, typically dotted, such as
+  `"strings.greet"`. The final segment becomes the key in the returned attribute
+  set.
+
+  positional
+  : The argument names, in order, used for curried positional application.
+
+  required
+  : The argument names that must be resolved before execution.
+
+  validation
+  : An attribute set mapping argument names to validator functions or metadata
+  attribute sets containing `validate` and optional descriptive fields.
+
+  execution
+  : A function receiving the resolved and validated arguments attribute set.
+
+  defaults
+  : Optional default values. Defaults to `{}`.
+
+  fallback
+  : Optional predicate that permits a raw input to be assigned to `primary`.
+  Defaults to rejecting all inputs.
+
+  legacyKey
+  : Optional key used when normalizing a raw input. Defaults to `primary`.
+
+  optional
+  : Optional argument names. Defaults to the keys of `defaults`.
+
+  primary
+  : The argument receiving a single scalar value. Defaults to the first required
+  argument. Must be supplied explicitly if `required` is empty.
+
+  trace
+  : Whether to trace each partial-application step. Defaults to `false`.
+
+  simulation
+  : Inline test cases containing `args` and either `desired` or `throws = true`.
+  Defaults to `[]`.
+
+  # Returns
+  An attribute set of the shape `{ ${leaf} = callable; __debug.${leaf} = debugView; }`,
+  where `leaf` is the last dot-segment of `name`. This is **not** self-referential
+  under the binding you assign it to — consume it with `inherit`, not by nesting.
+
+  # Examples
+  - __Building a Function__
+
+    > _greet = mkFunction {
+        name = "strings.greet";
+        positional = [ "name" "punctuation" ];
+        required = [ "name" ];
+        defaults.punctuation = "!";
+        validation.name = builtins.toString;
+        execution = args: "Hello, ${args.name}${args.punctuation}";
+        simulation = [
+          { args = "World"; desired = "Hello, World!"; }
+          { args = [ "Alice" "." ]; desired = "Hello, Alice."; }
+        ];
+      };
+    > inherit (_greet) greet;
+    > inherit (_greet) __debug; # merge with other fns' __debug sets via recursiveUpdate
+
+  ---
+  - __Curried Positional Invocation__
+
+    > greet "Nix" "?"
+  ```sh
+    "Hello, Nix?"
+  ```
+  ---
+  - __Explicit Attribute Set Configuration__
+
+    > greet { name = "Builder"; punctuation = "..."; }
+  ```sh
+    "Hello, Builder..."
+  ```
+
+  # Notes
+  - Positional-curry mode and attrset-merge mode do not mix mid-chain: once a
+    partial application has begun via positional args, passing an attrset next
+    is treated as the raw value for the next positional field, not a merge.
+    Attrset-merging via `__functor` (`explicit // nextRaw`) only applies to
+    calls made directly against a fully-resolved (`__final`) result.
+  - An explicit attrset call that uses only recognized field names but omits a
+    required one throws immediately, rather than being silently reinterpreted
+    as a legacy/raw value.
+  */
   mkFunction = {
     #~@ Dependencies
     name,
@@ -132,16 +265,17 @@
   }: let
     _name = name;
 
+    #> Distinguishes two shapes of incoming `arguments`:
+    #>  1. named-args attrset using only recognized keys -> use as-is, complete or not
+    #>     (completeness is `exec`'s job via `complete`, not normalize's)
+    #>  2. anything else (unrecognized keys present) -> treat as a raw legacy value
+    #>     and wrap it under `legacyKey`
     normalize = arguments: let
       args = required ++ positional ++ optional ++ (attrNames defaults);
       keys = attrNames arguments;
-      check = let
-        hasRequired = all (req: hasAttr req arguments) required;
-        hasAllowed = all (key: elem key (attrNames (groupBy (x: x) args))) keys;
-      in
-        hasRequired && hasAllowed;
+      hasAllowed = all (key: elem key args) keys;
     in
-      if check
+      if hasAllowed
       then arguments
       else {"${legacyKey}" = arguments;};
 
@@ -228,6 +362,12 @@
 
     exec = history: arguments: let
       explicit = arguments;
+      missing = filter (req: !(hasAttr req explicit)) required;
+      #> Only required fields (not the full positional list) gate completeness.
+      #> This lets functions like `has`/`trim` finalize early once required
+      #> fields are met, while still accepting further optional positional
+      #> args (mode, etc.) via the accumulate-overridden __functor below.
+      complete = missing == [];
       normalized = normalize arguments;
       implicit = resolve normalized;
     in {
@@ -245,8 +385,6 @@
           validation
           ;
         arity = length (attrNames explicit);
-        #> Per-field validator metadata (e.g. options/type), where the
-        #> validator declared any - see validator.meta above.
         validationInfo = listToAttrs (map (field: {
             name = field;
             value = validator.meta field;
@@ -255,13 +393,19 @@
       };
       __args = {inherit explicit implicit;};
       __trace = history;
-      __final = true;
+      __final = complete;
       __functor = self: nextRaw:
         if isAttrs nextRaw
         then exec history (explicit // nextRaw)
         else throw "${_name}: too many positional arguments";
-      __tests = simulate wrapper;
-      result = execution implicit;
+      __tests =
+        if complete
+        then simulate wrapper
+        else [];
+      result =
+        if complete
+        then execution implicit
+        else throw "${_name}: missing required argument(s): ${toJSON missing} — supply the rest, e.g. via attrset merge or the next curried argument";
     };
 
     #> Positional accumulation: collected so far -> remaining field names -> next value.
@@ -304,26 +448,62 @@
       then exec [] {${primary} = payload;}
       else accumulate {} positional [] payload;
 
-    #> If positional args are declared, a primary field must be resolvable
-    #> (either given explicitly or derivable as head required) - otherwise
-    #> the bare-value fallback path in `wrapper` has no key to assign into.
-    guard = assertWith {
-      inherit name;
-      assertion = positional != [] -> primary != null;
-      message = "positional is non-empty but primary could not be resolved (check required)";
-      context = "buildFunction setup";
-    };
-
     view = accessor: let
       project = out:
         if out ? __final
         then accessor out
         else out // {__functor = self: nextRaw: project (out.__functor self nextRaw);};
     in {__functor = self: raw: project (wrapper raw);};
-  in
-    assert guard; {
-      fn = view (out: out.result);
-      debug = view (out: removeAttrs out ["result" "__functor"]);
+
+    #? `name` is likely dotted, e.g. "strings.hasPrefix" -> leaf key is "hasPrefix"
+    leaf = let
+      parts = filter isString (split "\\." name);
+    in
+      elemAt parts (length parts - 1);
+
+    callable = view (out: out.result);
+    debugView = view (out: removeAttrs out ["result" "__functor"]);
+
+    #> `primary` may default from `head required`, which throws on `[]`.
+    #> `tryWith` converts that raw list-index throw into a legible assertion
+    #> instead of a first-call surprise.
+    primaryProbe = tryWith primary;
+
+    assertions = {
+      argsPositionalNeedsPrimary = assertWith {
+        inherit name;
+        assertion = positional != [] -> primary != null;
+        message = "positional is non-empty but primary could not be resolved (check required)";
+        context = "buildFunction setup";
+      };
+      primaryIsResolvable = assertWith {
+        inherit name;
+        assertion = primaryProbe.success;
+        message = "primary could not be resolved (required is empty) - pass `primary` explicitly";
+        context = "mkFunction setup";
+      };
+      legacyKeyIsString = assertWith {
+        inherit name;
+        assertion = isString legacyKey;
+        message = "legacyKey (or primary) must resolve to a non-null string, got: ${toJSON legacyKey}";
+        context = "mkFunction setup";
+      };
+      leafNeedsName = assertWith {
+        inherit name;
+        assertion = isString name && name != "" && substring (stringLength name - 1) 1 name != ".";
+        message = "name must be a non-empty, non-dot-terminated string to derive a leaf key";
+        context = "mkFunction leaf derivation";
+      };
     };
+  in
+    assert assertions.primaryIsResolvable;
+    assert assertions.argsPositionalNeedsPrimary;
+    assert assertions.legacyKeyIsString;
+    assert assertions.leafNeedsName;
+      callable
+      // {
+        ${leaf} = callable;
+        __debug.${leaf} = debugView;
+      };
 in
   exports

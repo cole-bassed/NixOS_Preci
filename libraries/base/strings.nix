@@ -1,6 +1,5 @@
 {
   attrsets,
-  trivial,
   assembly,
   lists,
   ...
@@ -11,25 +10,25 @@
         concat
         orEmpty
         quote
-        split'
-        trim'
+        split
+        trim
         trimStart
         trimEnd
-        trimBoth
+        trimEnds
         trimAll
         has
         hasPrefix
         hasInfix
         hasSuffix
         ;
+
+      trimBoth = trimEnds;
       contains = hasInfix;
       endsWith = hasSuffix;
       infix = substring;
       length = stringLength;
       regex = match;
-      split = split';
       startsWith = hasPrefix;
-      trim = trim';
       wrap = quote;
     };
 
@@ -42,18 +41,18 @@
         substring
         toString
         ;
-      inherit
-        hasInfix
-        hasPrefix
-        hasSuffix
-        quote
-        ;
+      inherit quote;
+      hasPrefix' = hasPrefix;
+      hasSuffix' = hasSuffix;
+      hasInfix' = hasInfix;
       hasString = has;
       joinStrings = concat;
       matchRegex = match;
       orEmptyString = orEmpty;
-      splitString = split';
-      trimString = trim';
+      splitString = split;
+      trimString = trim;
+      split' = split;
+      trim' = trim;
     };
   };
 
@@ -69,15 +68,14 @@
     length
     head
     replaceStrings
-    split
     stringLength
     substring
     typeOf
     ;
+  splitOrig = builtins.split;
   inherit (assembly) mkFn;
   inherit (attrsets) namesOf valuesOf;
-  inherit (lists) asList lastOf;
-  inherit (trivial) makeHybrid readHybrid;
+  inherit (lists) asList;
 
   _defaults.modes = let
     name = "modes";
@@ -375,6 +373,7 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.has
 
   # Arguments
@@ -467,6 +466,7 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.has
 
   # Arguments
@@ -559,6 +559,7 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.has
 
   # Arguments
@@ -593,7 +594,7 @@
   */
   hasSuffix = let
     _name = "strings.hasSuffix";
-    required = ["value" "check"];
+    required = ["check" "value"];
     positional = required;
   in
     mkFn {
@@ -645,7 +646,7 @@
   `"start"`, `"end"`, `"both"` (default), or `"all"` (global removal).
 
   Supports the standard hybrid invocation patterns: an explicit configuration
-  attribute set, or curried positional arguments (mode, then pattern, then value).
+  attribute set, or curried positional arguments (value, then pattern, then mode).
 
   # Type
   ```nix
@@ -654,6 +655,7 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - builtins.elem
   - builtins.match
   - builtins.split
@@ -663,10 +665,18 @@
   - strings.concat
 
   # Arguments
-  arg
-  : A configuration attribute set { `mode` ?, `pattern` ?, `value` }, or the mode
-  string for curried positional invocation. `mode` defaults to `"both"` and
-  `pattern` defaults to `"[[:space:]]"`.
+  value
+  : The non-empty string to trim, or a configuration attribute set containing
+  { `value`, `pattern` ?, `mode` ? }.
+
+  pattern
+  : A non-empty regular expression matching the characters to remove. Defaults
+  to `"[[:space:]]"`.
+
+  mode
+  : The trimming mode. One of `"start"`, `"end"`, `"both"`, `"every"`,
+  `"all"`, or `"each"`. `"all"` aliases `"every"`, `"each"` aliases
+  `"both"`, and the default is `"both"`.
 
   # Examples
   - _Explicit Attribute Set Configuration (mode and pattern default)__
@@ -697,7 +707,7 @@
   > trimDashesBoth "--hello--"
   => "hello"
   */
-  trim' = let
+  trim = let
     _name = "strings.trim";
     _modes = _defaults.modes;
   in
@@ -890,28 +900,49 @@
         then every {inherit value pattern;}
         else value;
     };
-
-  split'' = sep: str: let
-    #> List of all POSIX ERE special characters
-    specialChars = ["\\" "." "+" "*" "?" "^" "$" "(" ")" "[" "]" "{" "}" "|"];
-
-    #> Their escaped counterparts
-    escapedChars = map (c: "\\${c}") specialChars;
-
-    #> Safely escape the provided separator so it acts as a literal string
-    escapedSep = replaceStrings specialChars escapedChars sep;
-
-    #> Perform the split using the built-in regex split
-    rawSplit = split escapedSep str;
+  trimSpecialized = name: mode: let
+    desired = {
+      start = "foo bar ";
+      end = " foo bar";
+      both = "foo bar";
+      all = "foobar";
+    };
   in
-    #> Filter out the regex match lists, keeping only the string segments
-    filter isString rawSplit;
-
-  # trim' = value: trimBoth "[[:space:]]" value;
+    mkFn {
+      name = "strings.${name}";
+      positional = ["value" "pattern"];
+      required = ["value"];
+      defaults.pattern = "[[:space:]]";
+      simulation = [
+        {
+          args = " foo bar ";
+          desired = desired.${mode};
+        }
+        {
+          args = ["--foo-bar--" "-"];
+          desired =
+            if mode == "start"
+            then "foo-bar--"
+            else if mode == "end"
+            then "--foo-bar"
+            else "foo-bar";
+        }
+        {
+          args = {value = " foo bar ";};
+          desired = desired.${mode};
+        }
+      ];
+      execution = args:
+        trim {
+          inherit (args) value pattern;
+          inherit mode;
+        };
+    };
 
   /**
-  Trim characters matching a pattern from the start of a string. A hybrid
-  partial application of `trim` with `mode` pre-bound to `"start"`.
+  Trim repeated matches from the start of a string. This is the `"start"`
+  specialization of `trim`; the pattern is a POSIX extended regular expression
+  and defaults to whitespace.
 
   # Type
   ```nix
@@ -920,52 +951,33 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.trim
 
   # Arguments
-  arg
-  : A configuration attribute set { pattern ?, value }, or the pattern string
-  for curried positional invocation. `pattern` defaults to `"[[:space:]]"`.
+  value
+  : The non-empty string to trim, or `{ value, pattern ? "[[:space:]]" }`.
+
+  pattern
+  : A non-empty POSIX extended regular expression. In positional calls it
+    follows `value`, and may be omitted to trim whitespace.
 
   # Examples
-  - __Explicit Attribute Set Configuration (pattern defaults to whitespace)__
+  > trimStart "  hello  "
+  => "hello  "
 
-  > trimStart { value = "  hello"; }
-  => "hello"
-
-  > trimStart { pattern = "-"; value = "--hello"; }
-  => "hello"
-
-  - __Curried Positional (Pattern then Value)__
-
-  > trimStart "-" "--hello"
-  => "hello"
-
-  - __Partial application__
-
-  > trimDashesStart = trimStart "-";
-  > trimDashesStart "--hello--"
+  > trimStart "--hello--" "-"
   => "hello--"
+
+  > trimStart { value = "0042"; pattern = "0"; }
+  => "42"
   */
-  trimStart = arg: let
-    positional = ["pattern" "value"];
-    primary = lastOf positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = [primary];
-          defaults.pattern = "[[:space:]]";
-        };
-      in
-        trim' "start" args.pattern args.value
-    );
-  in
-    function arg;
+  trimStart = trimSpecialized "trimStart" "start";
 
   /**
-  Trim characters matching a pattern from the end of a string. A hybrid
-  partial application of `trim` with `mode` pre-bound to `"end"`.
+  Trim repeated matches from the end of a string. This is the `"end"`
+  specialization of `trim`; the pattern is a POSIX extended regular expression
+  and defaults to whitespace.
 
   # Type
   ```nix
@@ -974,106 +986,68 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.trim
 
   # Arguments
-  arg
-  : A configuration attribute set { pattern ?, value }, or the pattern string
-  for curried positional invocation. `pattern` defaults to `"[[:space:]]"`.
+  value
+  : The non-empty string to trim, or `{ value, pattern ? "[[:space:]]" }`.
+
+  pattern
+  : A non-empty POSIX extended regular expression. In positional calls it
+    follows `value`, and may be omitted to trim whitespace.
 
   # Examples
-  - __Explicit Attribute Set Configuration (pattern defaults to whitespace)__
+  > trimEnd "  hello  "
+  => "  hello"
 
-  > trimEnd { value = "hello  "; }
-  => "hello"
-
-  > trimEnd { pattern = "-"; value = "hello--"; }
-  => "hello"
-
-  - __Curried Positional (Pattern then Value)__
-
-  > trimEnd "-" "hello--"
-  => "hello"
-
-  - __Partial application__
-
-  > trimDashesEnd = trimEnd "-";
-  > trimDashesEnd "--hello--"
+  > trimEnd "--hello--" "-"
   => "--hello"
+
+  > trimEnd { value = "4200"; pattern = "0"; }
+  => "42"
   */
-  trimEnd = arg: let
-    positional = ["pattern" "value"];
-    primary = lastOf positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = [primary];
-          defaults.pattern = "[[:space:]]";
-        };
-      in
-        trim' "end" args.pattern args.value
-    );
-  in
-    function arg;
+  trimEnd = trimSpecialized "trimEnd" "end";
 
   /**
-  Trim characters matching a pattern from both ends of a string. A hybrid
-  partial application of `trim` with `mode` pre-bound to `"both"`.
+  Trim repeated matches from both ends of a string while preserving matches in
+  its interior. This is the `"both"` specialization of `trim`; the pattern is
+  a POSIX extended regular expression and defaults to whitespace.
 
   # Type
   ```nix
-  trimBoth :: AttrSet -> String
-  trimBoth :: String -> String -> String
+  trimEnds :: AttrSet -> String
+  trimEnds :: String -> String -> String
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.trim
 
   # Arguments
-  arg
-  : A configuration attribute set { pattern ?, value }, or the pattern string
-  for curried positional invocation. `pattern` defaults to `"[[:space:]]"`.
+  value
+  : The non-empty string to trim, or `{ value, pattern ? "[[:space:]]" }`.
+
+  pattern
+  : A non-empty POSIX extended regular expression. In positional calls it
+    follows `value`, and may be omitted to trim whitespace.
 
   # Examples
-  - __Explicit Attribute Set Configuration (pattern defaults to whitespace)__
-
-  > trimBoth { value = "  hello  "; }
+  > __trimEnds__ _"  hello  "_
   => "hello"
 
-  > trimBoth { pattern = "-"; value = "--hello--"; }
-  => "hello"
+  > __trimEnds_ _"--hello-world--"_ _"-"_
+  => "hello-world"
 
-  - __Curried Positional (Pattern then Value)__
-
-  > trimBoth "-" "--hello--"
-  => "hello"
-
-  - __Partial application__
-
-  > trimDashesBoth = trimBoth "-";
-  > trimDashesBoth "-foo-"
-  => "foo"
+  > trimEnds { value = "00-42-00"; pattern = "0"; }
+  => "-42-"
   */
-  trimBoth = arg: let
-    positional = ["pattern" "value"];
-    primary = lastOf positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = [primary];
-          defaults.pattern = "[[:space:]]";
-        };
-      in
-        trim' "both" args.pattern args.value
-    );
-  in
-    function arg;
+  trimEnds = trimSpecialized "trimEnds" "both";
 
   /**
-  Trim all occurrences of a pattern from anywhere within a string. A hybrid
-  partial application of `trim` with `mode` pre-bound to `"all"`.
+  Remove every match from a string, including matches between other
+  characters. This is the `"all"` specialization of `trim`; the pattern is a
+  POSIX extended regular expression and defaults to whitespace.
 
   # Type
   ```nix
@@ -1082,48 +1056,28 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - strings.trim
 
   # Arguments
-  arg
-  : A configuration attribute set { pattern ?, value }, or the pattern string
-  for curried positional invocation. `pattern` defaults to `"[[:space:]]"`.
+  value
+  : The non-empty string to trim, or `{ value, pattern ? "[[:space:]]" }`.
+
+  pattern
+  : A non-empty POSIX extended regular expression. In positional calls it
+    follows `value`, and may be omitted to remove whitespace.
 
   # Examples
-  - __Explicit Attribute Set Configuration (pattern defaults to whitespace)__
-
-  > trimAll { pattern = "-"; value = "-foo-bar-"; }
+  > trimAll " foo bar "
   => "foobar"
 
-  > trimAll { value = "foo bar   baz"; }
-  => "foobarbaz"
-
-  - __Curried Positional (Pattern then Value)__
-
-  > trimAll "-" "-foo-bar-"
+  > trimAll "-foo-bar-" "-"
   => "foobar"
 
-  - __Partial application__
-
-  > stripDashes = trimAll "-";
-  > stripDashes "a-b-c-d"
-  => "abcd"
+  > trimAll { value = "a1b2c3"; pattern = "[0-9]"; }
+  => "abc"
   */
-  trimAll = arg: let
-    positional = ["pattern" "value"];
-    primary = lastOf positional;
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = [primary];
-          defaults.pattern = "[[:space:]]";
-        };
-      in
-        trim' "all" args.pattern args.value
-    );
-  in
-    function arg;
+  trimAll = trimSpecialized "trimAll" "all";
 
   /**
   Return a non-empty string as-is, otherwise return `""`.
@@ -1157,7 +1111,7 @@
   ```
   */
   orEmpty = value:
-    if isString value && stringLength (trim' value) > 0
+    if isString value && stringLength (trim value) > 0
     then value
     else "";
 
@@ -1175,6 +1129,7 @@
   ```
 
   # Dependencies
+  - assembly.mkFn
   - builtins.filter
   - builtins.isString
   - builtins.split
@@ -1214,43 +1169,55 @@
   > splitOnDot "no-dots-here"
   => [ "no-dots-here" ]
   */
-  split' = arg: let
+  split = mkFn {
+    name = "strings.split";
     positional = ["sep" "str"];
-    primary = lastOf positional;
+    required = ["sep" "str"];
 
-    function = makeHybrid {inherit positional primary;} (
-      payload: let
-        args = readHybrid {
-          inherit payload;
-          required = positional;
+    validation = {};
+
+    simulation = [
+      {
+        args = {
+          sep = ".";
+          str = "a.b.c";
         };
+        desired = ["a" "b" "c"];
+      }
+      {
+        args = ["/" "usr/local/bin"];
+        desired = ["usr" "local" "bin"];
+      }
+      {
+        args = ["," "a,b,,c"];
+        desired = ["a" "b" "" "c"];
+      }
+      {
+        args = ["." "a.b.c"];
+        desired = ["a" "b" "c"];
+      }
+      {
+        args = ["." "no-dots-here"];
+        desired = ["no-dots-here"];
+      }
+    ];
 
-        # List of all POSIX ERE special characters
-        specialChars = ["\\" "." "+" "*" "?" "^" "$" "(" ")" "[" "]" "{" "}" "|"];
+    execution = args: let
+      #> List of all POSIX ERE special characters
+      specialChars = ["\\" "." "+" "*" "?" "^" "$" "(" ")" "[" "]" "{" "}" "|"];
 
-        # Their escaped counterparts
-        escapedChars = map (c: "\\${c}") specialChars;
+      #> Their escaped counterparts
+      escapedChars = map (c: "\\${c}") specialChars;
 
-        # Safely escape the provided separator
-        escapedSep = replaceStrings specialChars escapedChars args.sep;
+      #> Safely escape the separator so it acts as a literal string, not a regex
+      escapedSep = replaceStrings specialChars escapedChars args.sep;
 
-        # Basic regex escaping for common delimiters like '.' or '-'
-        # If your paths only use dots, escaping the dot is the main priority.
-        # escapedSep =
-        #   if args.sep == "."
-        #   then "\\."
-        #   else if args.sep == "*"
-        #   then "\\*"
-        #   else if args.sep == "+"
-        #   then "\\+"
-        #   else args.sep;
-
-        rawSplit = split escapedSep args.str;
-      in
-        filter isString rawSplit
-    );
-  in
-    function arg;
+      #> Perform the split using the built-in regex split, then filter out
+      #> the regex match lists, keeping only the string segments
+      rawSplit = splitOrig escapedSep args.str;
+    in
+      filter isString rawSplit;
+  };
 
   quote = value: let
     quoteOne = item: "\"" + replaceStrings ["\\" "\""] ["\\\\" "\\\""] (toString item) + "\"";
