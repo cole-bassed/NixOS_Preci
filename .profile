@@ -110,7 +110,7 @@ configure() {
 		monitor_pri_name="HDMI-A-2"
 		monitor_pri_width="2560"
 		monitor_pri_height="1440"
-		monitor_pri_rate="100"
+		monitor_pri_rate="99.97"
 
 		monitor_sec_name="DP-3"
 		monitor_sec_width="1600"
@@ -735,43 +735,95 @@ setup_tailscale() {
 	# install
 	# ----------------------------------------------------------------------------
 	# Adds the tailscale package from nixpkgs if the binary is not already on PATH.
+	# The package is installed in the user profile; the daemon still runs as root.
 	# ----------------------------------------------------------------------------
 	install() {
 		case "$(command -v tailscale 2>/dev/null)" in
-		"") nix profile add nixpkgs#tailscale ;;
+		"")
+			print_info "Installing Tailscale from nixpkgs..."
+			nix profile add nixpkgs#tailscale || return 1
+			;;
 		*) ;;
 		esac
 	}
 
 	# ----------------------------------------------------------------------------
-	# start_daemon
+	# daemon_ready
 	# ----------------------------------------------------------------------------
-	# Launches tailscaled in the background when no running instance is detected.
-	# Waits briefly for the socket to become available before continuing.
+	# Returns success when the local tailscaled socket is usable.
 	# ----------------------------------------------------------------------------
-	start_daemon() {
-		if tailscale status >/dev/null 2>&1; then
-			return
-		fi
-
-		if pgrep tailscaled >/dev/null 2>&1; then
-			sudo pkill tailscaled
-			sleep 1
-		fi
-
-		sudo tailscaled --state=/var/lib/tailscale/tailscaled.state 2>&1 |
-			sudo tee /tmp/tailscaled.log >/dev/null &
-
-		sleep 2
+	daemon_ready() {
+		tailscale status >/dev/null 2>&1
 	}
+
+	# ----------------------------------------------------------------------------
+	# start_systemd
+	# ----------------------------------------------------------------------------
+	# The Nix profile supplies a service unit, but outside the NixOS module it
+	# expects PORT and FLAGS from the generated system configuration. Supplying
+	# those values through the systemd manager makes the profile-only unit usable.
+	# Runtime enablement intentionally does not attempt to modify immutable /etc.
+	# ----------------------------------------------------------------------------
+	start_systemd() {
+		if ! command -v systemctl >/dev/null 2>&1; then
+			return 1
+		fi
+
+		sudo systemctl set-environment PORT=0 FLAGS= >/dev/null 2>&1 || return 1
+		sudo systemctl reset-failed tailscaled.service >/dev/null 2>&1 || true
+
+		if ! sudo systemctl start tailscaled.service >/dev/null 2>&1; then
+			return 1
+		fi
+
+		# This lasts for the current boot without writing to NixOS-managed /etc.
+		sudo systemctl enable --runtime tailscaled.service >/dev/null 2>&1 || true
+		sleep 1
+		daemon_ready
+	}
+
+	# ----------------------------------------------------------------------------
+	# start_manual
+	# ----------------------------------------------------------------------------
+	# Fallback for systems where the profile-provided service cannot run. The
+	# explicit --port=0 is required; an omitted PORT can become an invalid empty
+	# systemd flag in the packaged unit.
+	# ----------------------------------------------------------------------------
+	start_manual() {
+		if pgrep -x tailscaled >/dev/null 2>&1; then
+			return 0
+		fi
+
+		mkdir -p "${HOME}/.cache/tailscale"
+		sudo tailscaled \
+			--state=/var/lib/tailscale/tailscaled.state \
+			--socket=/run/tailscale/tailscaled.sock \
+			--port=0 \
+			>"${HOME}/.cache/tailscale/tailscaled.log" 2>&1 &
+
+		_i=0
+		while [ "${_i}" -lt 20 ]; do
+			daemon_ready && return 0
+			sleep 0.25
+			_i=$((_i + 1))
+		done
+
+		print_error "Tailscale daemon did not become ready; see ${HOME}/.cache/tailscale/tailscaled.log"
+		return 1
+	}
+
 	# ----------------------------------------------------------------------------
 	# connect
 	# ----------------------------------------------------------------------------
-	# Brings the Tailscale node up if it is not already connected. The healthy
+	# Brings Tailscale up if it is not already connected. The healthy
 	# already-connected path is quiet unless verbose output was requested.
 	# ----------------------------------------------------------------------------
-
 	connect() {
+		if ! daemon_ready; then
+			print_error "Tailscale daemon is not responding"
+			return 1
+		fi
+
 		if ! tailscale status >/dev/null 2>&1; then
 			sudo tailscale up
 			return
@@ -779,8 +831,15 @@ setup_tailscale() {
 		print_verbose "Tailscale already connected"
 	}
 
-	install
-	start_daemon
+	install || return 1
+
+	if ! daemon_ready; then
+		if ! start_systemd; then
+			print_warn "systemd tailscaled service unavailable; using manual daemon fallback"
+			start_manual || return 1
+		fi
+	fi
+
 	connect
 }
 
